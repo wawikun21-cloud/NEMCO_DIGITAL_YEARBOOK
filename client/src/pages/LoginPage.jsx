@@ -16,20 +16,20 @@ export default function LoginPage() {
         style={{ backgroundImage: "url('/Loginbackground.png')" }}
       />
       <div className="absolute inset-0 bg-navy/3" />
-       <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-md overflow-hidden animate-login">
-        <div className="flex flex-col items-center gap-4 bg-navy px-6 py-8">
+       <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-md overflow-hidden animate-login animate-delay-200">
+        <div className="flex flex-col items-center gap-4 bg-navy px-6 py-8 animate-fade-in-down animate-delay-300">
           <img
             src="/NEMCO-Logo.png"
             alt="NEMCO Logo"
-            className="h-12 w-auto opacity-90"
+            className="h-12 w-auto opacity-90 animate-fade-in-down animate-delay-400"
           />
-          <div className="space-y-1 text-center">
+          <div className="space-y-1 text-center animate-fade-in-down animate-delay-500">
             <h1 className="text-2xl font-semibold tracking-tight text-navy-foreground">NEMCO Yearbook Portal</h1>
             <p className="text-sm text-navy-foreground/80">Your Digital Collection of School Memories</p>
           </div>
         </div>
 
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 animate-fade-in-up animate-delay-600">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div className="space-y-2">
               <label htmlFor="studentId" className="text-sm font-medium">
