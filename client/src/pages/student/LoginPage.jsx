@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLoginForm } from "@/hooks/useLoginForm"
 import { loginWithBackend } from "@/services/authService"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function LoginPage() {
   const { formData, errors, isSubmitting, handleChange, handleSubmit } = useLoginForm()
   const [loginError, setLoginError] = useState("")
   const [loginSuccess, setLoginSuccess] = useState("")
+  const { login } = useAuth()
 
   const onSubmit = async (data) => {
     setLoginError("")
@@ -15,7 +17,10 @@ export default function LoginPage() {
 
     try {
       const result = await loginWithBackend(data)
-      setLoginSuccess(`Welcome, ${result.profile.display_name || result.profile.full_name || result.profile.email}`)
+      login(result.user, result.profile)
+      setTimeout(() => {
+        window.location.href = result.user.role === "admin" ? "/admin" : "/dashboard"
+      }, 0)
     } catch (error) {
       setLoginError(error.message || "Login failed")
     }

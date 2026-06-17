@@ -2,6 +2,7 @@ import { useDashboard } from "@/hooks/useDashboard"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import DashboardHero from "@/components/dashboard/DashboardHero"
 import DashboardNavGrid from "@/components/dashboard/DashboardNavGrid"
+import { useAuth } from "@/contexts/AuthContext"
 
 /**
  * DashboardPage
@@ -9,13 +10,30 @@ import DashboardNavGrid from "@/components/dashboard/DashboardNavGrid"
  * Replace the navigate stubs with useNavigate() from react-router-dom.
  */
 export default function DashboardPage() {
-  const { user, greeting } = useDashboard()
+  const { user: authUser, logout } = useAuth()
+  const { greeting } = useDashboard()
 
-  const handleNavigate    = (href) => console.log("→", href)
-  const handleLogout      = () => console.log("→ logout")
-  const handleProfile     = () => console.log("→ /profile")
-  const handleLibrary     = () => console.log("→ /library")
-  const handleResume      = () => console.log("→ /resume")
+  const user = {
+    name: authUser?.email || "Student",
+    firstName: (authUser?.email || "Student").split("@")[0],
+    avatarInitials: (authUser?.email || "Student").charAt(0),
+  }
+
+  const handleLogout = () => {
+    logout()
+    window.location.href = "/login"
+  }
+
+  const handleNavigate = (href) => {
+    window.location.href = href
+  }
+
+  const handleProfile = () => {
+    window.location.href = "/profile"
+  }
+
+  const handleLibrary = () => console.log("→ /library")
+  const handleResume = () => console.log("→ /resume")
 
   return (
     <DashboardLayout
@@ -23,9 +41,10 @@ export default function DashboardPage() {
       user={user}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
+      onProfile={handleProfile}
     >
       {/* ── Page content ── */}
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
         <DashboardHero greeting={greeting} firstName={user.firstName} />
 
         <DashboardNavGrid
