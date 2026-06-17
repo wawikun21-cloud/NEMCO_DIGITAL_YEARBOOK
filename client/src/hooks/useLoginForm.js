@@ -25,12 +25,15 @@ export function useLoginForm(initialState = { studentId: "", password: "" }) {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (onSubmit) => (e) => {
+  const handleSubmit = (onSubmit) => async (e) => {
     e.preventDefault()
     if (validate()) {
       setIsSubmitting(true)
-      onSubmit?.(formData)
-      setIsSubmitting(false)
+      try {
+        await onSubmit?.(formData)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 

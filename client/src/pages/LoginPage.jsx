@@ -1,12 +1,24 @@
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLoginForm } from "@/hooks/useLoginForm"
+import { loginWithBackend } from "@/services/authService"
 
 export default function LoginPage() {
   const { formData, errors, isSubmitting, handleChange, handleSubmit } = useLoginForm()
+  const [loginError, setLoginError] = useState("")
+  const [loginSuccess, setLoginSuccess] = useState("")
 
-  const onSubmit = (data) => {
-    console.log("Login attempt:", data)
+  const onSubmit = async (data) => {
+    setLoginError("")
+    setLoginSuccess("")
+
+    try {
+      const result = await loginWithBackend(data)
+      setLoginSuccess(`Welcome, ${result.profile.display_name || result.profile.full_name || result.profile.email}`)
+    } catch (error) {
+      setLoginError(error.message || "Login failed")
+    }
   }
 
   return (
@@ -31,6 +43,17 @@ export default function LoginPage() {
 
         <div className="space-y-6 p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            {loginError && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {loginError}
+              </p>
+            )}
+            {loginSuccess && (
+              <p className="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-700">
+                {loginSuccess}
+              </p>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="studentId" className="text-sm font-medium">
                 Student ID No.
