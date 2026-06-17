@@ -36,7 +36,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes)
 
-if (config.nodeEnv === "production" && process.env.VERCEL !== "1") {
+if (config.nodeEnv === "production") {
   const clientDistPath = path.resolve(__dirname, "../../client/dist")
   app.use(express.static(clientDistPath))
 

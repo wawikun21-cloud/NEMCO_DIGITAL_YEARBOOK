@@ -9,7 +9,6 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test": "jest"
-    "vercel-build": "echo 'Serverless - no build needed'"
   },
   "keywords": ["api", "server", "digital-year-book"],
   "author": "",
