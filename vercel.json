@@ -4,6 +4,10 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/((?!assets/|favicon\\.svg|icons\\.svg|Loginbackground\\.png|NEMCO-Logo\\.png|api/).*)",
       "destination": "/index.html"
     }
