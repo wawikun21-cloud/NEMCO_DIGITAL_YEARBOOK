@@ -13,7 +13,7 @@ import DashboardNavCard from "./DashboardNavCard"
 export default function DashboardNavGrid({ onLibrary, onProfile, onResume }) {
   const cards = [
     {
-      key: "library",
+      id: "library",
       icon: <BookOpen size={28} strokeWidth={1.8} />,
       iconBg: "bg-violet-100 dark:bg-violet-900/30",
       iconColor: "text-violet-600 dark:text-violet-400",
@@ -24,7 +24,7 @@ export default function DashboardNavGrid({ onLibrary, onProfile, onResume }) {
       onClick: onLibrary,
     },
     {
-      key: "profile",
+      id: "profile",
       icon: <User size={28} strokeWidth={1.8} />,
       iconBg: "bg-sky-100 dark:bg-sky-900/30",
       iconColor: "text-sky-500 dark:text-sky-400",
@@ -35,7 +35,7 @@ export default function DashboardNavGrid({ onLibrary, onProfile, onResume }) {
       onClick: onProfile,
     },
     {
-      key: "resume",
+      id: "resume",
       icon: <FileText size={28} strokeWidth={1.8} />,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
       iconColor: "text-emerald-600 dark:text-emerald-400",
@@ -49,8 +49,8 @@ export default function DashboardNavGrid({ onLibrary, onProfile, onResume }) {
 
   return (
     <section aria-label="Quick access" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {cards.map((card) => (
-        <DashboardNavCard key={card.key} {...card} />
+      {cards.map(({ id, ...props }) => (
+        <DashboardNavCard key={id} {...props} />
       ))}
     </section>
   )

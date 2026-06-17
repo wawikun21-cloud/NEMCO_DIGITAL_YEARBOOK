@@ -23,7 +23,7 @@ export default function DashboardTopbar() {
 
         {/* Page title */}
         <span className="truncate text-sm font-semibold text-[var(--text-primary)] md:hidden">
-          Student Portal
+          NEMCO Digital Yearbook
         </span>
 
         {/* Spacer */}

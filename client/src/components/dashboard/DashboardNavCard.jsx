@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
  * A single feature access card.
  *
  * Props:
+ *  - id: string            — unique identifier (used as React key)
  *  - icon: ReactNode       — lucide icon or any SVG element
  *  - iconBg: string        — tailwind bg class for the icon circle e.g. "bg-violet-100"
  *  - iconColor: string     — tailwind text class e.g. "text-violet-600"

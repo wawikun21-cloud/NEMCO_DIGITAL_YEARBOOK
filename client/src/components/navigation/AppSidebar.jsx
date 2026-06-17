@@ -32,7 +32,7 @@ import {
  * NAV_ITEMS — extracted list for easy customisation.
  */
 const NAV_MAIN = [
-  { key: "Home",     label: "Home",     icon: LayoutDashboard, href: "/dashboard" },
+  { key: "dashboard",     label: "Dashboard",     icon: LayoutDashboard, href: "/dashboard" },
   { key: "library",       label: "Library",        icon: BookOpen,        href: "/library" },
   { key: "profile",       label: "My Profile",     icon: User,            href: "/profile" },
   { key: "resume",        label: "Resume Builder", icon: FileText,        href: "/resume" },
