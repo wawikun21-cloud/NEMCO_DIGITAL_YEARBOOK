@@ -8,21 +8,17 @@ import { useAuth } from "@/contexts/AuthContext"
 export default function LoginPage() {
   const { formData, errors, isSubmitting, handleChange, handleSubmit } = useLoginForm()
   const [loginError, setLoginError] = useState("")
-  const [loginSuccess, setLoginSuccess] = useState("")
-  const { login } = useAuth()
+  const { login: setAuthLogin } = useAuth()
 
   const onSubmit = async (data) => {
     setLoginError("")
-    setLoginSuccess("")
 
     try {
       const result = await loginWithBackend(data)
-      login(result.user, result.profile)
-      setTimeout(() => {
-        window.location.href = result.user.role === "admin" ? "/admin" : "/dashboard"
-      }, 0)
+      // Update AuthProvider context with user and profile
+      setAuthLogin(result.user, result.profile)
     } catch (error) {
-      setLoginError(error.message || "Login failed")
+      setLoginError(error.message || "Login failed. Please check your credentials.")
     }
   }
 
@@ -33,7 +29,7 @@ export default function LoginPage() {
         style={{ backgroundImage: "url('/Loginbackground.png')" }}
       />
       <div className="absolute inset-0 bg-navy/3" />
-       <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-md overflow-hidden animate-login animate-delay-200">
+      <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-md overflow-hidden animate-login animate-delay-200">
         <div className="flex flex-col items-center gap-4 bg-navy px-6 py-8 animate-fade-in-down animate-delay-300">
           <img
             src="/NEMCO-Logo.png"
@@ -41,8 +37,12 @@ export default function LoginPage() {
             className="h-12 w-auto opacity-90 animate-fade-in-down animate-delay-400"
           />
           <div className="space-y-1 text-center animate-fade-in-down animate-delay-500">
-            <h1 className="text-2xl font-semibold tracking-tight text-navy-foreground">NEMCO Yearbook Portal</h1>
-            <p className="text-sm text-navy-foreground/80">Your Digital Collection of School Memories</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-navy-foreground">
+              NEMCO Yearbook Portal
+            </h1>
+            <p className="text-sm text-navy-foreground/80">
+              Your Digital Collection of School Memories
+            </p>
           </div>
         </div>
 
@@ -51,11 +51,6 @@ export default function LoginPage() {
             {loginError && (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {loginError}
-              </p>
-            )}
-            {loginSuccess && (
-              <p className="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-700">
-                {loginSuccess}
               </p>
             )}
 
@@ -72,7 +67,11 @@ export default function LoginPage() {
                 onChange={handleChange}
                 required
                 autoComplete="off"
-                className={errors.studentId ? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20" : ""}
+                className={
+                  errors.studentId
+                    ? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20"
+                    : ""
+                }
               />
               {errors.studentId && (
                 <p className="text-xs text-destructive">{errors.studentId}</p>
@@ -80,11 +79,9 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </label>
-              </div>
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
               <Input
                 id="password"
                 name="password"
@@ -94,19 +91,29 @@ export default function LoginPage() {
                 onChange={handleChange}
                 required
                 autoComplete="current-password"
-                className={errors.password ? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20" : ""}
+                className={
+                  errors.password
+                    ? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20"
+                    : ""
+                }
               />
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password}</p>
               )}
             </div>
 
-            <Button type="submit" className="w-full bg-navy text-navy-foreground hover:bg-navy/90" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full bg-navy text-navy-foreground hover:bg-navy/90"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">&copy; {new Date().getFullYear()} NEMCO Digital Yearbook. All rights reserved.</p>
-          </form>
 
+            <p className="text-center text-xs text-muted-foreground">
+              &copy; {new Date().getFullYear()} NEMCO Digital Yearbook. All rights reserved.
+            </p>
+          </form>
         </div>
       </div>
     </div>

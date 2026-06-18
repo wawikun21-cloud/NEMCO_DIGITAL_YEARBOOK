@@ -139,7 +139,7 @@ export default function AdminDashboard() {
         </Button>
         <Button
           variant="outline"
-          onClick={() => console.log("→ /admin/import")}
+          onClick={() => window.location.href = "/admin/import"}
           className="gap-2"
         >
           <Upload size={16} />

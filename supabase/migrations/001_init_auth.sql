@@ -100,7 +100,7 @@ create table if not exists public.import_batches (
   total_rows integer not null default 0,
   success_count integer not null default 0,
   failed_count integer not null default 0,
-  status text not null default 'pending' check (status in ('pending', 'processing', 'completed', 'failed')),
+  status text not null default 'pending' check (status in ('pending', 'processing', 'completed', 'completed_with_errors', 'failed')),
   error_file_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

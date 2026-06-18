@@ -1,7 +1,13 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
+const normalizeStudentNumber = (value) => {
+  const normalized = String(value).trim()
+  if (!normalized) return undefined
+  return normalized.padStart(7, "0")
+}
+
 export async function loginWithStudentId({ studentId, password }) {
-  const identifier = studentId.trim()
+  const identifier = normalizeStudentNumber(studentId)
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
