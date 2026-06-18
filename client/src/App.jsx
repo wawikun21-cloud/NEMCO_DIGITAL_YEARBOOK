@@ -59,8 +59,7 @@ export default function App() {
     if (path === "/library") return <LibraryPage />
     if (path === "/profile") return <div className="p-8">Profile Page (coming soon)</div>
     if (path === "/resume") return <div className="p-8">Resume Builder (coming soon)</div>
-    window.location.href = "/library"
-    return null
+    return <LibraryPage />
   }
 
   if (role === "admin") {

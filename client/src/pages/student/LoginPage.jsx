@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLoginForm } from "@/hooks/useLoginForm"
@@ -8,17 +8,22 @@ import { useAuth } from "@/contexts/AuthContext"
 export default function LoginPage() {
   const { formData, errors, isSubmitting, handleChange, handleSubmit } = useLoginForm()
   const [loginError, setLoginError] = useState("")
+  const [shouldRedirect, setShouldRedirect] = useState(false)
   const { login: setAuthLogin } = useAuth()
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      window.location.assign("/library")
+    }
+  }, [shouldRedirect])
 
   const onSubmit = async (data) => {
     setLoginError("")
 
     try {
       const result = await loginWithBackend(data)
-      // Update AuthProvider context with user and profile
       setAuthLogin(result.user, result.profile)
-      // Redirect to library page after successful login
-      window.location.href = "/library"
+      setShouldRedirect(true)
     } catch (error) {
       setLoginError(error.message || "Login failed. Please check your credentials.")
     }
