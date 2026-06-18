@@ -11,7 +11,11 @@
     "test": "jest",
     "vercel-build": "echo 'Serverless - no build needed'"
   },
-  "keywords": ["api", "server", "digital-year-book"],
+  "keywords": [
+    "api",
+    "server",
+    "digital-year-book"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -21,6 +25,8 @@
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
+    "multer": "^2.2.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
