@@ -4,6 +4,7 @@ import LoginPage from "./pages/student/LoginPage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import AdminDashboard from "@/pages/admin/AdminDashboard"
 import ImportUsersPage from "@/pages/admin/ImportUsersPage"
+import ManageUsersPage from "@/pages/admin/ManageUsersPage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
@@ -45,6 +46,7 @@ export default function App() {
   const getAdminPage = () => {
     const path = window.location.pathname
     if (path === "/admin/import") return <ImportUsersPage />
+    if (path === "/admin/users") return <ManageUsersPage />
     return <AdminDashboard />
   }
 
