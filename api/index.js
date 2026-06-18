@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
+import { getAuditLogs, getAuditLogById, getAuditLogFilters } from "../server/src/services/auditLogService.js"
 
 const loginSchema = z.object({
   studentId: z.string().trim().min(1, "Student ID is required"),
@@ -14,7 +15,82 @@ const supabaseAdmin = createClient(supabaseUrl || "", supabaseServiceRoleKey || 
 })
 
 function json(res, status, body) {
-  res.status(status).setHeader("Content-Type", "application/json").end(JSON.stringify(body))
+  res.setHeader("Content-Type", "application/json")
+  res.status(status).end(JSON.stringify(body))
+}
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin || ""
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)
+
+  if (origin && allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin)
+    res.setHeader("Access-Control-Allow-Credentials", "true")
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization")
+  }
+}
+
+async function requireAuth(req, res) {
+  const authHeader = req.headers.authorization
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null
+
+  if (!token) {
+    json(res, 401, { message: "Authorization token required" })
+    return null
+  }
+
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token)
+
+  if (authError || !authData?.user) {
+    json(res, 401, { message: "Invalid or expired token" })
+    return null
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, role, status")
+    .eq("id", authData.user.id)
+    .maybeSingle()
+
+  if (profileError || !profile) {
+    json(res, 401, { message: "User profile not found" })
+    return null
+  }
+
+  if (profile.role !== "admin" || profile.status !== "active") {
+    json(res, 403, { message: "Admin access required" })
+    return null
+  }
+
+  return { ...authData.user, id: profile.id }
+}
+
+async function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+      resolve({})
+      return
+    }
+    const chunks = []
+    req.on("data", (chunk) => chunks.push(chunk))
+    req.on("end", () => {
+      if (chunks.length === 0) {
+        resolve({})
+        return
+      }
+      const raw = Buffer.concat(chunks).toString("utf8")
+      try {
+        resolve(JSON.parse(raw))
+      } catch {
+        resolve({})
+      }
+    })
+    req.on("error", reject)
+  })
 }
 
 async function handleHealth(req, res) {
@@ -75,23 +151,70 @@ async function handleLogin(req, res) {
   }
 }
 
-export default async function handler(req, res) {
-  const origin = req.headers.origin || ""
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean)
+async function handleListLogs(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
 
-  if (origin && allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin)
-    res.setHeader("Access-Control-Allow-Credentials", "true")
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization")
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const page = parseInt(url.searchParams.get("page") || "1", 10)
+    const perPage = parseInt(url.searchParams.get("perPage") || "25", 10)
+    const action = url.searchParams.get("action") || null
+    const entityType = url.searchParams.get("entityType") || null
+    const userId = url.searchParams.get("userId") || null
+    const search = url.searchParams.get("search") || null
+    const dateFrom = url.searchParams.get("dateFrom") || null
+    const dateTo = url.searchParams.get("dateTo") || null
+
+    const result = await getAuditLogs({ page, perPage, action, entityType, userId, search, dateFrom, dateTo })
+    json(res, 200, result)
+  } catch (error) {
+    console.error("[LIST LOGS ERROR]", error.message)
+    json(res, 500, { message: "Failed to fetch audit logs" })
   }
+}
+
+async function handleGetLog(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const id = url.pathname.split("/").pop()
+    const log = await getAuditLogById(id)
+
+    if (!log) {
+      return json(res, 404, { message: "Audit log not found" })
+    }
+
+    json(res, 200, { log })
+  } catch (error) {
+    console.error("[GET LOG ERROR]", error.message)
+    json(res, 500, { message: "Failed to fetch audit log" })
+  }
+}
+
+async function handleGetFilters(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+
+  try {
+    const filters = await getAuditLogFilters()
+    json(res, 200, filters)
+  } catch (error) {
+    console.error("[GET FILTERS ERROR]", error.message)
+    json(res, 500, { message: "Failed to fetch audit log filters" })
+  }
+}
+
+export default async function handler(req, res) {
+  setCorsHeaders(req, res)
 
   if (req.method === "OPTIONS") {
     return res.status(204).end()
   }
+
+  req.body = await parseBody(req)
 
   const url = new URL(req.url, `http://${req.headers.host}`)
   let pathname = url.pathname.replace(/\/+$/, "") || "/"
@@ -100,14 +223,24 @@ export default async function handler(req, res) {
     pathname = "/api" + pathname
   }
 
-  console.log("[DEBUG] method:", req.method, "pathname:", pathname, "originalUrl:", req.url)
-
   if (pathname === "/api/health") {
     return handleHealth(req, res)
   }
 
   if (pathname === "/api/auth/login" && req.method === "POST") {
     return handleLogin(req, res)
+  }
+
+  if (pathname === "/api/admin/logs" && req.method === "GET") {
+    return handleListLogs(req, res)
+  }
+
+  if (pathname === "/api/admin/logs/filters" && req.method === "GET") {
+    return handleGetFilters(req, res)
+  }
+
+  if (pathname.startsWith("/api/admin/logs/") && req.method === "GET") {
+    return handleGetLog(req, res)
   }
 
   json(res, 404, { message: "Not found", pathname })
