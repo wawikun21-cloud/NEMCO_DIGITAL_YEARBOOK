@@ -9,7 +9,12 @@ export async function loginWithBackend({ studentId, password }) {
     body: JSON.stringify({ studentId, password }),
   })
 
-  const data = await response.json()
+  let data
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(`Server error (${response.status}). Please try again later.`)
+  }
 
   if (!response.ok) {
     throw new Error(data.message || "Login failed")

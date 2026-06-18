@@ -58,10 +58,10 @@ function SelectTrigger({
 }
 
 function SelectContent({
-  className,
-  children,
-  position = "popper",
-  ...props
+   className,
+   children,
+   position = "popper",
+   ...props
 }) {
   return (
     <SelectPrimitive.Portal>

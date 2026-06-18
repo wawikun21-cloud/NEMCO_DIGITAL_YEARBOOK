@@ -2,8 +2,20 @@
   "name": "nemco-digital-yearbook",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "NEMCO Digital Yearbook - Full Stack Application",
   "scripts": {
-    "start": "cd server && node src/server.js"
+    "start": "cd server && node src/server.js",
+    "build": "cd client && npm install --include=dev && npm run build",
+    "vercel-build": "npm install && cd client && npm install --include=dev && npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "morgan": "^1.10.0",
+    "zod": "^3.23.8"
   }
 }
