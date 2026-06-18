@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { getAuditLogs, getAuditLogById, getAuditLogFilters } from "../server/src/services/auditLogService.js"
+import { getDashboardStats, getRecentLogs, getFailedImports } from "../server/src/services/dashboardService.js"
 
 const loginSchema = z.object({
   studentId: z.string().trim().min(1, "Student ID is required"),
@@ -207,6 +208,23 @@ async function handleGetFilters(req, res) {
   }
 }
 
+async function handleDashboard(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+
+  try {
+    const [stats, logs, failedImports] = await Promise.all([
+      getDashboardStats(),
+      getRecentLogs(),
+      getFailedImports(),
+    ])
+    json(res, 200, { stats, recentLogs: logs, failedImports })
+  } catch (error) {
+    console.error("[DASHBOARD ERROR]", error.message)
+    json(res, 500, { message: "Failed to fetch dashboard data" })
+  }
+}
+
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
 
@@ -241,6 +259,10 @@ export default async function handler(req, res) {
 
   if (pathname.startsWith("/api/admin/logs/") && req.method === "GET") {
     return handleGetLog(req, res)
+  }
+
+  if (pathname === "/api/admin/dashboard" && req.method === "GET") {
+    return handleDashboard(req, res)
   }
 
   json(res, 404, { message: "Not found", pathname })
