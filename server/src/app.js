@@ -40,7 +40,7 @@ if (config.nodeEnv === "production" && process.env.VERCEL !== "1") {
   const clientDistPath = path.resolve(__dirname, "../../client/dist")
   app.use(express.static(clientDistPath))
 
-  app.get("*", (req, res) => {
+  app.use((req, res) => {
     if (!req.path.startsWith("/api")) {
       res.sendFile(path.join(clientDistPath, "index.html"))
     }
