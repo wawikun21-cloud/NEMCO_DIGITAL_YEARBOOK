@@ -23,8 +23,8 @@ export default function AdminStatCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-5 shadow-sm",
-        "transition-shadow duration-200 hover:shadow-md"
+        "group flex flex-col gap-2 rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-5 shadow-sm",
+        "transition-shadow duration-200 hover:shadow-md animate-fade-in-up"
       )}
     >
       <div className="flex items-center justify-between">
@@ -46,7 +46,7 @@ export default function AdminStatCard({
         </div>
         <div
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105",
             iconBg,
             iconColor
           )}

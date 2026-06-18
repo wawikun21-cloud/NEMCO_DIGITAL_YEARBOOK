@@ -157,13 +157,15 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {mockStats.map((stat) => (
-          <AdminStatCard key={stat.id} {...stat} />
+        {mockStats.map((stat, index) => (
+          <div key={stat.id} className={`animate-fade-in-up animate-delay-${(index + 1) * 100}`}>
+            <AdminStatCard {...stat} />
+          </div>
         ))}
       </div>
 
       {/* Recent Activity & Failed Imports */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Recent Activity Table */}
         <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm">
           <div className="border-b border-[var(--border-light)] px-5 py-4">
@@ -233,6 +235,18 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 text-xs text-[var(--text-muted)] sm:flex-row">
+          <span>© {new Date().getFullYear()} NEMCO Digital Yearbook. All rights reserved.</span>
+          <nav className="flex gap-4">
+            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Privacy Policy</a>
+            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Terms of Use</a>
+            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Contact Us</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   )
 }
