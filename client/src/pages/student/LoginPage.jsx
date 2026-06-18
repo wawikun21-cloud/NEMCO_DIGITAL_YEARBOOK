@@ -17,6 +17,8 @@ export default function LoginPage() {
       const result = await loginWithBackend(data)
       // Update AuthProvider context with user and profile
       setAuthLogin(result.user, result.profile)
+      // Redirect to library page after successful login
+      window.location.href = "/library"
     } catch (error) {
       setLoginError(error.message || "Login failed. Please check your credentials.")
     }
