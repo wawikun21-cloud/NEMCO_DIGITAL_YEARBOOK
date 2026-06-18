@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import DashboardPage from "./pages/student/DashboardPage"
 import LoginPage from "./pages/student/LoginPage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
-import AdminDashboard from "@/components/admin/AdminDashboard"
+import AdminDashboard from "@/pages/admin/AdminDashboard"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()

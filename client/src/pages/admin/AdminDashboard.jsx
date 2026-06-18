@@ -1,4 +1,4 @@
-import AdminStatCard from "./AdminStatCard"
+import AdminStatCard from "../../components/admin/AdminStatCard"
 import {
   Users,
   UserCheck,
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
         <Button
           variant="default"
           onClick={() => console.log("→ /admin/users")}
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {mockStats.map((stat, index) => (
           <div key={stat.id} className={`animate-fade-in-up animate-delay-${(index + 1) * 100}`}>
             <AdminStatCard {...stat} />
@@ -176,10 +176,10 @@ export default function AdminDashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--bg-subtle)] text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                  <th className="px-5 py-3">User</th>
-                  <th className="px-5 py-3">Action</th>
-                  <th className="px-5 py-3">Entity</th>
-                  <th className="px-5 py-3 text-right">Time</th>
+                  <th className="px-3 py-3 sm:px-5">User</th>
+                  <th className="px-3 py-3 sm:px-5">Action</th>
+                  <th className="hidden px-3 py-3 sm:table-cell sm:px-5">Entity</th>
+                  <th className="px-3 py-3 text-right sm:px-5">Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-light)]">
@@ -188,10 +188,10 @@ export default function AdminDashboard() {
                     key={log.id}
                     className="transition-colors hover:bg-[var(--bg-subtle)]/50"
                   >
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)]">{log.user}</td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">{log.action}</td>
-                    <td className="px-5 py-3 text-[var(--text-muted)]">{log.entity}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right text-[var(--text-muted)]">
+                    <td className="px-3 py-3 font-medium text-[var(--text-primary)] sm:px-5">{log.user}</td>
+                    <td className="px-3 py-3 text-[var(--text-secondary)] sm:px-5">{log.action}</td>
+                    <td className="hidden px-3 py-3 text-[var(--text-muted)] sm:table-cell sm:px-5">{log.entity}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right text-[var(--text-muted)] sm:px-5">
                       {log.time}
                     </td>
                   </tr>
@@ -213,11 +213,11 @@ export default function AdminDashboard() {
                 key={item.id}
                 className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-[var(--bg-subtle)]/50"
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
                     {item.fileName}
                   </span>
-                  <span className="text-xs text-[var(--text-muted)]">{item.timestamp}</span>
+                  <span className="shrink-0 text-xs text-[var(--text-muted)]">{item.timestamp}</span>
                 </div>
                 <p className="text-xs text-[var(--status-red)]">{item.reason}</p>
               </div>
