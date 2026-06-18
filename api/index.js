@@ -94,7 +94,13 @@ export default async function handler(req, res) {
   }
 
   const url = new URL(req.url, `http://${req.headers.host}`)
-  const pathname = url.pathname
+  let pathname = url.pathname.replace(/\/+$/, "") || "/"
+
+  if (!pathname.startsWith("/api")) {
+    pathname = "/api" + pathname
+  }
+
+  console.log("[DEBUG] method:", req.method, "pathname:", pathname, "originalUrl:", req.url)
 
   if (pathname === "/api/health") {
     return handleHealth(req, res)
@@ -104,5 +110,5 @@ export default async function handler(req, res) {
     return handleLogin(req, res)
   }
 
-  json(res, 404, { message: "Not found" })
+  json(res, 404, { message: "Not found", pathname })
 }
