@@ -1,0 +1,9 @@
+{
+  "name": "nemco-digital-yearbook",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEMCO Digital Yearbook - Full Stack Application",
+  "scripts": {
+    "start": "cd server && node src/server.js"
+  }
+}
