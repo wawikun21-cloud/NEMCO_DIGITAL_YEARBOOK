@@ -31,10 +31,13 @@ import {
   Upload,
   Settings,
   BookMarked,
+  Sparkles,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
 const NAV_MAIN = [
+  { key: "3d-yearbook", label: "3D Yearbook", icon: Sparkles, href: "/3d-yearbook" },
+  { key: "flipbook", label: "PDF Flipbook", icon: BookMarked, href: "/flipbook" },
   { key: "library", label: "My Library", icon: BookOpen, href: "/library" },
   { key: "profile", label: "Profile", icon: User, href: "/profile" },
   { key: "resume", label: "Resume", icon: FileText, href: "/resume" },

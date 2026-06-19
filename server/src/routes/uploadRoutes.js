@@ -19,6 +19,29 @@ const upload = multer({
   },
 })
 
+function extractPageCount(buffer) {
+  try {
+    const str = buffer.toString("latin1")
+    let count = 0
+    const pagePattern = /\/Type\s*\/Page[^s]/g
+    let match
+    while ((match = pagePattern.exec(str)) !== null) {
+      count++
+    }
+    if (count > 0) return count
+    const pagesPattern = /\/Pages\s*\d+\s+\d+\s+R/
+    if (pagesPattern.test(str)) {
+      const kidsMatch = str.match(/\/Kids\s*\[.*?\]/s)
+      if (kidsMatch) {
+        return (kidsMatch[0].match(/\d+\s+\d+\s+R/g) || []).length
+      }
+    }
+    return 0
+  } catch {
+    return 0
+  }
+}
+
 router.post("/pdf", requireAuth, (req, res, next) => {
   console.log("[UPLOAD] multer processing started")
   upload.single("file")(req, res, (err) => {
@@ -47,11 +70,14 @@ router.post("/pdf", requireAuth, (req, res, next) => {
     const { publicUrl, filePath } = await uploadPdfFile(buffer, originalname, mimetype)
     console.log("[UPLOAD] Supabase upload done:", filePath)
 
+    const pageCount = extractPageCount(buffer)
+
     res.json({
       fileUrl: publicUrl,
       filePath,
       fileName: originalname,
       fileSize: size,
+      pageCount,
     })
   } catch (error) {
     console.error("[UPLOAD] Error:", error.message)

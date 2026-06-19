@@ -37,6 +37,7 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
+app.use(express.json({ limit: "10mb" }))
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"))
 
 app.post("/api/test-no-middleware", (req, res) => {

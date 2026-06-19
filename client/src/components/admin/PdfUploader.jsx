@@ -11,6 +11,7 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState(0)
+  const [pageCount, setPageCount] = useState(null)
   const fileInputRef = useRef(null)
 
   const handleDragOver = useCallback((e) => {
@@ -23,30 +24,42 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
     setDragging(false)
   }, [])
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault()
-    setDragging(false)
-
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile && droppedFile.type === "application/pdf") {
-      setFile(droppedFile)
-      setTitle(droppedFile.name.replace(".pdf", ""))
-      setError(null)
-    } else {
-      setError("Please drop a valid PDF file")
-    }
-  }, [])
-
-  const handleFileSelect = useCallback((e) => {
-    const selectedFile = e.target.files[0]
+  const handleFileSelected = useCallback(async (selectedFile) => {
     if (selectedFile && selectedFile.type === "application/pdf") {
       setFile(selectedFile)
       setTitle(selectedFile.name.replace(".pdf", ""))
       setError(null)
+      setPageCount(null)
+
+      try {
+        const arrayBuffer = await selectedFile.arrayBuffer()
+        const { getDocument } = await import("pdfjs-dist")
+        const loadingTask = getDocument({ data: arrayBuffer.slice(0) })
+        const pdf = await loadingTask.promise
+        setPageCount(pdf.numPages)
+      } catch {
+        setPageCount(null)
+      }
     } else {
       setError("Please select a valid PDF file")
     }
   }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    setDragging(false)
+    const droppedFile = e.dataTransfer.files[0]
+    if (droppedFile) {
+      handleFileSelected(droppedFile)
+    }
+  }, [handleFileSelected])
+
+  const handleFileSelect = useCallback((e) => {
+    const selectedFile = e.target.files[0]
+    if (selectedFile) {
+      handleFileSelected(selectedFile)
+    }
+  }, [handleFileSelected])
 
   const handleUpload = async () => {
     if (!file) {
@@ -130,6 +143,11 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
               </p>
               <p className="text-xs text-[var(--text-muted)]">
                 {formatFileSize(file.size)}
+                {pageCount !== null && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--bg-primary)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">
+                    {pageCount} page{pageCount !== 1 ? "s" : ""}
+                  </span>
+                )}
               </p>
             </div>
             {!uploading && (
@@ -140,6 +158,7 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
                   setFile(null)
                   setTitle("")
                   setDescription("")
+                  setPageCount(null)
                 }}
                 className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               >
@@ -173,6 +192,14 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
               disabled={uploading}
             />
           </div>
+
+          {pageCount !== null && pageCount > 1 && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <strong>{pageCount} pages</strong> detected. Each page will be rendered as a separate sheet in the 3D flipbook.
+              </p>
+            </div>
+          )}
 
           {uploading && (
             <div className="space-y-2">

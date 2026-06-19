@@ -17,6 +17,8 @@ import {
   ToggleRight,
   FileText,
   Upload,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,6 +57,7 @@ import {
   uploadPdfFile,
 } from "@/services/flipbookService"
 import PdfUploader from "@/components/admin/PdfUploader"
+import Yearbook3DPage from "@/pages/student/Yearbook3DPage"
 
 function SettingsPanel({ settings, onUpdate }) {
   const [form, setForm] = useState(settings || {})
@@ -115,6 +118,26 @@ function SettingsPanel({ settings, onUpdate }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Content Source</label>
+          <Select value={form.source_type || "profiles"} onValueChange={(v) => setForm({ ...form, source_type: v })}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="profiles">Student Profiles</SelectItem>
+              <SelectItem value="pdfs">PDF Pages</SelectItem>
+              <SelectItem value="combined">Combined (Profiles + PDFs)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">
+            {form.source_type === "pdfs"
+              ? "Only PDF pages will be shown in the flipbook"
+              : form.source_type === "combined"
+              ? "Both student profiles and PDF pages will be included"
+              : "Only student profiles will be shown in the flipbook"}
+          </p>
+        </div>
         <div>
           <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Theme</label>
           <Select value={form.theme || "default"} onValueChange={(v) => setForm({ ...form, theme: v })}>
@@ -335,7 +358,8 @@ function PdfPagesPanel({ pdfPages, onRefresh }) {
         fileUrl: uploadResult.fileUrl,
         fileName: uploadResult.fileName,
         fileSize: uploadResult.fileSize,
-        pageCount: 1,
+        pageCount: uploadResult.pageCount || 1,
+        filePath: uploadResult.filePath,
       })
 
       setShowUploadDialog(false)
@@ -441,15 +465,24 @@ function PdfPagesPanel({ pdfPages, onRefresh }) {
                   {page.title}
                 </p>
                 <p className="truncate text-[10px] text-[var(--text-muted)]">
-                  {page.file_name} • {formatFileSize(page.file_size)}
+                  {page.file_name} • {formatFileSize(page.file_size)} • {page.page_count || 1} page{(page.page_count || 1) !== 1 ? "s" : ""}
                 </p>
               </div>
 
               <Badge variant="inactive" className="text-[10px]">
-                Page {page.sort_order || index + 1}
+                #{page.sort_order || index + 1}
               </Badge>
 
               <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7"
+                  onClick={() => window.open(page.file_url, "_blank")}
+                  title="Preview PDF"
+                >
+                  <Eye size={14} />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -828,6 +861,7 @@ export default function YearbookManagementPage() {
     { key: "sections", label: "Sections", icon: Layers },
     { key: "content", label: "Content", icon: Users },
     { key: "pdfs", label: "PDF Pages", icon: FileText },
+    { key: "preview", label: "3D Preview", icon: Sparkles },
   ]
 
   return (
@@ -900,6 +934,36 @@ export default function YearbookManagementPage() {
               pdfPages={pdfPages}
               onRefresh={fetchAll}
             />
+          )}
+          {activeTab === "preview" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                    <Sparkles size={16} />
+                    3D Flipbook Preview
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    This is exactly what students will see when they open the yearbook
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/3d-yearbook"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)]/10 hover:text-[var(--bg-primary)]"
+                  >
+                    <ExternalLink size={13} />
+                    Open Public View
+                  </a>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--border-light)] overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 via-stone-50 to-slate-100 dark:from-[#0d1b2a] dark:via-[#112233] dark:to-[#0d1b2a]" style={{ minHeight: "600px" }}>
+                <Yearbook3DPage />
+              </div>
+            </div>
           )}
         </div>
       )}

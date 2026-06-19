@@ -167,12 +167,12 @@ export async function getPdfPages() {
   return data.pages
 }
 
-export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }) {
+export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath }) {
   const authHeaders = await getAuthHeaders()
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
     method: "POST",
     headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }),
+    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath }),
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || "Failed to add PDF page")

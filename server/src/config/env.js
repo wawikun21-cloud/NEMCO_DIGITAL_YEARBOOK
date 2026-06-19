@@ -12,7 +12,7 @@ const parsePort = (value) => {
 
 const parseOrigins = (value) => {
   if (!value) return []
-  return value.split(",").map((origin) => origin.trim()).filter(Boolean)
+  return value.split(",").map((origin) => origin.trim().replace(/\/+$/, "")).filter(Boolean)
 }
 
 export const config = {

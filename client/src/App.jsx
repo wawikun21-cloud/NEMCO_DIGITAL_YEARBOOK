@@ -2,6 +2,8 @@ import { useAuth } from "@/contexts/AuthContext"
 import LoginPage from "./pages/student/LoginPage"
 import LibraryPage from "./pages/student/LibraryPage"
 import ProfilePage from "./pages/student/ProfilePage"
+import FlipbookPage from "./pages/student/FlipbookPage"
+import Yearbook3DPage from "./pages/student/Yearbook3DPage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import AdminDashboard from "@/pages/admin/AdminDashboard"
 import ImportUsersPage from "@/pages/admin/ImportUsersPage"
@@ -47,6 +49,8 @@ export default function App() {
     if (path === "/admin/settings") return "admin-settings"
     if (path === "/library") return "library"
     if (path === "/profile") return "profile"
+    if (path === "/flipbook") return "flipbook"
+    if (path === "/3d-yearbook") return "3d-yearbook"
     if (path === "/resume") return "resume"
     return "library"
   }
@@ -65,6 +69,8 @@ export default function App() {
     const path = window.location.pathname
     if (path === "/library") return <LibraryPage />
     if (path === "/profile") return <ProfilePage />
+    if (path === "/flipbook") return <FlipbookPage />
+    if (path === "/3d-yearbook") return <Yearbook3DPage />
     if (path === "/resume") return <div className="p-8">Resume Builder (coming soon)</div>
     return <LibraryPage />
   }
