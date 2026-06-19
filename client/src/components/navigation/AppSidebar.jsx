@@ -34,9 +34,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 
 const NAV_MAIN = [
-  { key: "library", label: "Library", icon: BookOpen, href: "/library" },
-  { key: "profile", label: "My Profile", icon: User, href: "/profile" },
-  { key: "resume", label: "Resume Builder", icon: FileText, href: "/resume" },
+  { key: "library", label: "My Library", icon: BookOpen, href: "/library" },
+  { key: "profile", label: "Profile", icon: User, href: "/profile" },
+  { key: "resume", label: "Resume", icon: FileText, href: "/resume" },
 ]
 
 const NAV_ADMIN = [
