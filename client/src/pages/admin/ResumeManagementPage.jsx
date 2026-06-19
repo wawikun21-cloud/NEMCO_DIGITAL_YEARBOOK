@@ -23,6 +23,18 @@ import {
   Star,
   StarOff,
   Copy,
+  Image,
+  ChevronDown,
+  ChevronUp,
+  Briefcase,
+  GraduationCap,
+  Award,
+  Users,
+  List,
+  Type,
+  AlignLeft,
+  CalendarRange,
+  Link,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -74,6 +86,146 @@ const FIELD_TYPES = [
   { value: "references", label: "References" },
 ]
 
+const FIELD_TYPE_ICONS = {
+  text: Type,
+  textarea: AlignLeft,
+  list: List,
+  date_range: CalendarRange,
+  education: GraduationCap,
+  experience: Briefcase,
+  skills: Award,
+  achievements: Star,
+  references: Users,
+}
+
+function formatFieldValue(value) {
+  if (value === null || value === undefined || value === "") return null
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null
+    return (
+      <ul className="mt-1 space-y-1">
+        {value.map((item, i) => {
+          if (typeof item === "object" && item !== null) {
+            return (
+              <li key={i} className="text-xs text-[var(--text-secondary)] rounded bg-[var(--bg-subtle)] p-2 space-y-0.5">
+                {Object.entries(item).map(([k, v]) => (
+                  <div key={k}>
+                    <span className="font-medium text-[var(--text-primary)] capitalize">{k.replace(/_/g, " ")}: </span>
+                    <span>{String(v)}</span>
+                  </div>
+                ))}
+              </li>
+            )
+          }
+          return (
+            <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
+              <span className="mt-1.5 h-1 w-1 rounded-full bg-[var(--text-muted)] shrink-0" />
+              <span>{String(item)}</span>
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+  if (typeof value === "object" && value !== null) {
+    return (
+      <div className="mt-1 space-y-0.5 rounded bg-[var(--bg-subtle)] p-2">
+        {Object.entries(value).map(([k, v]) => (
+          <div key={k} className="text-xs">
+            <span className="font-medium text-[var(--text-primary)] capitalize">{k.replace(/_/g, " ")}: </span>
+            <span className="text-[var(--text-secondary)]">{String(v)}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"))) {
+    return <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--bg-primary)] hover:underline break-all">{value}</a>
+  }
+  return <p className="text-xs text-[var(--text-secondary)] whitespace-pre-wrap">{String(value)}</p>
+}
+
+function StructuredDataPreview({ data, sections }) {
+  const [expandedSections, setExpandedSections] = useState({})
+
+  if (!data || Object.keys(data).length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-[var(--border-light)] p-6 text-center">
+        <FileText size={24} className="mx-auto mb-2 text-[var(--text-muted)]" />
+        <p className="text-xs text-[var(--text-muted)]">No data has been entered yet</p>
+      </div>
+    )
+  }
+
+  const toggleSection = (key) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const sectionMap = {}
+  if (sections && sections.length > 0) {
+    for (const s of sections) {
+      sectionMap[s.section_key] = s
+    }
+  }
+
+  const entries = Object.entries(data)
+  const orderedEntries = []
+  if (sections && sections.length > 0) {
+    for (const s of sections) {
+      if (data[s.section_key] !== undefined) {
+        orderedEntries.push([s.section_key, data[s.section_key], s])
+      }
+    }
+    for (const [key, value] of entries) {
+      if (!sectionMap[key]) {
+        orderedEntries.push([key, value, null])
+      }
+    }
+  } else {
+    for (const [key, value] of entries) {
+      orderedEntries.push([key, value, null])
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {orderedEntries.map(([key, value, section]) => {
+        const fieldType = section?.field_type || "text"
+        const label = section?.label || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        const Icon = FIELD_TYPE_ICONS[fieldType] || FileText
+        const formatted = formatFieldValue(value, fieldType)
+        const isExpanded = expandedSections[key] !== false
+
+        return (
+          <div key={key} className="rounded-lg border border-[var(--border-light)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection(key)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-[var(--bg-subtle)]/50 transition-colors"
+            >
+              <Icon size={14} className="shrink-0 text-[var(--text-muted)]" />
+              <span className="text-xs font-semibold text-[var(--text-primary)] flex-1">{label}</span>
+              {section?.is_required && (
+                <span className="text-[9px] font-medium text-red-500 bg-red-50 dark:bg-red-950/30 px-1.5 py-0.5 rounded">Required</span>
+              )}
+              {formatted ? (
+                isExpanded ? <ChevronUp size={12} className="text-[var(--text-muted)]" /> : <ChevronDown size={12} className="text-[var(--text-muted)]" />
+              ) : (
+                <span className="text-[10px] text-[var(--text-muted)] italic">Empty</span>
+              )}
+            </button>
+            {formatted && isExpanded && (
+              <div className="border-t border-[var(--border-light)] px-3 py-2 bg-[var(--bg-subtle)]/30">
+                {formatted}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function formatRelativeTime(dateString) {
   const date = new Date(dateString)
   const now = new Date()
@@ -101,6 +253,7 @@ function generateSlug(name) {
 
 function ResumeDetailSheet({ resumeId, open, onClose, onUpdate, templates }) {
   const [detail, setDetail] = useState(null)
+  const [sections, setSections] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -108,11 +261,24 @@ function ResumeDetailSheet({ resumeId, open, onClose, onUpdate, templates }) {
     if (open && resumeId) {
       setLoading(true)
       getResumeDetail(resumeId)
-        .then(setDetail)
+        .then(async (resume) => {
+          setDetail(resume)
+          if (resume.template) {
+            const tmpl = templates?.find((t) => t.slug === resume.template)
+            if (tmpl) {
+              try {
+                const detail = await getTemplateDetail(tmpl.id)
+                setSections(detail.sections || [])
+              } catch {
+                setSections([])
+              }
+            }
+          }
+        })
         .catch(() => {})
         .finally(() => setLoading(false))
     }
-  }, [open, resumeId])
+  }, [open, resumeId, templates])
 
   const handleToggleVisibility = async () => {
     if (!detail) return
@@ -221,16 +387,10 @@ function ResumeDetailSheet({ resumeId, open, onClose, onUpdate, templates }) {
               </div>
             </div>
 
-            {detail.data && Object.keys(detail.data).length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Resume Data</h4>
-                <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-subtle)] p-3 max-h-64 overflow-y-auto">
-                  <pre className="text-xs text-[var(--text-secondary)] whitespace-pre-wrap break-all">
-                    {JSON.stringify(detail.data, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            )}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Resume Content</h4>
+              <StructuredDataPreview data={detail.data} sections={sections} />
+            </div>
 
             <div className="flex gap-2">
               <Button
@@ -254,13 +414,13 @@ function ResumeDetailSheet({ resumeId, open, onClose, onUpdate, templates }) {
 function TemplateManager({ templates, onRefresh }) {
   const [showCreate, setShowCreate] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ name: "", slug: "", description: "", is_active: true })
+  const [form, setForm] = useState({ name: "", slug: "", description: "", thumbnail_url: "", is_active: true })
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [duplicatingId, setDuplicatingId] = useState(null)
 
   const openCreate = () => {
-    setForm({ name: "", slug: "", description: "", is_active: true })
+    setForm({ name: "", slug: "", description: "", thumbnail_url: "", is_active: true })
     setEditingId(null)
     setShowCreate(true)
   }
@@ -270,6 +430,7 @@ function TemplateManager({ templates, onRefresh }) {
       name: template.name,
       slug: template.slug,
       description: template.description || "",
+      thumbnail_url: template.thumbnail_url || "",
       is_active: template.is_active,
     })
     setEditingId(template.id)
@@ -321,6 +482,7 @@ function TemplateManager({ templates, onRefresh }) {
         name: `${template.name} (Copy)`,
         slug: `${template.slug}-copy-${Date.now()}`,
         description: template.description,
+        thumbnail_url: template.thumbnail_url,
         default_sections: template.default_sections,
         is_active: true,
       })
@@ -408,6 +570,12 @@ function TemplateManager({ templates, onRefresh }) {
                 </div>
               </div>
 
+              {template.thumbnail_url && (
+                <div className="mt-2 rounded-md overflow-hidden border border-[var(--border-light)] bg-[var(--bg-subtle)]">
+                  <img src={template.thumbnail_url} alt={template.name} className="w-full h-24 object-cover" />
+                </div>
+              )}
+
               {template.description && (
                 <p className="mt-2 text-xs text-[var(--text-muted)] line-clamp-2">{template.description}</p>
               )}
@@ -483,6 +651,19 @@ function TemplateManager({ templates, onRefresh }) {
                 className="h-9"
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Thumbnail URL</label>
+              <div className="relative">
+                <Image size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  value={form.thumbnail_url}
+                  onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })}
+                  placeholder="https://example.com/thumbnail.png"
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">Image shown on template card and student gallery</p>
+            </div>
             <button
               type="button"
               onClick={() => setForm({ ...form, is_active: !form.is_active })}
@@ -546,7 +727,7 @@ function SectionBuilder({ template, onRefresh }) {
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({
-    section_key: "", label: "", description: "", field_type: "text", is_required: false,
+    section_key: "", label: "", description: "", icon: "", field_type: "text", is_required: false, config: "{}",
   })
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -563,7 +744,7 @@ function SectionBuilder({ template, onRefresh }) {
   }, [template?.id])
 
   const openAdd = () => {
-    setForm({ section_key: "", label: "", description: "", field_type: "text", is_required: false })
+    setForm({ section_key: "", label: "", description: "", icon: "", field_type: "text", is_required: false, config: "{}" })
     setEditingId(null)
     setShowAdd(true)
   }
@@ -573,8 +754,10 @@ function SectionBuilder({ template, onRefresh }) {
       section_key: section.section_key,
       label: section.label,
       description: section.description || "",
+      icon: section.icon || "",
       field_type: section.field_type,
       is_required: section.is_required,
+      config: JSON.stringify(section.config || {}, null, 2),
     })
     setEditingId(section.id)
     setShowAdd(true)
@@ -592,10 +775,17 @@ function SectionBuilder({ template, onRefresh }) {
     if (!form.label.trim() || !form.section_key.trim()) return
     setSaving(true)
     try {
+      let parsedConfig = {}
+      try {
+        parsedConfig = JSON.parse(form.config || "{}")
+      } catch {
+        parsedConfig = {}
+      }
+      const payload = { ...form, config: parsedConfig }
       if (editingId) {
-        await updateTemplateSection(editingId, form)
+        await updateTemplateSection(editingId, payload)
       } else {
-        await addTemplateSection(template.id, form)
+        await addTemplateSection(template.id, payload)
       }
       setShowAdd(false)
       const data = await getTemplateDetail(template.id)
@@ -743,6 +933,18 @@ function SectionBuilder({ template, onRefresh }) {
               />
             </div>
             <div>
+              <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Icon (Lucide name)</label>
+              <div className="relative">
+                <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  value={form.icon}
+                  onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                  placeholder="e.g., Briefcase, GraduationCap"
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+            </div>
+            <div>
               <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Field Type *</label>
               <Select value={form.field_type} onValueChange={(v) => setForm({ ...form, field_type: v })}>
                 <SelectTrigger className="h-9">
@@ -754,6 +956,16 @@ function SectionBuilder({ template, onRefresh }) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Section Config (JSON)</label>
+              <textarea
+                value={form.config}
+                onChange={(e) => setForm({ ...form, config: e.target.value })}
+                placeholder='{"maxItems": 5, "placeholder": "Enter value..."}'
+                className="w-full rounded-md border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-mono text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--bg-primary)] min-h-[60px] resize-y"
+              />
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">Optional JSON config for section-specific settings</p>
             </div>
             <button
               type="button"
@@ -917,6 +1129,20 @@ function ResumeList({ templates }) {
           <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
             <p className="text-xs font-medium text-[var(--text-muted)]">This Month</p>
             <p className="text-2xl font-bold text-[var(--text-primary)]">{stats.thisMonth}</p>
+          </div>
+        </div>
+      )}
+
+      {stats && stats.byTemplate && Object.keys(stats.byTemplate).length > 0 && (
+        <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">By Template</h4>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(stats.byTemplate).map(([tmpl, count]) => (
+              <div key={tmpl} className="flex items-center gap-2 rounded-md border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-1.5">
+                <span className="text-xs font-medium text-[var(--text-primary)] capitalize">{tmpl}</span>
+                <span className="text-xs font-bold text-[var(--bg-primary)]">{count}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}

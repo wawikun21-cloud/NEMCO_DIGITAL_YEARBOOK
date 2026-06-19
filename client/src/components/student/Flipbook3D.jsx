@@ -273,11 +273,17 @@ export default function Flipbook3D({ pdfPages, settings }) {
   const [isFlipping, setIsFlipping] = useState(false)
   const [flipDirection, setFlipDirection] = useState(null)
   const [zoom, setZoom] = useState(1)
+  const [fitScale, setFitScale] = useState(1)
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [viewMode, setViewMode] = useState("flipbook")
   const [showPdf, setShowPdf] = useState(false)
+  const [renderedPages, setRenderedPages] = useState({})
+  const [allPagesRendered, setAllPagesRendered] = useState(false)
+  const [bookAspectRatio, setBookAspectRatio] = useState(null)
+  const [firstPdfDimensions, setFirstPdfDimensions] = useState(null)
   const containerRef = useRef(null)
   const touchStartRef = useRef(null)
+  const renderCacheRef = useRef({})
 
   const flipSpeed = settings?.flip_speed || 0.6
 
@@ -300,23 +306,98 @@ export default function Flipbook3D({ pdfPages, settings }) {
   const totalSheets = Math.ceil(expandedPages.length / 2)
   const currentSheetData = expandedPages[currentSheet * 2] || null
 
-  const { pageCount, renderedPages, loading: pdfLoading, renderPage, preloadRange } =
-    usePdfRenderer(currentSheetData?.file_url || "")
-
+  /* ── Compute fitScale: scale PDF pixel size to fit the available viewport ── */
   useEffect(() => {
-    if (currentSheetData && !pdfLoading && pageCount > 0) {
-      const frontPage = currentSheetData.sheetPageNum
-      renderPage(frontPage).then(() => {
-        preloadRange(frontPage, 3)
-      })
+    if (!firstPdfDimensions) { setFitScale(1); return }
+
+    function computeFitScale() {
+      const vh = window.innerHeight
+      const vw = window.innerWidth
+      const reserved = 280
+      const availableHeight = Math.max(vh - reserved, 200)
+      const availableWidth = vw * 0.8
+      const scaleH = availableHeight / firstPdfDimensions.height
+      const scaleW = availableWidth / firstPdfDimensions.width
+      const scale = Math.min(scaleH, scaleW)
+      setFitScale(scale)
     }
-  }, [currentSheetData, pdfLoading, pageCount, renderPage, preloadRange])
+
+    computeFitScale()
+    window.addEventListener("resize", computeFitScale)
+    return () => window.removeEventListener("resize", computeFitScale)
+  }, [firstPdfDimensions])
+
+  const bookDisplayWidth = firstPdfDimensions ? `${firstPdfDimensions.width * fitScale}px` : "30vw"
+  const bookDisplayHeight = firstPdfDimensions ? `${firstPdfDimensions.height * fitScale}px` : "auto"
+
+  /* ── Pre-render ALL pages of ALL PDFs before showing flipbook ── */
+  useEffect(() => {
+    if (expandedPages.length === 0) {
+      setAllPagesRendered(true)
+      return
+    }
+
+    let cancelled = false
+    setAllPagesRendered(false)
+    setRenderedPages({})
+    renderCacheRef.current = {}
+    setFirstPdfDimensions(null)
+    setBookAspectRatio(null)
+
+    async function renderAllPages() {
+      const allImages = {}
+      let firstRatio = null
+
+      for (const page of expandedPages) {
+        try {
+          const loadingTask = pdfjsLib.getDocument(page.file_url)
+          const pdfDoc = await loadingTask.promise
+
+          for (let p = 1; p <= pdfDoc.numPages; p++) {
+            const cacheKey = `${page.file_url}-${p}-2`
+            if (renderCacheRef.current[cacheKey]) {
+              allImages[cacheKey] = renderCacheRef.current[cacheKey]
+              continue
+            }
+
+            const pdfPage = await pdfDoc.getPage(p)
+            const viewport = pdfPage.getViewport({ scale: 2 })
+            const canvas = document.createElement("canvas")
+            canvas.width = viewport.width
+            canvas.height = viewport.height
+            const ctx = canvas.getContext("2d")
+            await pdfPage.render({ canvasContext: ctx, viewport }).promise
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
+            renderCacheRef.current[cacheKey] = dataUrl
+            allImages[cacheKey] = dataUrl
+
+            if (!firstRatio) {
+              firstRatio = viewport.width / viewport.height
+              if (!cancelled) {
+                setFirstPdfDimensions({ width: viewport.width, height: viewport.height })
+                setBookAspectRatio(`${viewport.width}/${viewport.height}`)
+              }
+            }
+          }
+        } catch {
+          // skip broken PDF
+        }
+      }
+
+      if (!cancelled) {
+        setRenderedPages(allImages)
+        setAllPagesRendered(true)
+      }
+    }
+
+    renderAllPages()
+    return () => { cancelled = true }
+  }, [expandedPages])
 
   const thumbnails = useMemo(() => {
-    return expandedPages.map((_, i) => {
-      const pdf = expandedPages[i]
-      if (!pdf) return null
-      return renderedPages[pdf.sheetPageNum] || null
+    return expandedPages.map((page) => {
+      const cacheKey = `${page.file_url}-${page.sheetPageNum}-2`
+      return renderedPages[cacheKey] || null
     })
   }, [expandedPages, renderedPages])
 
@@ -415,6 +496,13 @@ export default function Flipbook3D({ pdfPages, settings }) {
     )
   }
 
+  const effectiveAspectRatio = bookAspectRatio || "3/2"
+
+  const bookNumericRatio = useMemo(() => {
+    const parts = effectiveAspectRatio.split("/")
+    return parseFloat(parts[0]) / parseFloat(parts[1])
+  }, [effectiveAspectRatio])
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -470,23 +558,35 @@ export default function Flipbook3D({ pdfPages, settings }) {
       )}
 
       {viewMode === "flipbook" ? (
+        !allPagesRendered ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
+            <div className="relative">
+              <div className="absolute inset-0 animate-ping rounded-full bg-[var(--bg-primary)]/20" />
+              <BookOpen size={40} className="relative text-[var(--bg-primary)] animate-pulse" />
+            </div>
+            <p className="text-sm text-[var(--text-muted)]">Rendering all pages…</p>
+            <div className="h-1 w-32 rounded-full bg-[var(--border-light)] overflow-hidden mt-2">
+              <div className="h-full rounded-full bg-[var(--bg-primary)] animate-pulse" style={{ width: "60%" }} />
+            </div>
+          </div>
+        ) : (
         <div
           ref={containerRef}
           className="relative mx-auto w-full"
           style={{
             perspective: "3000px",
             perspectiveOrigin: "50% 50%",
-            maxWidth: "900px",
           }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <div
-            className="relative mx-auto transition-transform duration-200"
+            className="relative mx-auto transition-transform duration-200 shrink-0"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: "center center",
-              aspectRatio: "3/2",
+              width: bookDisplayWidth,
+              height: bookDisplayHeight,
             }}
           >
             <div
@@ -519,8 +619,10 @@ export default function Flipbook3D({ pdfPages, settings }) {
 
                   if (!frontPage) return null
 
-                  const frontImage = renderedPages[frontPage.sheetPageNum]
-                  const backImage = backPage ? renderedPages[backPage.sheetPageNum] : null
+                  const frontKey = `${frontPage.file_url}-${frontPage.sheetPageNum}-2`
+                  const backKey = backPage ? `${backPage.file_url}-${backPage.sheetPageNum}-2` : null
+                  const frontImage = renderedPages[frontKey]
+                  const backImage = backKey ? renderedPages[backKey] : null
 
                   return (
                     <Page3D
@@ -647,6 +749,7 @@ export default function Flipbook3D({ pdfPages, settings }) {
             Use arrow keys or swipe to navigate • Click a page to open full PDF viewer
           </p>
         </div>
+        )
       ) : (
         <div className="space-y-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2">

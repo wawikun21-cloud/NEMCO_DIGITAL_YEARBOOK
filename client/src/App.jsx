@@ -10,6 +10,7 @@ import ImportUsersPage from "@/pages/admin/ImportUsersPage"
 import ManageUsersPage from "@/pages/admin/ManageUsersPage"
 import ActivityLogsPage from "@/pages/admin/ActivityLogsPage"
 import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
+import ResumeBuilderPage from "@/pages/student/ResumeBuilderPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
 
 export default function App() {
@@ -71,7 +72,7 @@ export default function App() {
     if (path === "/profile") return <ProfilePage />
     if (path === "/flipbook") return <FlipbookPage />
     if (path === "/3d-yearbook") return <Yearbook3DPage />
-    if (path === "/resume") return <div className="p-8">Resume Builder (coming soon)</div>
+    if (path === "/resume") return <ResumeBuilderPage />
     return <LibraryPage />
   }
 
