@@ -30,6 +30,7 @@ import {
   ScrollText,
   Upload,
   Settings,
+  BookMarked,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useState } from "react"
@@ -42,11 +43,13 @@ const NAV_MAIN = [
 ]
 
 const NAV_ADMIN = [
-  { key: "admin-dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
-  { key: "admin-users", label: "Manage Users", icon: Users, href: "/admin/users" },
-  { key: "admin-logs", label: "Activity Logs", icon: ScrollText, href: "/admin/logs" },
-  { key: "admin-import", label: "Bulk Import", icon: Upload, href: "/admin/import" },
-  { key: "admin-settings", label: "Settings", icon: Settings, href: "/admin/settings" },
+  { key: "admin-dashboard",  label: "Dashboard",           icon: LayoutDashboard, href: "/admin" },
+  { key: "admin-users",      label: "Manage Users",        icon: Users,           href: "/admin/users" },
+  { key: "admin-resumes",    label: "Resume Management",   icon: FileText,        href: "/admin/resumes" },
+  { key: "admin-yearbook",   label: "3D Yearbook",         icon: BookMarked,      href: "/admin/yearbook" },
+  { key: "admin-logs",       label: "Activity Logs",       icon: ScrollText,      href: "/admin/logs" },
+  { key: "admin-import",     label: "Bulk Import",         icon: Upload,          href: "/admin/import" },
+  { key: "admin-settings",   label: "Settings",            icon: Settings,        href: "/admin/settings" },
 ]
 
 export default function AppSidebar({ activePage = "library", onNavigate, onLogout }) {
