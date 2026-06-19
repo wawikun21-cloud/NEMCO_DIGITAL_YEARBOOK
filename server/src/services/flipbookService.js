@@ -259,8 +259,10 @@ export async function getPublicFlipbook() {
   const settings = await getFlipbookSettings()
 
   if (!settings.enabled) {
-    return { settings, profiles: [], sections: [] }
+    return { settings, profiles: [], sections: [], pdfPages: [] }
   }
+
+  const sourceType = settings.source_type || "profiles"
 
   const { data: flipbookProfiles, error: fpError } = await supabaseAdmin
     .from("flipbook_profiles")
@@ -289,12 +291,121 @@ export async function getPublicFlipbook() {
 
   const sections = await getFlipbookSections()
 
+  const { data: pdfPages, error: pdfError } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select("id, title, description, file_url, file_name, page_count, cover_image_url, sort_order, is_active")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+
+  if (pdfError) {
+    throw new Error(`Failed to fetch PDF pages: ${pdfError.message}`)
+  }
+
   return {
     settings,
+    sourceType,
     profiles: (flipbookProfiles || []).map((p) => ({
       ...p,
       profile: profileMap[p.profile_id] || null,
     })),
     sections,
+    pdfPages: pdfPages || [],
   }
+}
+
+export async function getFlipbookPdfPages() {
+  const { data, error } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select("id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, is_active, created_at, updated_at")
+    .order("sort_order", { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch PDF pages: ${error.message}`)
+  }
+
+  return data || []
+}
+
+export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }) {
+  const { data: maxOrder } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const nextOrder = maxOrder ? (maxOrder.sort_order || 0) + 1 : 1
+
+  const { data, error } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .insert({
+      title: title || "Untitled PDF",
+      description: description || null,
+      file_url: fileUrl,
+      file_name: fileName,
+      file_size: fileSize || null,
+      page_count: pageCount || 0,
+      cover_image_url: coverImageUrl || null,
+      sort_order: nextOrder,
+      is_active: true,
+    })
+    .select()
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to create PDF page: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function updateFlipbookPdfPage(id, { title, description, sortOrder, isActive }) {
+  const updateData = { updated_at: new Date().toISOString() }
+  if (title !== undefined) updateData.title = title
+  if (description !== undefined) updateData.description = description
+  if (sortOrder !== undefined) updateData.sort_order = sortOrder
+  if (isActive !== undefined) updateData.is_active = isActive
+
+  const { data, error } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to update PDF page: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function deleteFlipbookPdfPage(id) {
+  const { data, error } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .delete()
+    .eq("id", id)
+    .select()
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Failed to delete PDF page: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function reorderFlipbookPdfPages(orderedIds) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabaseAdmin
+      .from("flipbook_pdf_pages")
+      .update({ sort_order: i + 1, updated_at: new Date().toISOString() })
+      .eq("id", orderedIds[i])
+
+    if (error) {
+      throw new Error(`Failed to reorder PDF page at position ${i}: ${error.message}`)
+    }
+  }
+
+  return true
 }

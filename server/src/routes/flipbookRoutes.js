@@ -12,6 +12,11 @@ import {
   addSection,
   removeSection,
   fetchPublicFlipbook,
+  fetchPdfPages,
+  addPdfPage,
+  updatePdfPage,
+  removePdfPage,
+  reorderPdfPages,
 } from "../controllers/flipbookController.js"
 import { requireAuth } from "../middlewares/authMiddleware.js"
 
@@ -29,5 +34,11 @@ router.post("/yearbook/reorder", requireAuth, reorderProfiles)
 router.get("/yearbook/sections", requireAuth, fetchSections)
 router.post("/yearbook/sections", requireAuth, addSection)
 router.delete("/yearbook/sections/:id", requireAuth, removeSection)
+
+router.get("/yearbook/pdf-pages", requireAuth, fetchPdfPages)
+router.post("/yearbook/pdf-pages", requireAuth, addPdfPage)
+router.patch("/yearbook/pdf-pages/:id", requireAuth, updatePdfPage)
+router.delete("/yearbook/pdf-pages/:id", requireAuth, removePdfPage)
+router.post("/yearbook/pdf-pages/reorder", requireAuth, reorderPdfPages)
 
 export default router

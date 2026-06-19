@@ -12,6 +12,7 @@ import auditLogRoutes from "./routes/auditLogRoutes.js"
 import resumeRoutes from "./routes/resumeRoutes.js"
 import resumeTemplateRoutes from "./routes/resumeTemplateRoutes.js"
 import flipbookRoutes from "./routes/flipbookRoutes.js"
+import uploadRoutes from "./routes/uploadRoutes.js"
 import dashboardRoutes from "./routes/dashboardRoutes.js"
 import { errorHandler } from "./middlewares/errorHandler.js"
 
@@ -48,6 +49,7 @@ app.use("/api/admin", auditLogRoutes)
 app.use("/api/admin", resumeRoutes)
 app.use("/api/admin", resumeTemplateRoutes)
 app.use("/api/admin", flipbookRoutes)
+app.use("/api/admin/upload", uploadRoutes)
 app.use("/api/admin", dashboardRoutes)
 
 if (config.nodeEnv === "production" && process.env.VERCEL !== "1") {

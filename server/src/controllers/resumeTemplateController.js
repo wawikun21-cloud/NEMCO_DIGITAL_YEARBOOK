@@ -1,7 +1,6 @@
 import {
   getTemplates,
   getTemplateById,
-  getTemplateBySlug,
   createTemplate,
   updateTemplate,
   deleteTemplate,

@@ -11,6 +11,11 @@ import {
   createFlipbookSection,
   deleteFlipbookSection,
   getPublicFlipbook,
+  getFlipbookPdfPages,
+  createFlipbookPdfPage,
+  updateFlipbookPdfPage,
+  deleteFlipbookPdfPage,
+  reorderFlipbookPdfPages,
 } from "../services/flipbookService.js"
 
 export async function fetchSettings(req, res, next) {
@@ -157,6 +162,86 @@ export async function fetchPublicFlipbook(req, res, next) {
   try {
     const result = await getPublicFlipbook()
     res.json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function fetchPdfPages(req, res, next) {
+  try {
+    const pages = await getFlipbookPdfPages()
+    res.json({ pages })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function addPdfPage(req, res, next) {
+  try {
+    const { title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl } = req.body
+
+    if (!fileUrl || !fileName) {
+      return res.status(400).json({ message: "fileUrl and fileName are required" })
+    }
+
+    const page = await createFlipbookPdfPage({
+      title,
+      description,
+      fileUrl,
+      fileName,
+      fileSize,
+      pageCount,
+      coverImageUrl,
+    })
+
+    res.json({ page })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updatePdfPage(req, res, next) {
+  try {
+    const { id } = req.params
+    const { title, description, sortOrder, isActive } = req.body
+
+    const page = await updateFlipbookPdfPage(id, {
+      title,
+      description,
+      sortOrder,
+      isActive,
+    })
+
+    if (!page) {
+      return res.status(404).json({ message: "PDF page not found" })
+    }
+
+    res.json({ page })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function removePdfPage(req, res, next) {
+  try {
+    const { id } = req.params
+    await deleteFlipbookPdfPage(id)
+    res.json({ message: "PDF page deleted" })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function reorderPdfPages(req, res, next) {
+  try {
+    const { orderedIds } = req.body
+
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      return res.status(400).json({ message: "orderedIds array is required" })
+    }
+
+    await reorderFlipbookPdfPages(orderedIds)
+    res.json({ message: "PDF pages reordered successfully" })
   } catch (error) {
     next(error)
   }

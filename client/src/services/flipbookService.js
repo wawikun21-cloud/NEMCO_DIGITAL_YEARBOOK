@@ -155,3 +155,90 @@ export async function getPublicFlipbook() {
   if (!response.ok) throw new Error(data.message || "Failed to fetch public flipbook")
   return data
 }
+
+export async function getPdfPages() {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
+    method: "GET",
+    headers: authHeaders,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to fetch PDF pages")
+  return data.pages
+}
+
+export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to add PDF page")
+  return data.page
+}
+
+export async function updatePdfPage(id, { title, description, sortOrder, isActive }) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
+    method: "PATCH",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ title, description, sortOrder, isActive }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to update PDF page")
+  return data.page
+}
+
+export async function removePdfPage(id) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
+    method: "DELETE",
+    headers: authHeaders,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to delete PDF page")
+  return true
+}
+
+export async function reorderPdfPages(orderedIds) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/reorder`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ orderedIds }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to reorder PDF pages")
+  return true
+}
+
+export async function uploadPdfFile(file) {
+  const authHeaders = await getAuthHeaders()
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 60000)
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/upload/pdf`, {
+      method: "POST",
+      headers: authHeaders,
+      body: formData,
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.message || "Failed to upload PDF file")
+    return data
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === "AbortError") {
+      throw new Error("Upload timed out. Please try again with a smaller file.")
+    }
+    throw error
+  }
+}

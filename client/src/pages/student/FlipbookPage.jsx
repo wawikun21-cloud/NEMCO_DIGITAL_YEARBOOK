@@ -7,10 +7,12 @@ import {
   X,
   Loader2,
   AlertTriangle,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getPublicFlipbook } from "@/services/flipbookService"
+import PdfFlipbookViewer from "@/components/student/PdfFlipbookViewer"
 
 function FlipbookPage({ profile, layoutTemplate, pageNumber, totalPages, isLeft }) {
   if (!profile) return null
@@ -126,6 +128,7 @@ export default function FlipbookPage_() {
   const [search, setSearch] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
   const [isFlipping, setIsFlipping] = useState(false)
+  const [viewMode, setViewMode] = useState("profiles")
   const containerRef = useRef(null)
 
   const flipSpeed = data?.settings?.flip_speed || 0.5
@@ -138,7 +141,11 @@ export default function FlipbookPage_() {
   }, [])
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
+  const pdfPages = data?.pdfPages || []
   const totalPages = profiles.length + 1
+
+  const hasPdfPages = pdfPages.length > 0
+  const hasProfiles = profiles.length > 0
 
   const filteredProfiles = search
     ? profiles.filter((p) => {
@@ -174,6 +181,7 @@ export default function FlipbookPage_() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (viewMode !== "profiles") return
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault()
         goNext()
@@ -191,7 +199,7 @@ export default function FlipbookPage_() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [goNext, goPrev])
+  }, [goNext, goPrev, viewMode])
 
   if (loading) {
     return (
@@ -230,7 +238,7 @@ export default function FlipbookPage_() {
 
   const currentProfile = currentPage > 0 ? filteredProfiles[currentPage - 1] : null
 
-  return (
+  const renderProfilesView = () => (
     <div className="flex min-h-screen flex-col bg-[var(--bg-page)]">
       <header className="sticky top-0 z-20 border-b border-[var(--border-light)] bg-[var(--bg-surface)]/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
@@ -364,4 +372,116 @@ export default function FlipbookPage_() {
       )}
     </div>
   )
+
+  const renderPdfView = () => (
+    <div className="flex min-h-screen flex-col bg-[var(--bg-page)]">
+      <header className="sticky top-0 z-20 border-b border-[var(--border-light)] bg-[var(--bg-surface)]/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <FileText size={20} className="text-[var(--bg-primary)]" />
+            <div>
+              <h1 className="text-sm font-bold text-[var(--text-primary)] leading-tight">
+                {data.settings.title || "NEMCO Digital Yearbook"}
+              </h1>
+              {data.settings.subtitle && (
+                <p className="text-[10px] text-[var(--text-muted)] leading-tight">{data.settings.subtitle}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <PdfFlipbookViewer pdfPages={pdfPages} settings={data.settings} />
+      </div>
+    </div>
+  )
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin text-[var(--bg-primary)]" />
+          <p className="text-sm text-[var(--text-muted)]">Loading flipbook…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertTriangle size={32} className="text-red-500" />
+          <p className="text-sm font-medium text-[var(--text-primary)]">Failed to load flipbook</p>
+          <p className="text-xs text-[var(--text-muted)]">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data?.settings?.enabled) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <BookMarked size={32} className="text-[var(--text-muted)]" />
+          <p className="text-sm font-medium text-[var(--text-primary)]">Flipbook is not available</p>
+          <p className="text-xs text-[var(--text-muted)]">The digital yearbook has not been published yet.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (hasPdfPages && hasProfiles) {
+    return (
+      <div className="flex min-h-screen flex-col bg-[var(--bg-page)]">
+        <header className="sticky top-0 z-20 border-b border-[var(--border-light)] bg-[var(--bg-surface)]/95 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <BookMarked size={20} className="text-[var(--bg-primary)]" />
+              <div>
+                <h1 className="text-sm font-bold text-[var(--text-primary)] leading-tight">
+                  {data.settings.title || "NEMCO Digital Yearbook"}
+                </h1>
+                {data.settings.subtitle && (
+                  <p className="text-[10px] text-[var(--text-muted)] leading-tight">{data.settings.subtitle}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === "profiles" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("profiles")}
+                className="gap-2"
+              >
+                <BookMarked size={14} />
+                <span className="hidden sm:inline">Students</span>
+              </Button>
+              <Button
+                variant={viewMode === "pdfs" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("pdfs")}
+                className="gap-2"
+              >
+                <FileText size={14} />
+                <span className="hidden sm:inline">PDF Pages</span>
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1">
+          {viewMode === "profiles" ? renderProfilesView() : renderPdfView()}
+        </div>
+      </div>
+    )
+  }
+
+  if (hasPdfPages) {
+    return renderPdfView()
+  }
+
+  return renderProfilesView()
 }

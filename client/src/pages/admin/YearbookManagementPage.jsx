@@ -15,6 +15,8 @@ import {
   Save,
   ToggleLeft,
   ToggleRight,
+  FileText,
+  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,7 +48,13 @@ import {
   getFlipbookSections,
   addFlipbookSection,
   removeFlipbookSection,
+  getPdfPages,
+  addPdfPage,
+  updatePdfPage,
+  removePdfPage,
+  uploadPdfFile,
 } from "@/services/flipbookService"
+import PdfUploader from "@/components/admin/PdfUploader"
 
 function SettingsPanel({ settings, onUpdate }) {
   const [form, setForm] = useState(settings || {})
@@ -308,6 +316,240 @@ function SectionsPanel({ sections, onRefresh }) {
   )
 }
 
+function PdfPagesPanel({ pdfPages, onRefresh }) {
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [editingPage, setEditingPage] = useState(null)
+  const [editTitle, setEditTitle] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [deletingId, setDeletingId] = useState(null)
+
+  const handleUpload = async ({ file, title, description }) => {
+    setUploading(true)
+    try {
+      const uploadResult = await uploadPdfFile(file)
+
+      await addPdfPage({
+        title,
+        description,
+        fileUrl: uploadResult.fileUrl,
+        fileName: uploadResult.fileName,
+        fileSize: uploadResult.fileSize,
+        pageCount: 1,
+      })
+
+      setShowUploadDialog(false)
+      onRefresh()
+    } catch (err) {
+      console.error(err)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleToggleActive = async (page) => {
+    try {
+      await updatePdfPage(page.id, { isActive: !page.is_active })
+      onRefresh()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      await removePdfPage(id)
+      onRefresh()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleEdit = (page) => {
+    setEditingPage(page)
+    setEditTitle(page.title)
+    setEditDescription(page.description || "")
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      await updatePdfPage(editingPage.id, {
+        title: editTitle,
+        description: editDescription,
+      })
+      setEditingPage(null)
+      onRefresh()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "Unknown"
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            <FileText size={16} />
+            PDF Flipbook Pages
+          </h3>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {pdfPages.length} PDF(s) uploaded — manage your flipbook PDF pages
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setShowUploadDialog(true)} className="gap-2">
+          <Upload size={14} />
+          Upload PDF
+        </Button>
+      </div>
+
+      {pdfPages.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-[var(--border-light)] p-8 text-center">
+          <FileText size={32} className="mx-auto mb-3 text-[var(--text-muted)]" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">No PDFs uploaded</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Upload PDF files to create a flipbook from them
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {pdfPages.map((page, index) => (
+            <div
+              key={page.id}
+              className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                page.is_active
+                  ? "border-[var(--border-light)] bg-[var(--bg-surface)]"
+                  : "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
+              }`}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                <FileText size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                  {page.title}
+                </p>
+                <p className="truncate text-[10px] text-[var(--text-muted)]">
+                  {page.file_name} • {formatFileSize(page.file_size)}
+                </p>
+              </div>
+
+              <Badge variant="inactive" className="text-[10px]">
+                Page {page.sort_order || index + 1}
+              </Badge>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7"
+                  onClick={() => handleToggleActive(page)}
+                  title={page.is_active ? "Deactivate" : "Activate"}
+                >
+                  {page.is_active ? (
+                    <Eye size={14} />
+                  ) : (
+                    <EyeOff size={14} className="text-amber-500" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7"
+                  onClick={() => handleEdit(page)}
+                  title="Edit"
+                >
+                  <Settings size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+                  onClick={() => handleDelete(page.id)}
+                  disabled={deletingId === page.id}
+                >
+                  {deletingId === page.id ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={14} />
+                  )}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showUploadDialog} onOpenChange={(open) => !uploading && setShowUploadDialog(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload PDF</DialogTitle>
+            <DialogDescription>
+              Upload a PDF file to add it as a flipbook page
+            </DialogDescription>
+          </DialogHeader>
+          <PdfUploader
+            onUploadSuccess={handleUpload}
+            onCancel={() => !uploading && setShowUploadDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingPage} onOpenChange={() => setEditingPage(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit PDF Page</DialogTitle>
+            <DialogDescription>
+              Update the title and description for this PDF page
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">
+                Title
+              </label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Enter title"
+                className="h-9"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">
+                Description
+              </label>
+              <Input
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Enter description"
+                className="h-9"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPage(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 function ContentPanel({ profiles, sections, approvedProfiles, onRefresh }) {
   const [search, setSearch] = useState("")
   const [sectionFilter, setSectionFilter] = useState("")
@@ -545,6 +787,7 @@ export default function YearbookManagementPage() {
   const [profiles, setProfiles] = useState([])
   const [approvedProfiles, setApprovedProfiles] = useState([])
   const [sections, setSections] = useState([])
+  const [pdfPages, setPdfPages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -552,16 +795,18 @@ export default function YearbookManagementPage() {
     setLoading(true)
     setError(null)
     try {
-      const [settingsRes, profilesRes, approvedRes, sectionsRes] = await Promise.all([
+      const [settingsRes, profilesRes, approvedRes, sectionsRes, pdfPagesRes] = await Promise.all([
         getFlipbookSettings(),
         getFlipbookProfiles({ page: 1, perPage: 100 }),
         getApprovedProfiles(),
         getFlipbookSections(),
+        getPdfPages(),
       ])
       setSettings(settingsRes)
       setProfiles(profilesRes.profiles || [])
       setApprovedProfiles(approvedRes || [])
       setSections(sectionsRes || [])
+      setPdfPages(pdfPagesRes || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -582,6 +827,7 @@ export default function YearbookManagementPage() {
     { key: "settings", label: "Settings", icon: Settings },
     { key: "sections", label: "Sections", icon: Layers },
     { key: "content", label: "Content", icon: Users },
+    { key: "pdfs", label: "PDF Pages", icon: FileText },
   ]
 
   return (
@@ -646,6 +892,12 @@ export default function YearbookManagementPage() {
               profiles={profiles}
               sections={sections}
               approvedProfiles={approvedProfiles}
+              onRefresh={fetchAll}
+            />
+          )}
+          {activeTab === "pdfs" && (
+            <PdfPagesPanel
+              pdfPages={pdfPages}
               onRefresh={fetchAll}
             />
           )}
