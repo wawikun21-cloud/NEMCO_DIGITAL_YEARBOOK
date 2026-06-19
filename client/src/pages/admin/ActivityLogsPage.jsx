@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react"
 import {
   ScrollText,
   Search,
-  Filter,
   Download,
   ChevronLeft,
   ChevronRight,
@@ -160,6 +159,7 @@ function LogDetailSheet({ log, open, onClose }) {
 
   useEffect(() => {
     if (open && log) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true)
       getAuditLogDetail(log.id)
         .then(setDetail)
@@ -302,7 +302,6 @@ export default function ActivityLogsPage() {
   const totalPages = Math.ceil(total / perPage)
 
   const fetchLogs = useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       const result = await getAuditLogs({
@@ -317,13 +316,13 @@ export default function ActivityLogsPage() {
       setTotal(result.total)
     } catch (err) {
       setError(err.message)
-    } finally {
-      setLoading(false)
     }
   }, [page, perPage, actionFilter, entityFilter, dateFrom, dateTo])
 
   useEffect(() => {
-    fetchLogs()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    fetchLogs().finally(() => setLoading(false))
   }, [fetchLogs])
 
   useEffect(() => {

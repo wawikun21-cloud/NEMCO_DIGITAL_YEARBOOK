@@ -46,6 +46,9 @@ export async function getAuditLogs({ page = 1, perPage = 25, action = null, enti
   if (userId) {
     query = query.eq("user_id", userId)
   }
+  if (search) {
+    query = query.or(`user_id.eq.${search},entity_id.eq.${search}`)
+  }
   if (dateFrom) {
     query = query.gte("created_at", dateFrom)
   }

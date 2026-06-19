@@ -17,6 +17,12 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    outDir: "dist",
+    assetsDir: "assets",
+    sourcemap: false,
+    chunkSizeWarningLimit: 1500,
+  },
   server: {
     proxy: {
       "/api": {
@@ -24,10 +30,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  },
-  build: {
-    outDir: "dist",
-    assetsDir: "assets",
-    sourcemap: false,
   },
 });

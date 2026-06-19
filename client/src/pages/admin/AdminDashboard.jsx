@@ -7,34 +7,29 @@ import {
   FileText,
   Upload,
   AlertTriangle,
-  ScrollText,
-  Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { getDashboard } from "../../services/dashboardService.js"
 
-const mockStats = [
+const STAT_CONFIG = [
   {
     id: "total-users",
     label: "Total Users",
-    value: "1,284",
     icon: Users,
-    trend: { value: "12% vs last month", positive: true },
     iconBg: "bg-blue-50 dark:bg-blue-900/20",
     iconColor: "text-blue-600 dark:text-blue-400",
   },
   {
     id: "active-users",
     label: "Active Users",
-    value: "1,198",
     icon: UserCheck,
-    trend: { value: "8% vs last month", positive: true },
     iconBg: "bg-emerald-50 dark:bg-emerald-900/20",
     iconColor: "text-emerald-600 dark:text-emerald-400",
   },
   {
     id: "new-this-month",
     label: "New This Month",
-    value: "+86",
     icon: UserPlus,
     iconBg: "bg-violet-50 dark:bg-violet-900/20",
     iconColor: "text-violet-600 dark:text-violet-400",
@@ -42,16 +37,13 @@ const mockStats = [
   {
     id: "completed-profiles",
     label: "Completed Profiles",
-    value: "923",
     icon: ClipboardCheck,
-    trend: { value: "5% vs last month", positive: true },
     iconBg: "bg-sky-50 dark:bg-sky-900/20",
     iconColor: "text-sky-600 dark:text-sky-400",
   },
   {
     id: "pending-approvals",
     label: "Pending Approvals",
-    value: "47",
     icon: ClipboardCheck,
     iconBg: "bg-amber-50 dark:bg-amber-900/20",
     iconColor: "text-amber-600 dark:text-amber-400",
@@ -59,16 +51,13 @@ const mockStats = [
   {
     id: "resumes-created",
     label: "Resumes Created",
-    value: "312",
     icon: FileText,
-    trend: { value: "18% vs last month", positive: true },
     iconBg: "bg-teal-50 dark:bg-teal-900/20",
     iconColor: "text-teal-600 dark:text-teal-400",
   },
   {
     id: "recent-imports",
     label: "Recent Imports",
-    value: "12",
     icon: Upload,
     iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
     iconColor: "text-indigo-600 dark:text-indigo-400",
@@ -76,37 +65,53 @@ const mockStats = [
   {
     id: "failed-imports",
     label: "Failed Imports",
-    value: "3",
     icon: AlertTriangle,
     iconBg: "bg-red-50 dark:bg-red-900/20",
     iconColor: "text-red-600 dark:text-red-400",
   },
 ]
 
-const mockRecentLogs = [
-  { id: 1, user: "Maria Santos", action: "Profile Updated", entity: "Profile", time: "2 minutes ago" },
-  { id: 2, user: "System", action: "Import Completed", entity: "Import Batch #12", time: "18 minutes ago" },
-  { id: 3, user: "Admin", action: "User Created", entity: "Juan Dela Cruz", time: "1 hour ago" },
-  { id: 4, user: "Pedro Reyes", action: "Login", entity: "Auth", time: "2 hours ago" },
-  { id: 5, user: "System", action: "Import Failed", entity: "Import Batch #11", time: "3 hours ago" },
-]
-
-const mockFailedImports = [
-  {
-    id: "batch-0011",
-    fileName: "students_batch_march.xlsx",
-    reason: "Invalid email format on row 14, 27, 33",
-    timestamp: "3 hours ago",
-  },
-  {
-    id: "batch-0012",
-    fileName: "new_students.xlsx",
-    reason: "Duplicate student_number detected on row 5",
-    timestamp: "Yesterday",
-  },
-]
+function formatStatValue(id, value) {
+  if (value === undefined || value === null) return "—"
+  if (id === "new-this-month") return "+" + Number(value).toLocaleString()
+  return Number(value).toLocaleString()
+}
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState(null)
+  const [recentLogs, setRecentLogs] = useState([])
+  const [failedImports, setFailedImports] = useState([])
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        const data = await getDashboard()
+        setStats(data.stats)
+        setRecentLogs(data.recentLogs || [])
+        setFailedImports(data.failedImports || [])
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error)
+        setStats(null)
+        setRecentLogs([])
+        setFailedImports([])
+      }
+    }
+    fetchDashboardData()
+  }, [])
+
+  const displayStats = stats
+    ? [
+        { ...STAT_CONFIG[0], value: formatStatValue("total-users", stats.totalUsers) },
+        { ...STAT_CONFIG[1], value: formatStatValue("active-users", stats.activeUsers) },
+        { ...STAT_CONFIG[2], value: formatStatValue("new-this-month", stats.newUsersThisMonth) },
+        { ...STAT_CONFIG[3], value: formatStatValue("completed-profiles", stats.completedProfiles) },
+        { ...STAT_CONFIG[4], value: formatStatValue("pending-approvals", stats.pendingApprovals) },
+        { ...STAT_CONFIG[5], value: formatStatValue("resumes-created", stats.resumesCreated) },
+        { ...STAT_CONFIG[6], value: formatStatValue("recent-imports", stats.recentImports) },
+        { ...STAT_CONFIG[7], value: formatStatValue("failed-imports", stats.failedImports) },
+      ]
+    : STAT_CONFIG.map((stat) => ({ ...stat, value: "—" }))
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       {/* Page header */}
@@ -119,45 +124,9 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-        <Button
-          variant="default"
-          onClick={() => console.log("→ /admin/users")}
-          className="gap-2"
-        >
-          <Users size={16} />
-          Manage Users
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => console.log("→ /admin/logs")}
-          className="gap-2"
-        >
-          <ScrollText size={16} />
-          View Audit Logs
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.location.href = "/admin/import"}
-          className="gap-2"
-        >
-          <Upload size={16} />
-          Bulk Import
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => console.log("→ /admin/settings")}
-          className="gap-2"
-        >
-          <Settings size={16} />
-          Settings
-        </Button>
-      </div>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {mockStats.map((stat, index) => (
+        {displayStats.map((stat, index) => (
           <div key={stat.id} className={`animate-fade-in-up animate-delay-${(index + 1) * 100}`}>
             <AdminStatCard {...stat} />
           </div>
@@ -183,19 +152,27 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-light)]">
-                {mockRecentLogs.map((log) => (
-                  <tr
-                    key={log.id}
-                    className="transition-colors hover:bg-[var(--bg-subtle)]/50"
-                  >
-                    <td className="px-3 py-3 font-medium text-[var(--text-primary)] sm:px-5">{log.user}</td>
-                    <td className="px-3 py-3 text-[var(--text-secondary)] sm:px-5">{log.action}</td>
-                    <td className="hidden px-3 py-3 text-[var(--text-muted)] sm:table-cell sm:px-5">{log.entity}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-[var(--text-muted)] sm:px-5">
-                      {log.time}
+                {recentLogs.length > 0 ? (
+                  recentLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="transition-colors hover:bg-[var(--bg-subtle)]/50"
+                    >
+                      <td className="px-3 py-3 font-medium text-[var(--text-primary)] sm:px-5">{log.user}</td>
+                      <td className="px-3 py-3 text-[var(--text-secondary)] sm:px-5">{log.action}</td>
+                      <td className="hidden px-3 py-3 text-[var(--text-muted)] sm:table-cell sm:px-5">{log.entity}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right text-[var(--text-muted)] sm:px-5">
+                        {log.time}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8 text-center text-[var(--text-muted)]">
+                      No recent activity
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -207,22 +184,28 @@ export default function AdminDashboard() {
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Failed Imports</h2>
             <p className="text-xs text-[var(--text-muted)]">Recent batches with errors</p>
           </div>
-          <div className="divide-y divide-[var(--border-light)]">
-            {mockFailedImports.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-[var(--bg-subtle)]/50"
-              >
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                    {item.fileName}
-                  </span>
-                  <span className="shrink-0 text-xs text-[var(--text-muted)]">{item.timestamp}</span>
+          {failedImports.length > 0 ? (
+            <div className="divide-y divide-[var(--border-light)]">
+              {failedImports.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-[var(--bg-subtle)]/50"
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {item.fileName}
+                    </span>
+                    <span className="shrink-0 text-xs text-[var(--text-muted)]">{item.timestamp}</span>
+                  </div>
+                  <p className="text-xs text-[var(--status-red)]">{item.reason}</p>
                 </div>
-                <p className="text-xs text-[var(--status-red)]">{item.reason}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-8 text-center text-[var(--text-muted)]">
+              No failed imports
+            </div>
+          )}
           <div className="border-t border-[var(--border-light)] px-5 py-3">
             <Button
               variant="ghost"

@@ -1,9 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext"
-import DashboardPage from "./pages/student/DashboardPage"
 import LoginPage from "./pages/student/LoginPage"
+import LibraryPage from "./pages/student/LibraryPage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import AdminDashboard from "@/pages/admin/AdminDashboard"
 import ImportUsersPage from "@/pages/admin/ImportUsersPage"
+import ManageUsersPage from "@/pages/admin/ManageUsersPage"
 import ActivityLogsPage from "@/pages/admin/ActivityLogsPage"
 import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
@@ -43,17 +44,28 @@ export default function App() {
     if (path === "/admin/yearbook") return "admin-yearbook"
     if (path === "/admin/logs") return "admin-logs"
     if (path === "/admin/settings") return "admin-settings"
-    if (path === "/dashboard") return "dashboard"
-    return "dashboard"
+    if (path === "/library") return "library"
+    if (path === "/profile") return "profile"
+    if (path === "/resume") return "resume"
+    return "library"
   }
 
   const getAdminPage = () => {
     const path = window.location.pathname
     if (path === "/admin/import") return <ImportUsersPage />
+    if (path === "/admin/users") return <ManageUsersPage />
     if (path === "/admin/logs") return <ActivityLogsPage />
     if (path === "/admin/resumes") return <ResumeManagementPage />
     if (path === "/admin/yearbook") return <YearbookManagementPage />
     return <AdminDashboard />
+  }
+
+  const getStudentPage = () => {
+    const path = window.location.pathname
+    if (path === "/library") return <LibraryPage />
+    if (path === "/profile") return <div className="p-8">Profile Page (coming soon)</div>
+    if (path === "/resume") return <div className="p-8">Resume Builder (coming soon)</div>
+    return <LibraryPage />
   }
 
   if (role === "admin") {
@@ -70,5 +82,15 @@ export default function App() {
     )
   }
 
-  return <DashboardPage />
+  return (
+    <DashboardLayout
+      activePage={getActivePage()}
+      user={userDisplay}
+      onNavigate={handleNavigate}
+      onLogout={handleLogout}
+      onProfile={handleProfile}
+    >
+      {getStudentPage()}
+    </DashboardLayout>
+  )
 }

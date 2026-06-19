@@ -35,7 +35,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 
 const NAV_MAIN = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { key: "library", label: "Library", icon: BookOpen, href: "/library" },
   { key: "profile", label: "My Profile", icon: User, href: "/profile" },
   { key: "resume", label: "Resume Builder", icon: FileText, href: "/resume" },
@@ -51,7 +50,7 @@ const NAV_ADMIN = [
   { key: "admin-settings",   label: "Settings",            icon: Settings,        href: "/admin/settings" },
 ]
 
-export default function AppSidebar({ activePage = "dashboard", onNavigate, onLogout, onProfile }) {
+export default function AppSidebar({ activePage = "library", onNavigate, onLogout, onProfile }) {
   const { user, role } = useAuth()
   const navItems = role === "admin" ? NAV_ADMIN : NAV_MAIN
 
