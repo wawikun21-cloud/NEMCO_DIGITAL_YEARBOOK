@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext"
 import LoginPage from "./pages/student/LoginPage"
 import LibraryPage from "./pages/student/LibraryPage"
+import ProfilePage from "./pages/student/ProfilePage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
 import AdminDashboard from "@/pages/admin/AdminDashboard"
 import ImportUsersPage from "@/pages/admin/ImportUsersPage"
@@ -63,7 +64,7 @@ export default function App() {
   const getStudentPage = () => {
     const path = window.location.pathname
     if (path === "/library") return <LibraryPage />
-    if (path === "/profile") return <div className="p-8">Profile Page (coming soon)</div>
+    if (path === "/profile") return <ProfilePage />
     if (path === "/resume") return <div className="p-8">Resume Builder (coming soon)</div>
     return <LibraryPage />
   }

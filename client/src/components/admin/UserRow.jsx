@@ -5,8 +5,16 @@ export function UserRow({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
   return (
     <tr className="transition-colors hover:bg-[var(--bg-subtle)]/50">
       <td className="px-3 py-3 sm:px-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)]">
-          {user.full_name?.charAt(0)?.toUpperCase() || "?"}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)]">
+          {user.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.full_name || "Avatar"}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            user.full_name?.charAt(0)?.toUpperCase() || "?"
+          )}
         </div>
       </td>
       <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-[var(--text-primary)] sm:px-5">

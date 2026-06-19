@@ -14,6 +14,7 @@ import resumeTemplateRoutes from "./routes/resumeTemplateRoutes.js"
 import flipbookRoutes from "./routes/flipbookRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
 import dashboardRoutes from "./routes/dashboardRoutes.js"
+import profileRoutes from "./routes/profileRoutes.js"
 import { errorHandler } from "./middlewares/errorHandler.js"
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
@@ -51,6 +52,7 @@ app.use("/api/admin", resumeTemplateRoutes)
 app.use("/api/admin", flipbookRoutes)
 app.use("/api/admin/upload", uploadRoutes)
 app.use("/api/admin", dashboardRoutes)
+app.use("/api/profiles", profileRoutes)
 
 if (config.nodeEnv === "production" && process.env.VERCEL !== "1") {
   const clientDistPath = path.resolve(__dirname, "../../client/dist")

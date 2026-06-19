@@ -42,7 +42,7 @@ export async function loginWithStudentId({ studentId, password }) {
 
   const { data: publicProfile, error: publicProfileError } = await supabaseAdmin
     .from("profiles")
-    .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public")
+    .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,is_public,resume_public")
     .eq("id", profile.id)
     .maybeSingle()
 

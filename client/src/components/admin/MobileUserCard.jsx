@@ -9,10 +9,18 @@ function MobileUserCard({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
   return (
     <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-sm font-bold text-[var(--text-primary)]">
-            {user.full_name?.charAt(0)?.toUpperCase() || "?"}
-          </div>
+<div className="flex items-center gap-3">
+           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden bg-[var(--bg-subtle)] text-sm font-bold text-[var(--text-primary)]">
+             {user.avatar_url ? (
+               <img
+                 src={user.avatar_url}
+                 alt={user.full_name || "Avatar"}
+                 className="h-full w-full object-cover"
+               />
+             ) : (
+               user.full_name?.charAt(0)?.toUpperCase() || "?"
+             )}
+           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{user.full_name}</p>
             <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>

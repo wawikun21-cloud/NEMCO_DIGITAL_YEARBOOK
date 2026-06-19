@@ -9,6 +9,9 @@ export function AuthProvider({ children }) {
   const login = (userData, userProfile) => {
     setUser(userData)
     setProfile(userProfile)
+    if (userProfile) {
+      sessionStorage.setItem("digitalYearbookProfile", JSON.stringify(userProfile))
+    }
   }
 
   const logout = () => {

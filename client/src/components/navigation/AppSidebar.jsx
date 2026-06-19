@@ -35,9 +35,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 
 const NAV_MAIN = [
-  { key: "library", label: "Library", icon: BookOpen, href: "/library" },
-  { key: "profile", label: "My Profile", icon: User, href: "/profile" },
-  { key: "resume", label: "Resume Builder", icon: FileText, href: "/resume" },
+  { key: "library", label: "My Library", icon: BookOpen, href: "/library" },
+  { key: "profile", label: "Profile", icon: User, href: "/profile" },
+  { key: "resume", label: "Resume", icon: FileText, href: "/resume" },
 ]
 
 const NAV_ADMIN = [
@@ -51,7 +51,7 @@ const NAV_ADMIN = [
 ]
 
 export default function AppSidebar({ activePage = "library", onNavigate, onLogout, onProfile }) {
-  const { user, role } = useAuth()
+  const { user, role, profile } = useAuth()
   const navItems = role === "admin" ? NAV_ADMIN : NAV_MAIN
 
   return (
@@ -136,15 +136,23 @@ export default function AppSidebar({ activePage = "library", onNavigate, onLogou
                     transition-colors
                   "
                 >
-                  <div className="
-                    flex h-8 w-8 shrink-0 items-center justify-center
-                    rounded-full overflow-hidden
-                    bg-[--sidebar-primary]/20
-                    text-xs font-bold text-[--sidebar-primary]
-                    ring-2 ring-[--sidebar-primary]/40
-                  ">
-                    {user?.email?.charAt(0)?.toUpperCase() ?? "?"}
-                  </div>
+<div className="
+                     flex h-8 w-8 shrink-0 items-center justify-center
+                     rounded-full overflow-hidden
+                     bg-[--sidebar-primary]/20
+                     text-xs font-bold text-[--sidebar-primary]
+                     ring-2 ring-[--sidebar-primary]/40
+                   ">
+                     {profile?.avatar_url ? (
+                       <img
+                         src={profile.avatar_url}
+                         alt="Avatar"
+                         className="h-full w-full object-cover"
+                       />
+                     ) : (
+                       user?.email?.charAt(0)?.toUpperCase() ?? "?"
+                     )}
+                   </div>
 
                   <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
                     <span className="truncate text-sm font-semibold leading-tight">
@@ -169,16 +177,25 @@ export default function AppSidebar({ activePage = "library", onNavigate, onLogou
                 className="w-60 p-1.5"
               >
                 <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-3 rounded-md px-3 py-3">
-                    <div className="
-                      flex h-9 w-9 shrink-0 items-center justify-center
-                      rounded-full
-                      bg-[var(--bg-sidebar)] dark:bg-[var(--bg-sidebar)]
-                      text-xs font-bold text-[var(--accent-gold)]
-                      ring-2 ring-border
-                    ">
-                      {user?.email?.charAt(0)?.toUpperCase() ?? "?"}
-                    </div>
+<div className="flex items-center gap-3 rounded-md px-3 py-3">
+                     <div className="
+                       flex h-9 w-9 shrink-0 items-center justify-center
+                       rounded-full
+                       bg-[var(--bg-sidebar)] dark:bg-[var(--bg-sidebar)]
+                       text-xs font-bold text-[var(--accent-gold)]
+                       ring-2 ring-border
+                       overflow-hidden
+                     ">
+                       {profile?.avatar_url ? (
+                         <img
+                           src={profile.avatar_url}
+                           alt="Avatar"
+                           className="h-full w-full object-cover"
+                         />
+                       ) : (
+                         user?.email?.charAt(0)?.toUpperCase() ?? "?"
+                       )}
+                     </div>
                     <div className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-sm font-semibold leading-tight text-foreground">
                         {user?.email ?? "Account"}

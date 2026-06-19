@@ -5,7 +5,7 @@ export default function LibraryPage() {
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
-          Library
+          My Library
         </h1>
         <p className="text-sm text-[var(--text-muted)]">
           Access your digital flipbooks and learning materials.
