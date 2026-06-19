@@ -259,19 +259,23 @@ export async function getPublicFlipbook() {
   const settings = await getFlipbookSettings()
 
   if (!settings.enabled) {
-    return { settings, profiles: [], sections: [], pdfPages: [] }
+    return { settings, profiles: [], sections: [], pdfPages: [], sourceType: "profiles" }
   }
 
   const sourceType = settings.source_type || "profiles"
 
-  const { data: flipbookProfiles, error: fpError } = await supabaseAdmin
-    .from("flipbook_profiles")
-    .select("id, profile_id, section_name, page_order, layout_template")
-    .eq("is_included", true)
-    .order("page_order", { ascending: true })
+  let flipbookProfiles = []
+  if (sourceType === "profiles" || sourceType === "combined") {
+    const { data, error: fpError } = await supabaseAdmin
+      .from("flipbook_profiles")
+      .select("id, profile_id, section_name, page_order, layout_template")
+      .eq("is_included", true)
+      .order("page_order", { ascending: true })
 
-  if (fpError) {
-    throw new Error(`Failed to fetch public flipbook profiles: ${fpError.message}`)
+    if (fpError) {
+      throw new Error(`Failed to fetch public flipbook profiles: ${fpError.message}`)
+    }
+    flipbookProfiles = data || []
   }
 
   const profileIds = (flipbookProfiles || []).map((p) => p.profile_id).filter(Boolean)
@@ -291,14 +295,18 @@ export async function getPublicFlipbook() {
 
   const sections = await getFlipbookSections()
 
-  const { data: pdfPages, error: pdfError } = await supabaseAdmin
-    .from("flipbook_pdf_pages")
-    .select("id, title, description, file_url, file_name, page_count, cover_image_url, sort_order, is_active")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
+  let pdfPages = []
+  if (sourceType === "pdfs" || sourceType === "combined") {
+    const { data, error: pdfError } = await supabaseAdmin
+      .from("flipbook_pdf_pages")
+      .select("id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
 
-  if (pdfError) {
-    throw new Error(`Failed to fetch PDF pages: ${pdfError.message}`)
+    if (pdfError) {
+      throw new Error(`Failed to fetch PDF pages: ${pdfError.message}`)
+    }
+    pdfPages = data || []
   }
 
   return {
@@ -309,7 +317,7 @@ export async function getPublicFlipbook() {
       profile: profileMap[p.profile_id] || null,
     })),
     sections,
-    pdfPages: pdfPages || [],
+    pdfPages,
   }
 }
 
@@ -326,7 +334,7 @@ export async function getFlipbookPdfPages() {
   return data || []
 }
 
-export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl }) {
+export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, uploadedBy }) {
   const { data: maxOrder } = await supabaseAdmin
     .from("flipbook_pdf_pages")
     .select("sort_order")
@@ -346,6 +354,8 @@ export async function createFlipbookPdfPage({ title, description, fileUrl, fileN
       file_size: fileSize || null,
       page_count: pageCount || 0,
       cover_image_url: coverImageUrl || null,
+      file_path: filePath || null,
+      uploaded_by: uploadedBy || null,
       sort_order: nextOrder,
       is_active: true,
     })
@@ -381,7 +391,30 @@ export async function updateFlipbookPdfPage(id, { title, description, sortOrder,
 }
 
 export async function deleteFlipbookPdfPage(id) {
-  const { data, error } = await supabaseAdmin
+  const { data: page, error: fetchError } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select("id, file_url")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch PDF page for deletion: ${fetchError.message}`)
+  }
+
+  if (page?.file_url) {
+    try {
+      const url = new URL(page.file_url)
+      const pathParts = url.pathname.split("/")
+      const bucketIndex = pathParts.indexOf("flipbook-pdfs")
+      if (bucketIndex !== -1) {
+        const filePath = pathParts.slice(bucketIndex + 1).join("/")
+        await supabaseAdmin.storage.from("flipbook-pdfs").remove([filePath])
+      }
+    } catch {
+    }
+  }
+
+  const { error } = await supabaseAdmin
     .from("flipbook_pdf_pages")
     .delete()
     .eq("id", id)
@@ -392,7 +425,7 @@ export async function deleteFlipbookPdfPage(id) {
     throw new Error(`Failed to delete PDF page: ${error.message}`)
   }
 
-  return data
+  return page
 }
 
 export async function reorderFlipbookPdfPages(orderedIds) {

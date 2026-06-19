@@ -1,4 +1,5 @@
-import { BookOpen } from "lucide-react"
+import { BookOpen, BookMarked, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export default function LibraryPage() {
   return (
@@ -12,19 +13,38 @@ export default function LibraryPage() {
         </p>
       </div>
 
-      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-8 text-center">
-        <BookOpen size={64} className="mb-4 text-[var(--text-muted)]" />
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          Your Library is Empty
-        </h2>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          No books or materials available yet. Check back later!
-        </p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <button
+          onClick={() => { window.location.href = "/flipbook" }}
+          className="group flex flex-col items-center rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center transition-all hover:border-[var(--bg-primary)]/30 hover:shadow-lg"
+        >
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-primary)]/10 transition-colors group-hover:bg-[var(--bg-primary)]/20">
+            <BookMarked size={32} className="text-[var(--bg-primary)]" />
+          </div>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">3D Yearbook</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Browse the interactive 3D flipbook
+          </p>
+          <Button size="sm" className="mt-4 gap-2">
+            <BookOpen size={14} />
+            Open Flipbook
+          </Button>
+        </button>
+
+        <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center opacity-60">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-subtle)]">
+            <FileText size={32} className="text-[var(--text-muted)]" />
+          </div>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">Documents</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Coming soon
+          </p>
+        </div>
       </div>
 
       <footer className="mt-auto border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 text-xs text-[var(--text-muted)] sm:flex-row">
-          <span>© {new Date().getFullYear()} Student Portal. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Student Portal. All rights reserved.</span>
           <nav className="flex gap-4">
             <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Privacy Policy</a>
             <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Terms of Use</a>

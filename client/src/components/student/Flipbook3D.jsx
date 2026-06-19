@@ -217,7 +217,11 @@ function BookSpine({ thickness }) {
   )
 }
 
-function ThumbnailStrip({ thumbnails, currentPage, onPageSelect }) {
+function ThumbnailStrip({
+  thumbnails,
+  currentPage,
+  onPageSelect,
+}) {
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -248,7 +252,11 @@ function ThumbnailStrip({ thumbnails, currentPage, onPageSelect }) {
           style={{ width: "60px", aspectRatio: "3/4" }}
         >
           {thumb ? (
-            <img src={thumb} alt={`Page ${index + 1}`} className="h-full w-full object-cover rounded-sm" />
+            <img
+              src={thumb}
+              alt={`Page ${index + 1}`}
+              className="h-full w-full object-cover rounded-sm"
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gray-100 rounded-sm">
               <span className="text-[9px] text-gray-400">{index + 1}</span>
@@ -260,7 +268,7 @@ function ThumbnailStrip({ thumbnails, currentPage, onPageSelect }) {
   )
 }
 
-export default function PdfFlipbookViewer({ pdfPages, settings }) {
+export default function Flipbook3D({ pdfPages, settings }) {
   const [currentSheet, setCurrentSheet] = useState(0)
   const [isFlipping, setIsFlipping] = useState(false)
   const [flipDirection, setFlipDirection] = useState(null)
@@ -481,7 +489,12 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
               aspectRatio: "3/2",
             }}
           >
-            <div className="relative h-full w-full rounded-lg" style={{ transformStyle: "preserve-3d" }}>
+            <div
+              className="relative h-full w-full rounded-lg"
+              style={{
+                transformStyle: "preserve-3d",
+              }}
+            >
               <div
                 className="absolute inset-0 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200"
                 style={{
@@ -503,6 +516,7 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
                 .map((sheetPair, sheetIndex) => {
                   const frontPage = sheetPair[0]
                   const backPage = sheetPair[1]
+
                   if (!frontPage) return null
 
                   const frontImage = renderedPages[frontPage.sheetPageNum]

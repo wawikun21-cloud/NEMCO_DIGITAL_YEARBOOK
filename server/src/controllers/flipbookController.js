@@ -178,7 +178,7 @@ export async function fetchPdfPages(req, res, next) {
 
 export async function addPdfPage(req, res, next) {
   try {
-    const { title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl } = req.body
+    const { title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, sectionName } = req.body
 
     if (!fileUrl || !fileName) {
       return res.status(400).json({ message: "fileUrl and fileName are required" })
@@ -192,6 +192,9 @@ export async function addPdfPage(req, res, next) {
       fileSize,
       pageCount,
       coverImageUrl,
+      filePath,
+      uploadedBy: req.user?.id || null,
+      sectionName,
     })
 
     res.json({ page })
