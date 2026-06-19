@@ -8,6 +8,9 @@ import { config } from "./config/env.js"
 import authRoutes from "./routes/authRoutes.js"
 import importRoutes from "./routes/importRoutes.js"
 import auditLogRoutes from "./routes/auditLogRoutes.js"
+import resumeRoutes from "./routes/resumeRoutes.js"
+import resumeTemplateRoutes from "./routes/resumeTemplateRoutes.js"
+import flipbookRoutes from "./routes/flipbookRoutes.js"
 import { errorHandler } from "./middlewares/errorHandler.js"
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
@@ -39,6 +42,9 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes)
 app.use("/api/admin/import", importRoutes)
 app.use("/api/admin", auditLogRoutes)
+app.use("/api/admin", resumeRoutes)
+app.use("/api/admin", resumeTemplateRoutes)
+app.use("/api/admin", flipbookRoutes)
 
 if (config.nodeEnv === "production" && process.env.VERCEL !== "1") {
   const clientDistPath = path.resolve(__dirname, "../../client/dist")

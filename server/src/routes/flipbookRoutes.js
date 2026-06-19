@@ -1,0 +1,33 @@
+import { Router } from "express"
+import {
+  fetchSettings,
+  updateSettings,
+  fetchProfiles,
+  fetchApprovedProfiles,
+  addProfile,
+  updateProfile,
+  removeProfile,
+  reorderProfiles,
+  fetchSections,
+  addSection,
+  removeSection,
+  fetchPublicFlipbook,
+} from "../controllers/flipbookController.js"
+import { requireAuth } from "../middlewares/authMiddleware.js"
+
+const router = Router()
+
+router.get("/yearbook/flipbook", fetchPublicFlipbook)
+router.get("/yearbook/settings", requireAuth, fetchSettings)
+router.patch("/yearbook/settings", requireAuth, updateSettings)
+router.get("/yearbook/profiles", requireAuth, fetchProfiles)
+router.get("/yearbook/approved-profiles", requireAuth, fetchApprovedProfiles)
+router.post("/yearbook/profiles", requireAuth, addProfile)
+router.patch("/yearbook/profiles/:id", requireAuth, updateProfile)
+router.delete("/yearbook/profiles/:id", requireAuth, removeProfile)
+router.post("/yearbook/reorder", requireAuth, reorderProfiles)
+router.get("/yearbook/sections", requireAuth, fetchSections)
+router.post("/yearbook/sections", requireAuth, addSection)
+router.delete("/yearbook/sections/:id", requireAuth, removeSection)
+
+export default router

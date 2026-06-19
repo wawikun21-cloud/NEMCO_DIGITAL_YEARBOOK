@@ -5,6 +5,8 @@ import DashboardLayout from "@/components/layout/DashboardLayout"
 import AdminDashboard from "@/pages/admin/AdminDashboard"
 import ImportUsersPage from "@/pages/admin/ImportUsersPage"
 import ActivityLogsPage from "@/pages/admin/ActivityLogsPage"
+import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
+import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
@@ -37,6 +39,8 @@ export default function App() {
     if (path === "/admin" || path === "/admin/") return "admin-dashboard"
     if (path === "/admin/import") return "admin-import"
     if (path === "/admin/users") return "admin-users"
+    if (path === "/admin/resumes") return "admin-resumes"
+    if (path === "/admin/yearbook") return "admin-yearbook"
     if (path === "/admin/logs") return "admin-logs"
     if (path === "/admin/settings") return "admin-settings"
     if (path === "/dashboard") return "dashboard"
@@ -47,6 +51,8 @@ export default function App() {
     const path = window.location.pathname
     if (path === "/admin/import") return <ImportUsersPage />
     if (path === "/admin/logs") return <ActivityLogsPage />
+    if (path === "/admin/resumes") return <ResumeManagementPage />
+    if (path === "/admin/yearbook") return <YearbookManagementPage />
     return <AdminDashboard />
   }
 
