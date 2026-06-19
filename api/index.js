@@ -79,7 +79,7 @@ async function handleGetUsers(req, res) {
   if (search) query = query.or([`full_name.ilike.%${search}%`, `email.ilike.%${search}%`, `student_number.ilike.%${search}%`].join(","))
   const { data, error } = await query
   if (error) return json(res, 500, { message: "Failed to fetch users" })
-  json(res, 200, data || [])
+  json(res, 200, { users: data || [] })
 }
 
 async function handleGetUser(req, res) {
@@ -89,7 +89,7 @@ async function handleGetUser(req, res) {
   const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: "Failed to fetch user" })
   if (!data) return json(res, 404, { message: "User not found" })
-  json(res, 200, data)
+  json(res, 200, { user: data })
 }
 
 async function handleCreateUser(req, res) {
@@ -122,7 +122,7 @@ async function handleUpdateUser(req, res) {
   try {
     const { data: updated, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", id).select().maybeSingle()
     if (error) return json(res, 400, { message: "Failed to update user" })
-    json(res, 200, updated)
+    json(res, 200, { user: updated })
   } catch (error) {
     json(res, 500, { message: error.message || "Failed to update user" })
   }
