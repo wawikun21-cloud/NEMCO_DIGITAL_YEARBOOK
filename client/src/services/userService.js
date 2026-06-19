@@ -17,7 +17,27 @@ async function getAuthHeaders() {
 }
 
 export async function getUsers(filters = {}) {
-  const authHeaders = await getAuthHeaders()
+  let authHeaders
+  let hasAuth = false
+
+  try {
+    authHeaders = await getAuthHeaders()
+    hasAuth = true
+  } catch (error) {
+    if (error.message !== "You must be logged in to perform this action.") {
+      throw error
+    }
+  }
+
+  if (!hasAuth) {
+    const storedUsers = sessionStorage.getItem("digitalYearbookUsers")
+    if (storedUsers) {
+      return JSON.parse(storedUsers)
+    }
+    const storedProfile = sessionStorage.getItem("digitalYearbookProfile")
+    const profile = storedProfile ? JSON.parse(storedProfile) : null
+    return profile ? [profile] : []
+  }
 
   const searchParams = new URLSearchParams()
   Object.entries(filters).forEach(([key, value]) => {

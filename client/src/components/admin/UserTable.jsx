@@ -1,6 +1,6 @@
 import { UserRow } from "@/components/admin/UserRow";
 
-export default function UserTable({ users, onEdit, onDelete, onResetPassword }) {
+export default function UserTable({ users, onEdit, onToggleRole, onToggleStatus, onResetPassword, onDelete }) {
   if (users.length === 0) {
     return (
       <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)]">
@@ -9,7 +9,7 @@ export default function UserTable({ users, onEdit, onDelete, onResetPassword }) 
           <p className="mt-1 text-xs text-[var(--text-muted)]">Try adjusting your search or filters.</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -36,13 +36,15 @@ export default function UserTable({ users, onEdit, onDelete, onResetPassword }) 
                 key={user.id}
                 user={user}
                 onEdit={onEdit}
-                onDelete={onDelete}
+                onToggleRole={onToggleRole}
+                onToggleStatus={onToggleStatus}
                 onResetPassword={onResetPassword}
+                onDelete={onDelete}
               />
             ))}
           </tbody>
         </table>
       </div>
     </div>
-  );
+  )
 }
