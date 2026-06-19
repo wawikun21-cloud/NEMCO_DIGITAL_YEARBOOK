@@ -56,3 +56,34 @@ export async function loginWithStudentId({ studentId, password }) {
     profile: publicProfile,
   }
 }
+
+export async function changePassword(userId, currentPassword, newPassword) {
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (!profile) {
+    throw new Error("User not found")
+  }
+
+  const { error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+    email: profile.email,
+    password: currentPassword,
+  })
+
+  if (signInError) {
+    throw new Error("Current password is incorrect")
+  }
+
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    password: newPassword,
+  })
+
+  if (updateError) {
+    throw new Error(updateError.message || "Failed to change password")
+  }
+
+  return { success: true }
+}

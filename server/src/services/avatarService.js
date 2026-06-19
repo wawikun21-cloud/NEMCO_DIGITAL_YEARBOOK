@@ -11,73 +11,79 @@ export async function uploadAvatar(userId, fileBuffer, filename, mimeType, size)
     throw new Error("File too large. Maximum size is 2MB.")
   }
 
-  const { data: currentProfile } = await supabaseAdmin
-    .from("profiles")
-    .select("avatar_url")
-    .eq("id", userId)
-    .single()
+  try {
+    const { data: currentProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("avatar_url")
+      .eq("id", userId)
+      .single()
 
-  const oldAvatarUrl = currentProfile?.avatar_url || null
+    const oldAvatarUrl = currentProfile?.avatar_url || null
 
-  const fileExt = filename.split(".").pop()?.toLowerCase() || "jpg"
-  const storagePath = `${userId}/avatar.${fileExt}`
+    const fileExt = filename.split(".").pop()?.toLowerCase() || "jpg"
+    const storagePath = `${userId}/avatar.${fileExt}`
 
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from("avatars")
-    .upload(storagePath, fileBuffer, {
-      contentType: mimeType,
-      upsert: true,
-    })
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("avatars")
+      .upload(storagePath, fileBuffer, {
+        contentType: mimeType,
+        upsert: true,
+      })
 
-  if (uploadError) {
-    throw new Error(`Failed to upload avatar: ${uploadError.message}`)
-  }
+    if (uploadError) {
+      console.error("[STORAGE UPLOAD ERROR]", { message: uploadError.message, storagePath, userId })
+      throw new Error(`Failed to upload avatar: ${uploadError.message}`)
+    }
 
-  const { data: publicUrlData } = supabaseAdmin.storage
-    .from("avatars")
-    .getPublicUrl(storagePath)
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from("avatars")
+      .getPublicUrl(storagePath)
 
-  const avatarUrl = publicUrlData.publicUrl
+    const avatarUrl = publicUrlData.publicUrl
 
-  const { data: updatedProfile, error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
-    .eq("id", userId)
-    .select()
-    .single()
+    const { data: updatedProfile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select()
+      .single()
 
-  if (profileError) {
-    console.error("[PROFILE UPDATE ERROR]", profileError.message)
-  }
+    if (profileError) {
+      console.error("[PROFILE UPDATE ERROR]", profileError.message)
+    }
 
-  const { data: uploadRecord, error: recordError } = await supabaseAdmin
-    .from("avatar_uploads")
-    .insert({
-      user_id: userId,
-      file_path: storagePath,
-      file_name: filename,
-      mime_type: mimeType,
-      file_size: size,
-      old_avatar_url: oldAvatarUrl,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
+    const { data: uploadRecord, error: recordError } = await supabaseAdmin
+      .from("avatar_uploads")
+      .insert({
+        user_id: userId,
+        file_path: storagePath,
+        file_name: filename,
+        mime_type: mimeType,
+        file_size: size,
+        old_avatar_url: oldAvatarUrl,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
 
-  if (recordError) {
-    console.error("[AVATAR METADATA ERROR]", {
-      message: recordError.message,
-      storagePath,
-      userId,
-    })
-    throw new Error(`Failed to save avatar metadata: ${recordError.message}`)
-  }
+    if (recordError) {
+      console.error("[AVATAR METADATA ERROR]", {
+        message: recordError.message,
+        storagePath,
+        userId,
+      })
+      throw new Error(`Failed to save avatar metadata: ${recordError.message}`)
+    }
 
-  return {
-    avatarUrl,
-    uploadRecord: uploadRecord || null,
-    previousAvatarUrl: oldAvatarUrl,
-    profile: updatedProfile || null,
+    return {
+      avatarUrl,
+      uploadRecord: uploadRecord || null,
+      previousAvatarUrl: oldAvatarUrl,
+      profile: updatedProfile || null,
+    }
+  } catch (error) {
+    console.error("[AVATAR UPLOAD EXCEPTION]", error)
+    throw error
   }
 }
 

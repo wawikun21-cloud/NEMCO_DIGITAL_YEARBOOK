@@ -68,3 +68,29 @@ export function clearStoredAuth() {
   sessionStorage.removeItem("digitalYearbookSession")
   sessionStorage.removeItem("digitalYearbookAccessToken")
 }
+
+export async function changePassword(currentPassword, newPassword) {
+  const { data: supabaseData } = await supabase.auth.getSession()
+  const accessToken = supabaseData?.session?.access_token || sessionStorage.getItem("digitalYearbookAccessToken")
+
+  if (!accessToken) {
+    throw new Error("You must be logged in to perform this action.")
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to change password")
+  }
+
+  return data
+}

@@ -1,9 +1,9 @@
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { UserActionMenu } from "@/components/admin/UserActionMenu"
-import { ChevronDown, ChevronUp, UserPen } from "lucide-react"
+import { ChevronDown, ChevronUp, UserPen, KeyRound } from "lucide-react"
 
-function MobileUserCard({ user, onEdit, onToggleRole, onToggleStatus, onResetPassword, onDelete }) {
+function MobileUserCard({ user, onEdit, onToggleRole, onToggleStatus, onResetPassword, onDelete, onChangePassword }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -83,14 +83,23 @@ function MobileUserCard({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
               </div>
             )}
           </div>
-          <button
-            onClick={() => onEdit(user)}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-subtle)]/80"
-          >
-            <UserPen size={14} />
-            Edit User
-          </button>
-        </div>
+<button
+             onClick={() => onEdit(user)}
+             className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-subtle)]/80"
+           >
+             <UserPen size={14} />
+             Edit User
+           </button>
+           {onChangePassword && (
+             <button
+               onClick={() => onChangePassword(user.id)}
+               className="flex w-full items-center justify-center gap-2 rounded-md border border-[var(--border-light)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-subtle)]/80"
+             >
+               <KeyRound size={14} />
+               Change Password
+             </button>
+           )}
+         </div>
       )}
 
       <button

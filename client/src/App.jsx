@@ -24,10 +24,6 @@ export default function App() {
     window.location.href = href
   }
 
-  const handleProfile = () => {
-    window.location.href = "/profile"
-  }
-
   const userDisplay = {
     name: profile.display_name || profile.full_name || user.email,
     firstName: (profile.display_name || profile.full_name || user.email).split(" ")[0],
@@ -70,7 +66,6 @@ export default function App() {
         user={userDisplay}
         onNavigate={handleNavigate}
         onLogout={handleLogout}
-        onProfile={handleProfile}
       >
         {getAdminPage()}
       </DashboardLayout>
@@ -83,7 +78,6 @@ export default function App() {
       user={userDisplay}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
-      onProfile={handleProfile}
     >
       {getStudentPage()}
     </DashboardLayout>

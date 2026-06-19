@@ -16,7 +16,6 @@ import DashboardTopbar from "@/components/layout/DashboardTopbar"
  *  - user:         object    — { name, firstName, avatarInitials }
  *  - onNavigate:   (href) => void
  *  - onLogout:     () => void
- *  - onProfile:    () => void
  */
 export default function DashboardLayout({
   children,
@@ -24,7 +23,6 @@ export default function DashboardLayout({
   user,
   onNavigate,
   onLogout,
-  onProfile,
 }) {
   return (
     <SidebarProvider
@@ -42,13 +40,12 @@ export default function DashboardLayout({
         user={user}
         onNavigate={onNavigate}
         onLogout={onLogout}
-        onProfile={onProfile}
       />
 
       {/* ── Main area (pushed right by sidebar on desktop) ── */}
       <SidebarInset className="flex min-h-screen flex-col bg-[var(--bg-page)]">
         {/* Topbar */}
-        <DashboardTopbar user={user} onProfile={onProfile} />
+        <DashboardTopbar user={user} />
 
         {/* Page content */}
         <div className="flex flex-1 flex-col">

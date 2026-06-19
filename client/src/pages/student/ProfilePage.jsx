@@ -43,7 +43,6 @@ export default function ProfilePage() {
     quote: "",
     is_public: false,
   })
-
   const [isEditing, setIsEditing] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -77,43 +76,38 @@ export default function ProfilePage() {
     setEditable((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleAvatarUpload = async (e) => {
+  const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setAvatarPreview(event.target.result)
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setAvatarPreview(event.target.result)
+      }
+      reader.readAsDataURL(file)
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSaveAvatar = async () => {
     const fileInput = document.getElementById("avatar-upload")
     const file = fileInput?.files?.[0]
-
     if (!file) {
       toast.error("Please select an image file")
       return
     }
-
     setIsSaving(true)
     try {
       const result = await uploadAvatar(file)
-      const newAvatarUrl = result.avatarUrl || result.profile?.avatar_url
-
-      if (newAvatarUrl) {
-        setProfileState((prev) => ({ ...prev, avatar_url: newAvatarUrl }))
-        login(user, { ...profile, avatar_url: newAvatarUrl })
+      const avatarUrl = result.avatarUrl || result.profile?.avatar_url
+      if (avatarUrl) {
+        const updatedProfile = result.profile
+          ? { ...result.profile, avatar_url: avatarUrl }
+          : { ...profile, avatar_url: avatarUrl }
+        setProfileState(updatedProfile)
+        login(user, updatedProfile)
         toast.success("Profile photo updated successfully")
-      } else {
-        toast.error("Upload completed but no avatar URL returned")
       }
-
       setAvatarPreview(null)
-
-      const fileInputEl = document.getElementById("avatar-upload")
-      if (fileInputEl) fileInputEl.value = ""
+      if (fileInput) fileInput.value = ""
     } catch (error) {
       toast.error(error.message || "Failed to upload photo")
     } finally {
@@ -138,6 +132,7 @@ export default function ProfilePage() {
 
   const handleCancel = () => {
     setIsEditing(false)
+    setAvatarPreview(null)
   }
 
   const getStatusBadgeVariant = (status) => {
@@ -158,7 +153,7 @@ export default function ProfilePage() {
   const student_number = profile?.student_number || ""
   const email = user?.email || ""
   const profile_status = profile?.profile_status || "draft"
-  const avatar_url = profile?.avatar_url
+  const avatar_url = profile?.avatar_url || null
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -220,25 +215,14 @@ export default function ProfilePage() {
                   <Hash size={14} className="text-[var(--text-muted)]" />
                   Student ID No.
                 </label>
-                <Input
-                  type="text"
-                  value={student_number}
-                  disabled
-                  placeholder="e.g. 0026284"
-                />
+                <Input type="text" value={student_number} disabled placeholder="e.g. 0026284" />
               </div>
-
               <div className="grid gap-2">
                 <label className="flex items-center gap-1.5 text-sm font-medium">
                   <Mail size={14} className="text-[var(--text-muted)]" />
                   Email
                 </label>
-                <Input
-                  type="email"
-                  value={email}
-                  disabled
-                  placeholder="student@example.com"
-                />
+                <Input type="email" value={email} disabled placeholder="student@example.com" />
               </div>
             </div>
 
@@ -256,7 +240,6 @@ export default function ProfilePage() {
                   placeholder="Juan Dela Cruz"
                 />
               </div>
-
               <div className="grid gap-2">
                 <label className="flex items-center gap-1.5 text-sm font-medium">
                   <User size={14} className="text-[var(--text-muted)]" />
@@ -286,7 +269,6 @@ export default function ProfilePage() {
                   placeholder="e.g. 11 or 12"
                 />
               </div>
-
               <div className="grid gap-2">
                 <label className="flex items-center gap-1.5 text-sm font-medium">
                   <BookOpen size={14} className="text-[var(--text-muted)]" />
@@ -300,7 +282,6 @@ export default function ProfilePage() {
                   placeholder="e.g. STEM, ABM"
                 />
               </div>
-
               <div className="grid gap-2">
                 <label className="flex items-center gap-1.5 text-sm font-medium">
                   <Users size={14} className="text-[var(--text-muted)]" />
@@ -345,9 +326,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-3 pt-2">
-              <span className="text-sm font-medium text-[var(--text-secondary)]">
-                Profile Visibility:
-              </span>
+              <span className="text-sm font-medium text-[var(--text-secondary)]">Profile Visibility:</span>
               <button
                 type="button"
                 onClick={() => isEditing && handleInputChange("is_public", !is_public)}
@@ -366,25 +345,25 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-6 flex justify-end gap-3 border-t border-[var(--border-light)] pt-4">
-{isEditing ? (
-             <>
-               <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
-                 Cancel
-               </Button>
-               {avatarPreview && (
-                 <Button onClick={handleSaveAvatar} disabled={isSaving} variant="secondary">
-                   <Save size={16} className="mr-1" />
-                   {isSaving ? "Uploading..." : "Save Photo"}
-                 </Button>
-               )}
-               <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-                 <CheckCircle size={16} />
-                 {isSaving ? "Saving..." : "Save Profile"}
-               </Button>
-             </>
-           ) : (
-             <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
-           )}
+          {isEditing ? (
+            <>
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+              {avatarPreview && (
+                <Button onClick={handleSaveAvatar} disabled={isSaving} variant="secondary">
+                  <Save size={16} className="mr-1" />
+                  {isSaving ? "Uploading..." : "Save Photo"}
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+                <CheckCircle size={16} />
+                {isSaving ? "Saving..." : "Save Profile"}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
+          )}
         </div>
       </div>
 
