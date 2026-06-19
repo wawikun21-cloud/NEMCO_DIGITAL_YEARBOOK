@@ -57,6 +57,42 @@ for delete
 to authenticated
 using (public.is_admin());
 
+-- Add flipbook-pdfs storage bucket
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'flipbook-pdfs',
+  'flipbook-pdfs',
+  true,
+  52428800,
+  array['application/pdf']
+)
+on conflict (id) do update
+set public = excluded.public;
+
+-- Storage policies for flipbook-pdfs
+create policy "anyone can read flipbook pdfs"
+on storage.objects
+for select
+using (bucket_id = 'flipbook-pdfs');
+
+create policy "admins can upload flipbook pdfs"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'flipbook-pdfs'
+  and public.is_admin()
+);
+
+create policy "admins can delete flipbook pdfs"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'flipbook-pdfs'
+  and public.is_admin()
+);
+
 -- Add flipbook source type setting
 insert into public.flipbook_settings (key, value)
 values ('source_type', '{"source_type": "profiles"}'::jsonb)

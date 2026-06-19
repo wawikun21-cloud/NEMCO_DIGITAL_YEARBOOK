@@ -1,4 +1,4 @@
-import { Router } from "express"
+import { Router, json } from "express"
 import {
   fetchSettings,
   updateSettings,
@@ -21,6 +21,7 @@ import {
 import { requireAuth } from "../middlewares/authMiddleware.js"
 
 const router = Router()
+router.use(json({ limit: "10mb" }))
 
 router.get("/yearbook/flipbook", fetchPublicFlipbook)
 router.get("/yearbook/settings", requireAuth, fetchSettings)

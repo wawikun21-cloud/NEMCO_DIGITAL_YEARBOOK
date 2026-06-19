@@ -324,10 +324,10 @@ function PdfPagesPanel({ pdfPages, onRefresh }) {
   const [editDescription, setEditDescription] = useState("")
   const [deletingId, setDeletingId] = useState(null)
 
-  const handleUpload = async ({ file, title, description }) => {
+  const handleUpload = async ({ file, title, description, onProgress }) => {
     setUploading(true)
     try {
-      const uploadResult = await uploadPdfFile(file)
+      const uploadResult = await uploadPdfFile(file, onProgress)
 
       await addPdfPage({
         title,

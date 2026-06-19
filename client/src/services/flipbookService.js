@@ -214,31 +214,60 @@ export async function reorderPdfPages(orderedIds) {
   return true
 }
 
-export async function uploadPdfFile(file) {
+export async function uploadPdfFile(file, onProgress) {
   const authHeaders = await getAuthHeaders()
   const formData = new FormData()
   formData.append("file", file)
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 60000)
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const timeoutId = setTimeout(() => {
+      xhr.abort()
+      reject(new Error("Upload timed out. Please check your connection and try again."))
+    }, 55000)
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/admin/upload/pdf`, {
-      method: "POST",
-      headers: authHeaders,
-      body: formData,
-      signal: controller.signal,
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && onProgress) {
+        const percent = Math.round((event.loaded / event.total) * 100)
+        onProgress(percent)
+      }
     })
-    clearTimeout(timeoutId)
 
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.message || "Failed to upload PDF file")
-    return data
-  } catch (error) {
-    clearTimeout(timeoutId)
-    if (error.name === "AbortError") {
-      throw new Error("Upload timed out. Please try again with a smaller file.")
-    }
-    throw error
-  }
+    xhr.addEventListener("load", () => {
+      clearTimeout(timeoutId)
+      console.log("[UPLOAD] Response status:", xhr.status, "response:", xhr.responseText)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText)
+          resolve(data)
+        } catch (e) {
+          console.error("[UPLOAD] Parse error:", e)
+          reject(new Error("Failed to parse server response"))
+        }
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText)
+          console.error("[UPLOAD] Server error:", errorData)
+          reject(new Error(errorData.message || `Upload failed with status ${xhr.status}`))
+        } catch {
+          console.error("[UPLOAD] Non-JSON error response:", xhr.responseText)
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText || "Unknown error"}`))
+        }
+      }
+    })
+
+    xhr.addEventListener("error", () => {
+      clearTimeout(timeoutId)
+      reject(new Error("Network error during upload"))
+    })
+
+    xhr.addEventListener("abort", () => {
+      clearTimeout(timeoutId)
+      reject(new Error("Upload was aborted"))
+    })
+
+    xhr.open("POST", `${API_BASE_URL}/admin/upload/pdf`)
+    Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value))
+    xhr.send(formData)
+  })
 }

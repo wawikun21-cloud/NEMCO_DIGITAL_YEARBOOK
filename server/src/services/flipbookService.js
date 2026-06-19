@@ -381,7 +381,30 @@ export async function updateFlipbookPdfPage(id, { title, description, sortOrder,
 }
 
 export async function deleteFlipbookPdfPage(id) {
-  const { data, error } = await supabaseAdmin
+  const { data: page, error: fetchError } = await supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select("id, file_url")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch PDF page for deletion: ${fetchError.message}`)
+  }
+
+  if (page?.file_url) {
+    try {
+      const url = new URL(page.file_url)
+      const pathParts = url.pathname.split("/")
+      const bucketIndex = pathParts.indexOf("flipbook-pdfs")
+      if (bucketIndex !== -1) {
+        const filePath = pathParts.slice(bucketIndex + 1).join("/")
+        await supabaseAdmin.storage.from("flipbook-pdfs").remove([filePath])
+      }
+    } catch {
+    }
+  }
+
+  const { error } = await supabaseAdmin
     .from("flipbook_pdf_pages")
     .delete()
     .eq("id", id)
@@ -392,7 +415,7 @@ export async function deleteFlipbookPdfPage(id) {
     throw new Error(`Failed to delete PDF page: ${error.message}`)
   }
 
-  return data
+  return page
 }
 
 export async function reorderFlipbookPdfPages(orderedIds) {
