@@ -94,18 +94,6 @@ export async function uploadAvatarController(req, res, next) {
 
     const { avatarUrl, uploadRecord, previousAvatarUrl } = result
 
-<<<<<<< HEAD
-await logAudit({
-       adminId: req.user.id,
-       action: "upload_avatar",
-       entityType: "profile",
-       entityId: req.user.id,
-       oldData: { avatar_url: previousAvatarUrl },
-       newData: { avatar_url: avatarUrl },
-       ipAddress: req.ip,
-       userAgent: req.get("User-Agent"),
-     })
-=======
     await logAudit({
       adminId: req.user.id,
       action: "upload_avatar",
@@ -116,7 +104,6 @@ await logAudit({
       ipAddress: req.ip,
       userAgent: req.get("User-Agent"),
     })
->>>>>>> 69f7dcd1cb08c8529f1afa42a3c45d7b60a3ccfc
 
     let profile = result.profile || (await getProfileByUserId(req.user.id))
 
