@@ -35,6 +35,18 @@ async function requireAuth(req, res) {
   return { ...authData.user, id: profile.id }
 }
 
+async function authenticate(req, res) {
+  const authHeader = req.headers.authorization
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null
+  if (!token) { json(res, 401, { message: "Authorization token required" }); return null }
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !authData?.user) { json(res, 401, { message: "Invalid or expired token" }); return null }
+  const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").select("id, role, status").eq("id", authData.user.id).maybeSingle()
+  if (profileError || !profile) { json(res, 401, { message: "User profile not found" }); return null }
+  if (profile.status !== "active") { json(res, 403, { message: "Account is inactive" }); return null }
+  return { ...authData.user, id: profile.id, role: profile.role }
+}
+
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") { resolve({}); return }
@@ -146,6 +158,29 @@ async function handleResetPassword(req, res) {
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "recovery", email: targetUser.email })
   if (error) return json(res, 400, { message: "Failed to generate password reset link" })
   json(res, 200, { link: data?.properties?.action_link, email: targetUser.email })
+}
+
+const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
+
+function normalizePublicBaseUrl(baseUrl) {
+  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+}
+
+function buildQrPayload(profile, baseUrl) {
+  return `${normalizePublicBaseUrl(baseUrl)}/${profile.student_number || profile.id}`
+}
+
+async function handleGenerateQrCode(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number").eq("id", user.id).maybeSingle()
+    if (fetchError || !existing) return json(res, 404, { message: "Profile not found" })
+    const qrData = buildQrPayload(existing)
+    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,student_number,full_name,avatar_url,qr_data").maybeSingle()
+    if (error) return json(res, 500, { message: error.message })
+    json(res, 200, { profile })
+  } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 const FLIPBOOK_SETTINGS_DEFAULTS = { enabled: true, title: "NEMCO Digital Yearbook", subtitle: "Academic Year 2025-2026", cover_url: "", theme: "default", flip_speed: 0.5, show_page_numbers: true, auto_flip: false, auto_flip_interval: 10 }
@@ -610,7 +645,7 @@ async function handleGetPublicTemplateDetail(req, res) {
 }
 
 async function handleGetMyResumes(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
@@ -618,7 +653,7 @@ async function handleGetMyResumes(req, res) {
 }
 
 async function handleGetMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).eq("user_id", user.id).maybeSingle()
@@ -628,7 +663,7 @@ async function handleGetMyResume(req, res) {
 }
 
 async function handleCreateMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   try {
     const { data, error } = await supabaseAdmin.from("resumes").insert({ ...req.body, user_id: user.id, status: "draft" }).select().maybeSingle()
@@ -638,7 +673,7 @@ async function handleCreateMyResume(req, res) {
 }
 
 async function handleUpdateMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", user.id).select().maybeSingle()
@@ -647,7 +682,7 @@ async function handleUpdateMyResume(req, res) {
 }
 
 async function handleDeleteMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { error } = await supabaseAdmin.from("resumes").delete().eq("id", id).eq("user_id", user.id)
@@ -656,36 +691,36 @@ async function handleDeleteMyResume(req, res) {
 }
 
 async function handleGetMyProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", user.id).maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", user.id).maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   json(res, 200, data)
+ }
 
-async function handleUpdateMyProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select().maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
+ async function handleUpdateMyProfile(req, res) {
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select().maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   json(res, 200, data)
+ }
 
-async function handleSubmitProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select().maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
+ async function handleSubmitProfile(req, res) {
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select().maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   json(res, 200, data)
+ }
 
-async function handleUploadAvatar(req, res) {
-  json(res, 501, { message: "Avatar upload not yet implemented in serverless mode" })
-}
+ async function handleUploadAvatar(req, res) {
+   json(res, 501, { message: "Avatar upload not yet implemented in serverless mode" })
+ }
 
-async function handleGetAvatarHistory(req, res) {
-  json(res, 200, [])
-}
+ async function handleGetAvatarHistory(req, res) {
+   json(res, 200, [])
+ }
 
 async function handleImportUsers(req, res) {
   json(res, 501, { message: "Import not yet implemented in serverless mode" })
@@ -785,11 +820,12 @@ export default async function handler(req, res) {
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
 
-  if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
-  if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
-  if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
-  if (pathname === "/api/profiles/me/avatar" && req.method === "POST") return handleUploadAvatar(req, res)
-  if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
+if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
+   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
+   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
+   if (pathname === "/api/profiles/me/avatar" && req.method === "POST") return handleUploadAvatar(req, res)
+   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
+   if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
 
   if (pathname === "/api/admin/import/users" && req.method === "POST") return handleImportUsers(req, res)
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
