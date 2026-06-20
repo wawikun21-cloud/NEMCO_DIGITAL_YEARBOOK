@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
+import * as XLSX from "xlsx"
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -795,7 +796,197 @@ async function handleGetMyProfile(req, res) {
  }
 
 async function handleImportUsers(req, res) {
-  json(res, 501, { message: "Import not yet implemented in serverless mode" })
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (!boundaryMatch) return json(res, 400, { message: "Invalid multipart form data" })
+    const parts = parseMultipart(req.body, boundaryMatch[1])
+    const file = parts.file
+    if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
+    const buffer = file.data
+    const filename = file.filename
+    const ext = filename?.toLowerCase().split(".").pop()
+    if (!["xlsx", "xls"].includes(ext)) {
+      return json(res, 400, { message: "Invalid file type. Only .xlsx and .xls files are allowed" })
+    }
+    if (buffer.length > 5 * 1024 * 1024) {
+      return json(res, 400, { message: "File size exceeds 5MB limit" })
+    }
+
+    // Parse Excel
+    let workbook
+    try {
+      workbook = XLSX.read(buffer, { type: "buffer" })
+    } catch (parseError) {
+      return json(res, 400, { message: `Failed to parse Excel: ${parseError.message}` })
+    }
+    const sheetName = workbook.SheetNames[0]
+    const sheet = workbook.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(sheet, { raw: false })
+    if (rows.length === 0) {
+      return json(res, 400, { message: "Excel file is empty or has no data rows" })
+    }
+
+    // Validate headers
+    const headers = Object.keys(rows[0]).map((h) => h.toLowerCase().trim())
+    const requiredColumns = ["student_number", "email", "full_name", "role", "year_level", "course_or_strand"]
+    const missing = requiredColumns.filter((col) => !headers.includes(col))
+    if (missing.length > 0) {
+      return json(res, 400, { message: `Missing required columns: ${missing.join(", ")}` })
+    }
+
+    // Create batch record
+    const { data: batch, error: batchError } = await supabaseAdmin
+      .from("import_batches")
+      .insert({
+        filename: filename,
+        status: "processing",
+        total_rows: rows.length,
+        success_count: 0,
+        failed_count: 0,
+        admin_id: user.id,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+    if (batchError) return json(res, 500, { message: `Failed to create import batch: ${batchError.message}` })
+
+    // Process rows
+    let successCount = 0
+    let errorCount = 0
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowData = {
+        student_number: (row.student_number || row["Student Number"] || "").trim().padStart(7, "0"),
+        email: (row.email || row["Email"] || "").trim(),
+        full_name: (row.full_name || row["Full Name"] || "").trim(),
+        role: ["admin", "user"].includes((row.role || row["Role"] || "user").trim().toLowerCase()) 
+          ? (row.role || row["Role"] || "user").trim().toLowerCase() 
+          : "user",
+        year_level: (row.year_level || row["Year Level"] || "").trim(),
+        course_or_strand: (row.course_or_strand || row["Course or Strand"] || "").trim(),
+        section: (row.section || row["Section"] || "").trim() || null,
+        display_name: (row.display_name || row["Display Name"] || "").trim() || null,
+        bio: (row.bio || row["Bio"] || "").trim() || null,
+        quote: (row.quote || row["Quote"] || "").trim() || null,
+      }
+
+      // Validate required fields
+      if (!rowData.student_number || !rowData.email || !rowData.full_name || !rowData.year_level || !rowData.course_or_strand) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: "Missing required fields",
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Check for duplicates
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("student_number", rowData.student_number)
+        .maybeSingle()
+      if (existingProfile) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: `Student number ${rowData.student_number} already exists`,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Create user
+      const defaultPassword = rowData.student_number
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: rowData.email,
+        password: defaultPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: rowData.full_name,
+          display_name: rowData.display_name || rowData.full_name,
+          student_number: rowData.student_number,
+        },
+      })
+      if (authError) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: authError.message,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Create profile
+      const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
+        id: authData.user.id,
+        email: rowData.email,
+        student_number: rowData.student_number,
+        full_name: rowData.full_name,
+        display_name: rowData.display_name || rowData.full_name,
+        role: rowData.role,
+        status: "active",
+        profile_status: "approved",
+        year_level: rowData.year_level,
+        course_or_strand: rowData.course_or_strand,
+        section: rowData.section,
+        bio: rowData.bio,
+        quote: rowData.quote,
+        is_public: true,
+        resume_public: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" })
+
+      if (profileError) {
+        errorCount++
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: profileError.message,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      successCount++
+    }
+
+    const finalStatus = errorCount > 0 ? "completed_with_errors" : "completed"
+    await supabaseAdmin.from("import_batches").update({
+      status: finalStatus,
+      success_count: successCount,
+      failed_count: errorCount,
+    }).eq("id", batch.id)
+
+    json(res, 200, {
+      message: finalStatus === "completed_with_errors" ? "Import completed with errors" : "Import completed",
+      batchId: batch.id,
+      status: finalStatus,
+      totalRows: rows.length,
+      successCount,
+      errorCount,
+    })
+  } catch (error) {
+    json(res, 500, { message: error.message || "Import failed" })
+  }
 }
 
 async function handleGetBatches(req, res) {
@@ -846,6 +1037,21 @@ export default async function handler(req, res) {
       })
     }
     return handleUploadAvatar(req, res)
+  }
+
+  // Handle multipart form data for import
+  const isImport = pathname === "/api/admin/import/users" && req.method === "POST"
+  if (isImport) {
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (boundaryMatch) {
+      req.body = await new Promise((resolve) => {
+        const chunks = []
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", () => resolve(Buffer.concat(chunks)))
+      })
+    }
+    return handleImportUsers(req, res)
   }
 
   req.body = await parseBody(req)
@@ -905,7 +1111,7 @@ export default async function handler(req, res) {
   if (pathname === "/api/my/resumes" && req.method === "POST") return handleCreateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "GET") return handleGetMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
-if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
+  if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
 
   if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
