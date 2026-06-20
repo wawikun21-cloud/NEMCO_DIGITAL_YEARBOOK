@@ -2,6 +2,7 @@
   "version": 2,
   "buildCommand": "npm install && cd client && npm install --include=dev && npm run build",
   "outputDirectory": "client/dist",
+  "maxDuration": 300,
   "rewrites": [
     {
       "source": "/api/(.*)",

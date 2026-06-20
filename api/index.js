@@ -799,10 +799,16 @@ async function handleImportUsers(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   try {
+    const body = req.body
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      return json(res, 400, { message: "No file uploaded or invalid request body" })
+    }
     const contentType = req.headers["content-type"] || ""
     const boundaryMatch = contentType.match(/boundary=(.+)/)
-    if (!boundaryMatch) return json(res, 400, { message: "Invalid multipart form data" })
-    const parts = parseMultipart(req.body, boundaryMatch[1])
+    if (!boundaryMatch) {
+      return json(res, 400, { message: "Invalid multipart form data - no boundary" })
+    }
+    const parts = parseMultipart(body, boundaryMatch[1])
     const file = parts.file
     if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
     const buffer = file.data
@@ -859,18 +865,18 @@ async function handleImportUsers(req, res) {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
       const rowData = {
-        student_number: (row.student_number || row["Student Number"] || "").trim().padStart(7, "0"),
-        email: (row.email || row["Email"] || "").trim(),
-        full_name: (row.full_name || row["Full Name"] || "").trim(),
-        role: ["admin", "user"].includes((row.role || row["Role"] || "user").trim().toLowerCase()) 
-          ? (row.role || row["Role"] || "user").trim().toLowerCase() 
+        student_number: String(row.student_number || row["Student Number"] || "").trim().padStart(7, "0"),
+        email: String(row.email || row["Email"] || "").trim(),
+        full_name: String(row.full_name || row["Full Name"] || "").trim(),
+        role: ["admin", "user"].includes(String(row.role || row["Role"] || "user").trim().toLowerCase()) 
+          ? String(row.role || row["Role"] || "user").trim().toLowerCase() 
           : "user",
-        year_level: (row.year_level || row["Year Level"] || "").trim(),
-        course_or_strand: (row.course_or_strand || row["Course or Strand"] || "").trim(),
-        section: (row.section || row["Section"] || "").trim() || null,
-        display_name: (row.display_name || row["Display Name"] || "").trim() || null,
-        bio: (row.bio || row["Bio"] || "").trim() || null,
-        quote: (row.quote || row["Quote"] || "").trim() || null,
+        year_level: String(row.year_level || row["Year Level"] || "").trim(),
+        course_or_strand: String(row.course_or_strand || row["Course or Strand"] || "").trim(),
+        section: String(row.section || row["Section"] || "").trim() || null,
+        display_name: String(row.display_name || row["Display Name"] || "").trim() || null,
+        bio: String(row.bio || row["Bio"] || "").trim() || null,
+        quote: String(row.quote || row["Quote"] || "").trim() || null,
       }
 
       // Validate required fields
@@ -1020,43 +1026,45 @@ async function handleGetBatchErrors(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
-  const url = new URL(req.url, `http://${req.headers.host}`)
-  let pathname = url.pathname.replace(/\/+$/, "") || "/"
-  if (!pathname.startsWith("/api")) pathname = "/api" + pathname
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    let pathname = url.pathname.replace(/\/+$/, "") || "/"
+    if (!pathname.startsWith("/api")) pathname = "/api" + pathname
 
-  // Handle multipart form data for avatar upload
-  const isAvatarUpload = pathname === "/api/profiles/me/avatar" && req.method === "POST"
-  if (isAvatarUpload) {
-    const contentType = req.headers["content-type"] || ""
-    const boundaryMatch = contentType.match(/boundary=(.+)/)
-    if (boundaryMatch) {
-      req.body = await new Promise((resolve) => {
-        const chunks = []
-        req.on("data", (chunk) => chunks.push(chunk))
-        req.on("end", () => resolve(Buffer.concat(chunks)))
-      })
+    // Handle multipart form data for avatar upload
+    const isAvatarUpload = pathname === "/api/profiles/me/avatar" && req.method === "POST"
+    if (isAvatarUpload) {
+      const contentType = req.headers["content-type"] || ""
+      const boundaryMatch = contentType.match(/boundary=(.+)/)
+      if (boundaryMatch) {
+        req.body = await new Promise((resolve) => {
+          const chunks = []
+          req.on("data", (chunk) => chunks.push(chunk))
+          req.on("end", () => resolve(Buffer.concat(chunks)))
+        })
+      }
+      return handleUploadAvatar(req, res)
     }
-    return handleUploadAvatar(req, res)
-  }
 
-  // Handle multipart form data for import
-  const isImport = pathname === "/api/admin/import/users" && req.method === "POST"
-  if (isImport) {
-    const contentType = req.headers["content-type"] || ""
-    const boundaryMatch = contentType.match(/boundary=(.+)/)
-    if (boundaryMatch) {
-      req.body = await new Promise((resolve) => {
-        const chunks = []
-        req.on("data", (chunk) => chunks.push(chunk))
-        req.on("end", () => resolve(Buffer.concat(chunks)))
-      })
+    // Handle multipart form data for import
+    const isImport = pathname === "/api/admin/import/users" && req.method === "POST"
+    if (isImport) {
+      const contentType = req.headers["content-type"] || ""
+      const boundaryMatch = contentType.match(/boundary=(.+)/)
+      if (boundaryMatch) {
+        req.body = await new Promise((resolve, reject) => {
+          const chunks = []
+          req.on("data", (chunk) => chunks.push(chunk))
+          req.on("end", () => resolve(Buffer.concat(chunks)))
+          req.on("error", reject)
+        })
+      }
+      return handleImportUsers(req, res)
     }
-    return handleImportUsers(req, res)
-  }
 
-  req.body = await parseBody(req)
-  if (pathname === "/api/health") return json(res, 200, { status: "ok", service: "digital-year-book-api" })
-  if (pathname === "/api/auth/login" && req.method === "POST") return handleLogin(req, res)
+    req.body = await parseBody(req)
+    if (pathname === "/api/health") return json(res, 200, { status: "ok", service: "digital-year-book-api" })
+    if (pathname === "/api/auth/login" && req.method === "POST") return handleLogin(req, res)
 
   if (pathname === "/api/admin/users" && req.method === "GET") return handleGetUsers(req, res)
   if (pathname === "/api/admin/users" && req.method === "POST") return handleCreateUser(req, res)
@@ -1119,10 +1127,12 @@ export default async function handler(req, res) {
   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
   if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
 
-  if (pathname === "/api/admin/import/users" && req.method === "POST") return handleImportUsers(req, res)
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
   if (pathname.startsWith("/api/admin/import/batches/") && req.method === "GET") return handleGetBatch(req, res)
 
   json(res, 404, { message: "Not found", pathname })
+  } catch (err) {
+    json(res, 500, { message: err.message || "Server error" })
+  }
 }
