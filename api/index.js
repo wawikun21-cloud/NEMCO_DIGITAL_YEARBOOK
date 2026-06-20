@@ -806,7 +806,7 @@ async function handleImportUsers(req, res) {
     const contentType = req.headers["content-type"] || ""
     const boundaryMatch = contentType.match(/boundary=(.+)/)
     if (!boundaryMatch) {
-      return json(res, 400, { message: "Invalid multipart form data - no boundary" })
+      return json(res, 400, { message: "Invalid multipart form data - no boundary found" })
     }
     const parts = parseMultipart(body, boundaryMatch[1])
     const file = parts.file
@@ -1051,14 +1051,15 @@ export default async function handler(req, res) {
     if (isImport) {
       const contentType = req.headers["content-type"] || ""
       const boundaryMatch = contentType.match(/boundary=(.+)/)
-      if (boundaryMatch) {
-        req.body = await new Promise((resolve, reject) => {
-          const chunks = []
-          req.on("data", (chunk) => chunks.push(chunk))
-          req.on("end", () => resolve(Buffer.concat(chunks)))
-          req.on("error", reject)
-        })
+      if (!boundaryMatch) {
+        return json(res, 400, { message: "No file uploaded or invalid multipart data" })
       }
+      req.body = await new Promise((resolve, reject) => {
+        const chunks = []
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", () => resolve(Buffer.concat(chunks)))
+        req.on("error", reject)
+      })
       return handleImportUsers(req, res)
     }
 
