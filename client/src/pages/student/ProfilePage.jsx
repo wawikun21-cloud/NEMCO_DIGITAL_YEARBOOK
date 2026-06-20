@@ -1,35 +1,13 @@
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { useAuth } from "@/contexts/AuthContext"
-import { updateMyProfile, getMyProfile, uploadAvatar } from "@/services/profileService"
-import { toast } from "sonner"
-import {
-  User,
-  Hash,
-  Mail,
-  BookOpen,
-  GraduationCap,
-  Users,
-  Quote,
-  FileText,
-  Upload,
-  Globe,
-  Lock,
-  CheckCircle,
-  Save,
-} from "lucide-react"
-
-const PROFILE_STATUS_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "completed", label: "Completed" },
-  { value: "submitted", label: "Submitted" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-]
+import { Skeleton } from "@/components/ui/skeleton"
+import { useProfile } from "@/hooks/useProfile"
+import { useQRCode } from "@/hooks/useQRCode"
+import { ProfileCard } from "@/components/profile/ProfileCard"
+import { EditProfileDialog } from "@/components/profile/EditProfileDialog"
+import { Loader2, Pencil, QrCode } from "lucide-react"
 
 export default function ProfilePage() {
+<<<<<<< HEAD
   const { user, login } = useAuth()
 
   const [profile, setProfileState] = useState(null)
@@ -364,19 +342,74 @@ export default function ProfilePage() {
           ) : (
             <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
           )}
+=======
+  const {
+    profile,
+    setProfile,
+    editable,
+    isLoading,
+    isEditing,
+    isSaving,
+    avatarPreview,
+    handleFieldChange,
+    handleAvatarSelect,
+    openEdit,
+    cancelEdit,
+    saveProfile,
+  } = useProfile()
+  const { isGenerating, generateQrCode } = useQRCode(profile, setProfile)
+
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
+            Profile Info
+          </h1>
+          <p className="text-sm text-[var(--text-muted)]">
+            View and edit your personal information and yearbook details.
+          </p>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={generateQrCode} disabled={isLoading || isGenerating} className="gap-2">
+            {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
+            Generate QR
+          </Button>
+          <Button onClick={openEdit} disabled={isLoading} className="gap-2">
+            <Pencil size={16} />
+            Edit Profile
+          </Button>
+>>>>>>> 69f7dcd1cb08c8529f1afa42a3c45d7b60a3ccfc
         </div>
       </div>
 
-      <footer className="mt-auto border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 text-xs text-[var(--text-muted)] sm:flex-row">
-          <span>© {new Date().getFullYear()} Student Portal. All rights reserved.</span>
-          <nav className="flex gap-4">
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Privacy Policy</a>
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Terms of Use</a>
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Contact Us</a>
-          </nav>
-        </div>
-      </footer>
+      <div className="flex w-full justify-center">
+        {isLoading ? (
+          <Skeleton className="aspect-[3/5] w-full max-w-[clamp(260px,80vw,360px)] rounded-3xl" />
+        ) : (
+          <ProfileCard
+            profile={profile}
+            setProfile={setProfile}
+            avatarPreview={avatarPreview}
+            isEditing={false}
+            onAvatarSelect={handleAvatarSelect}
+          />
+        )}
+      </div>
+
+      <EditProfileDialog
+        open={isEditing}
+        onOpenChange={(open) => !open && cancelEdit()}
+        editable={editable}
+        onFieldChange={handleFieldChange}
+        onSave={saveProfile}
+        onCancel={cancelEdit}
+        isSaving={isSaving}
+        avatarPreview={avatarPreview}
+        currentAvatarUrl={profile?.avatar_url}
+        onAvatarSelect={handleAvatarSelect}
+      />
     </main>
   )
 }

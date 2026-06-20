@@ -258,26 +258,25 @@ function ResumeDetailSheet({ resumeId, open, onClose, onUpdate, templates }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (open && resumeId) {
-      setLoading(true)
-      getResumeDetail(resumeId)
-        .then(async (resume) => {
-          setDetail(resume)
-          if (resume.template) {
-            const tmpl = templates?.find((t) => t.slug === resume.template)
-            if (tmpl) {
-              try {
-                const detail = await getTemplateDetail(tmpl.id)
-                setSections(detail.sections || [])
-              } catch {
-                setSections([])
-              }
+    if (!open || !resumeId) return
+    queueMicrotask(() => setLoading(true))
+    getResumeDetail(resumeId)
+      .then(async (resume) => {
+        setDetail(resume)
+        if (resume.template) {
+          const tmpl = templates?.find((t) => t.slug === resume.template)
+          if (tmpl) {
+            try {
+              const detail = await getTemplateDetail(tmpl.id)
+              setSections(detail.sections || [])
+            } catch {
+              setSections([])
             }
           }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [open, resumeId, templates])
 
   const handleToggleVisibility = async () => {
@@ -734,13 +733,12 @@ function SectionBuilder({ template, onRefresh }) {
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
-    if (template?.id) {
-      setLoading(true)
-      getTemplateDetail(template.id)
-        .then((data) => setSections(data.sections || []))
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    }
+    if (!template?.id) return
+    queueMicrotask(() => setLoading(true))
+    getTemplateDetail(template.id)
+      .then((data) => setSections(data.sections || []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [template?.id])
 
   const openAdd = () => {
@@ -1045,7 +1043,6 @@ function ResumeList({ templates }) {
   const totalPages = Math.ceil(total / perPage)
 
   const fetchResumes = useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       const result = await getResumes({
@@ -1074,8 +1071,12 @@ function ResumeList({ templates }) {
     }
   }, [])
 
-  useEffect(() => { fetchResumes() }, [fetchResumes])
-  useEffect(() => { fetchStats() }, [fetchStats])
+useEffect(() => {
+     queueMicrotask(() => fetchResumes())
+   }, [fetchResumes])
+   useEffect(() => {
+     queueMicrotask(() => fetchStats())
+   }, [fetchStats])
 
   const handleSearch = (e) => { e.preventDefault(); setPage(1); fetchResumes() }
   const handleResetFilters = () => { setSearch(""); setTemplateFilter(""); setVisibilityFilter(""); setDateFrom(""); setDateTo(""); setPage(1) }
@@ -1358,7 +1359,6 @@ export default function ResumeManagementPage() {
   const [loading, setLoading] = useState(true)
 
   const fetchTemplates = useCallback(async () => {
-    setLoading(true)
     try {
       const result = await getTemplates({ includeInactive: true })
       setTemplates(result || [])
@@ -1372,7 +1372,9 @@ export default function ResumeManagementPage() {
     }
   }, [selectedTemplateId])
 
-  useEffect(() => { fetchTemplates() }, [fetchTemplates])
+useEffect(() => {
+     queueMicrotask(() => fetchTemplates())
+   }, [fetchTemplates])
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId)
 

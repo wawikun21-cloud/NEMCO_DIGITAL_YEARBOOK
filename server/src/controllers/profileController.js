@@ -1,4 +1,10 @@
-import { getProfileByUserId, updateProfile, submitProfile } from "../services/profileService.js"
+import {
+  getProfileByUserId,
+  getPublicProfileByIdentifier,
+  updateProfile,
+  submitProfile,
+  generateOrRefreshQrCode,
+} from "../services/profileService.js"
 import { uploadAvatar, getAvatarHistory } from "../services/avatarService.js"
 import { updateProfileSchema } from "../validators/profileValidator.js"
 import { validateAvatarFile } from "../validators/avatarValidator.js"
@@ -14,11 +20,22 @@ export async function getMyProfileController(req, res, next) {
   }
 }
 
+export async function getPublicProfileController(req, res, next) {
+  try {
+    const profile = await getPublicProfileByIdentifier(req.params.identifier)
+
+    res.json({ profile })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function updateMyProfileController(req, res, next) {
   try {
     const data = updateProfileSchema.parse(req.body)
     const oldProfile = await getProfileByUserId(req.user.id)
-    const updatedProfile = await updateProfile(req.user.id, data)
+    const publicBaseUrl = req.get("origin") || process.env.PUBLIC_PROFILE_BASE_URL
+    const updatedProfile = await updateProfile(req.user.id, data, publicBaseUrl)
 
     await logAudit({
       adminId: req.user.id,
@@ -66,6 +83,7 @@ export async function uploadAvatarController(req, res, next) {
     }
 
     const file = validateAvatarFile(req.file)
+    const publicBaseUrl = req.get("origin") || process.env.PUBLIC_PROFILE_BASE_URL
     const result = await uploadAvatar(
       req.user.id,
       file.buffer,
@@ -76,6 +94,7 @@ export async function uploadAvatarController(req, res, next) {
 
     const { avatarUrl, uploadRecord, previousAvatarUrl } = result
 
+<<<<<<< HEAD
 await logAudit({
        adminId: req.user.id,
        action: "upload_avatar",
@@ -86,8 +105,26 @@ await logAudit({
        ipAddress: req.ip,
        userAgent: req.get("User-Agent"),
      })
+=======
+    await logAudit({
+      adminId: req.user.id,
+      action: "upload_avatar",
+      entityType: "profile",
+      entityId: req.user.id,
+      oldData: { avatar_url: previousAvatarUrl },
+      newData: { avatar_url: avatarUrl },
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    })
+>>>>>>> 69f7dcd1cb08c8529f1afa42a3c45d7b60a3ccfc
 
-    const profile = result.profile || await getProfileByUserId(req.user.id)
+    let profile = result.profile || (await getProfileByUserId(req.user.id))
+
+    // If the user already has a QR code, the avatar is part of what it
+    // represents, so refresh it on the same request — no extra round trip.
+    if (profile.qr_data) {
+      profile = await generateOrRefreshQrCode(req.user.id, publicBaseUrl)
+    }
 
     res.json({
       profile,
@@ -95,7 +132,11 @@ await logAudit({
       uploadId: uploadRecord?.id || null,
     })
   } catch (error) {
-    if (error.message.includes("Invalid file type") || error.message.includes("File too large") || error.message.includes("No file")) {
+    if (
+      error.message.includes("Invalid file type") ||
+      error.message.includes("File too large") ||
+      error.message.includes("No file")
+    ) {
       return res.status(400).json({ message: error.message })
     }
     next(error)
@@ -110,6 +151,30 @@ export async function getAvatarHistoryController(req, res, next) {
     const result = await getAvatarHistory(req.user.id, page, perPage)
 
     res.json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// First-time (or manual re-) generation of the profile's QR code.
+export async function generateQrCodeController(req, res, next) {
+  try {
+    const oldProfile = await getProfileByUserId(req.user.id)
+    const publicBaseUrl = req.get("origin") || process.env.PUBLIC_PROFILE_BASE_URL
+    const updatedProfile = await generateOrRefreshQrCode(req.user.id, publicBaseUrl)
+
+    await logAudit({
+      adminId: req.user.id,
+      action: "generate_qr_code",
+      entityType: "profile",
+      entityId: req.user.id,
+      oldData: { qr_data: oldProfile.qr_data },
+      newData: { qr_data: updatedProfile.qr_data },
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    })
+
+    res.json({ profile: updatedProfile })
   } catch (error) {
     next(error)
   }

@@ -362,7 +362,6 @@ export default function ResumeBuilderPage() {
   const [deleting, setDeleting] = useState(false)
 
   const fetchData = useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       const [resumesData, templatesData] = await Promise.all([
@@ -378,9 +377,9 @@ export default function ResumeBuilderPage() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+useEffect(() => {
+     queueMicrotask(() => fetchData())
+   }, [fetchData])
 
   const handleNewResume = () => {
     setView("gallery")
