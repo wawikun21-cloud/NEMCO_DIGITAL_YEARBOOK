@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -375,5 +375,41 @@
 @media (prefers-reduced-motion: reduce) {
   .flipbook-page {
     transition: none !important;
+    animation: none !important;
   }
 }
+
+/* ── Realistic page curl for 3D flipbook ── */
+/* Keyframes are generated dynamically in Yearbook3DPage.jsx via buildCurlKeyframes() */
+
+.page-curl-shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0) 0%,
+    rgba(0,0,0,0.03) 30%,
+    rgba(0,0,0,0.12) 60%,
+    rgba(0,0,0,0.18) 80%,
+    rgba(0,0,0,0.22) 100%
+  );
+  mix-blend-mode: multiply;
+  transition: opacity 0.3s ease;
+}
+
+.page-curl-bend {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255,255,255,0.08) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  mix-blend-mode: overlay;
+}
+

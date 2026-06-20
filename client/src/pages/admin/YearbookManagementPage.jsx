@@ -960,7 +960,7 @@ export default function YearbookManagementPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--border-light)] overflow-hidden shadow-xl bg-gradient-to-br from-amber-50 via-stone-50 to-slate-100 dark:from-[#0d1b2a] dark:via-[#112233] dark:to-[#0d1b2a]" style={{ minHeight: "600px" }}>
+              <div className="rounded-xl border border-[var(--border-light)] shadow-xl bg-gradient-to-br from-amber-50 via-stone-50 to-slate-100 dark:from-[#0d1b2a] dark:via-[#112233] dark:to-[#0d1b2a]" style={{ minHeight: "600px", overflow: "hidden" }}>
                 <Yearbook3DPage />
               </div>
             </div>
