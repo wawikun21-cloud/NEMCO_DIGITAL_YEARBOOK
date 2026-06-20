@@ -61,6 +61,85 @@ async function parseBody(req) {
   })
 }
 
+function parseMultipart(body, boundary) {
+  const parts = {}
+  const raw = body.toString("utf8")
+  const delimiter = `--${boundary}`
+  const sections = raw.split(delimiter)
+  for (const section of sections) {
+    if (!section || section === "--\r\n" || section === "--") continue
+    const headerEnd = section.indexOf("\r\n\r\n")
+    if (headerEnd === -1) continue
+    const headers = section.slice(0, headerEnd)
+    const content = section.slice(headerEnd + 4, -2)
+    const nameMatch = headers.match(/name="([^"]+)"/)
+    const filenameMatch = headers.match(/filename="([^"]+)"/)
+    if (nameMatch) {
+      if (filenameMatch) {
+        const filename = filenameMatch[1]
+        const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
+        const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
+        parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
+      } else {
+        parts[nameMatch[1]] = content
+      }
+    }
+  }
+  return parts
+}
+
+function validateAvatarFile(file) {
+  const validMimeTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+  if (!validMimeTypes.includes(file.mimeType)) {
+    throw new Error("Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.")
+  }
+  const maxSize = 2 * 1024 * 1024
+  if (file.data.length > maxSize) {
+    throw new Error("File too large. Maximum size is 2MB.")
+  }
+  return { ...file, size: file.data.length }
+}
+
+async function handleUploadAvatar(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (!boundaryMatch) return json(res, 400, { message: "Invalid multipart form data" })
+    const parts = parseMultipart(req.body, boundaryMatch[1])
+    const file = parts.avatar
+    if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
+    const validated = validateAvatarFile(file)
+    const { data: currentProfile } = await supabaseAdmin.from("profiles").select("avatar_url").eq("id", user.id).single()
+    const oldAvatarUrl = currentProfile?.avatar_url || null
+    const fileExt = validated.filename.split(".").pop()?.toLowerCase() || "jpg"
+    const storagePath = `${user.id}/avatar.${fileExt}`
+    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
+    if (uploadError) return json(res, 500, { message: `Failed to upload avatar: ${uploadError.message}` })
+    const { data: publicUrlData } = supabaseAdmin.storage.from("avatars").getPublicUrl(storagePath)
+    const avatarUrl = publicUrlData.publicUrl
+    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").single()
+    await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
+    json(res, 200, { profile: updatedProfile, avatarUrl })
+  } catch (error) { json(res, 500, { message: error.message || "Failed to upload avatar" }) }
+}
+
+async function handleGetAvatarHistory(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const page = parseInt(url.searchParams.get("page") || "1", 10)
+    const perPage = parseInt(url.searchParams.get("perPage") || "25", 10)
+    const from = (page - 1) * perPage
+    const to = from + perPage - 1
+    const { data: uploads, error, count } = await supabaseAdmin.from("avatar_uploads").select("id,file_name,mime_type,file_size,file_path,old_avatar_url,created_at", { count: "exact" }).eq("user_id", user.id).order("created_at", { ascending: false }).range(from, to)
+    if (error) return json(res, 500, { message: error.message })
+    json(res, 200, { uploads: uploads || [], total: count || 0, page, perPage })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
 const loginSchema = z.object({ studentId: z.string().trim().min(1), password: z.string().min(1) })
 
 async function handleLogin(req, res) {
@@ -174,10 +253,10 @@ async function handleGenerateQrCode(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
   try {
-    const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number").eq("id", user.id).maybeSingle()
+    const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number,full_name").eq("id", user.id).maybeSingle()
     if (fetchError || !existing) return json(res, 404, { message: "Profile not found" })
     const qrData = buildQrPayload(existing)
-    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,student_number,full_name,avatar_url,qr_data").maybeSingle()
+    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 200, { profile })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -693,33 +772,26 @@ async function handleDeleteMyResume(req, res) {
 async function handleGetMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", user.id).maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").eq("id", user.id).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
-   json(res, 200, data)
+   if (!data) return json(res, 404, { message: "Profile not found" })
+   json(res, 200, { profile: data })
  }
 
  async function handleUpdateMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select().maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
    if (error) return json(res, 500, { message: error.message })
-   json(res, 200, data)
+   json(res, 200, { profile: data })
  }
 
  async function handleSubmitProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select().maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
    if (error) return json(res, 500, { message: error.message })
-   json(res, 200, data)
- }
-
- async function handleUploadAvatar(req, res) {
-   json(res, 501, { message: "Avatar upload not yet implemented in serverless mode" })
- }
-
- async function handleGetAvatarHistory(req, res) {
-   json(res, 200, [])
+   json(res, 200, { profile: data })
  }
 
 async function handleImportUsers(req, res) {
@@ -757,11 +829,26 @@ async function handleGetBatchErrors(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
-  req.body = await parseBody(req)
   const url = new URL(req.url, `http://${req.headers.host}`)
   let pathname = url.pathname.replace(/\/+$/, "") || "/"
   if (!pathname.startsWith("/api")) pathname = "/api" + pathname
 
+  // Handle multipart form data for avatar upload
+  const isAvatarUpload = pathname === "/api/profiles/me/avatar" && req.method === "POST"
+  if (isAvatarUpload) {
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (boundaryMatch) {
+      req.body = await new Promise((resolve) => {
+        const chunks = []
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", () => resolve(Buffer.concat(chunks)))
+      })
+    }
+    return handleUploadAvatar(req, res)
+  }
+
+  req.body = await parseBody(req)
   if (pathname === "/api/health") return json(res, 200, { status: "ok", service: "digital-year-book-api" })
   if (pathname === "/api/auth/login" && req.method === "POST") return handleLogin(req, res)
 
@@ -818,14 +905,13 @@ export default async function handler(req, res) {
   if (pathname === "/api/my/resumes" && req.method === "POST") return handleCreateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "GET") return handleGetMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
-  if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
+if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
 
-if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
-   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
-   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
-   if (pathname === "/api/profiles/me/avatar" && req.method === "POST") return handleUploadAvatar(req, res)
-   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
-   if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
+  if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
+  if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
+  if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
+  if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
+  if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
 
   if (pathname === "/api/admin/import/users" && req.method === "POST") return handleImportUsers(req, res)
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
