@@ -33,7 +33,10 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
             isFlipped && "[transform:rotateY(180deg)]"
           )}
         >
-          <div className="absolute inset-0 shadow-xl [backface-visibility:hidden]">
+          <div className={cn(
+            "absolute inset-0 shadow-xl [backface-visibility:hidden]",
+            isFlipped && "pointer-events-none"
+          )}>
             <ProfileCardFront
               profile={profile}
               avatarPreview={avatarPreview}
@@ -42,7 +45,10 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
             />
           </div>
 
-          <div className="absolute inset-0 shadow-xl [backface-visibility:hidden] [transform:rotateY(180deg)]">
+          <div className={cn(
+            "absolute inset-0 shadow-xl [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            !isFlipped && "pointer-events-none"
+          )}>
             <ProfileCardBack
               profile={profile}
               qrData={qrData}

@@ -164,7 +164,8 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }
                   href={link}
                   target="_blank"
                   rel="noreferrer"
-                  className={`inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[clamp(0.62rem,2.3vw,0.7rem)] font-medium shadow-sm transition hover:-translate-y-0.5 hover:border-[#1d4ed8]/30 ${platform.className}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[clamp(0.62rem,2.3vw,0.7rem)] font-medium shadow-sm transition hover:-translate-y-0.5 hover:border-[#1d4ed8]/30 cursor-pointer ${platform.className}`}
                 >
                   <Icon size={12} />
                   {platform.name}
