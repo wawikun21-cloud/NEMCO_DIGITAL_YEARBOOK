@@ -24,3 +24,17 @@ export async function ensureFlipbookBucket() {
     await supabaseAdmin.storage.createBucket("flipbook-pdfs", { public: true })
   }
 }
+
+export async function ensureResumePhotoBucket() {
+  const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
+  if (listError) return
+
+  const exists = buckets?.some((b) => b.name === "resume-photos")
+  if (!exists) {
+    await supabaseAdmin.storage.createBucket("resume-photos", {
+      public: true,
+      fileSizeLimit: 5 * 1024 * 1024,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+    })
+  }
+}

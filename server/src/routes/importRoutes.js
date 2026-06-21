@@ -1,7 +1,7 @@
 import { Router } from "express"
 import multer from "multer"
 import { uploadImport, listBatches, getBatch, getBatchErrors } from "../controllers/importController.js"
-import { requireAuth } from "../middlewares/authMiddleware.js"
+import { requireAdmin } from "../middlewares/authMiddleware.js"
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -10,9 +10,9 @@ const upload = multer({
 
 const router = Router()
 
-router.post("/users", requireAuth, upload.single("file"), uploadImport)
-router.get("/batches", requireAuth, listBatches)
-router.get("/batches/:id", requireAuth, getBatch)
-router.get("/batches/:id/errors", requireAuth, getBatchErrors)
+router.post("/users", requireAdmin, upload.single("file"), uploadImport)
+router.get("/batches", requireAdmin, listBatches)
+router.get("/batches/:id", requireAdmin, getBatch)
+router.get("/batches/:id/errors", requireAdmin, getBatchErrors)
 
 export default router

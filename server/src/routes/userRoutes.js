@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { requireAuth } from "../middlewares/authMiddleware.js"
+import { requireAdmin } from "../middlewares/authMiddleware.js"
 import {
   getUsersController,
   getUserController,
@@ -11,11 +11,11 @@ import {
 
 const router = Router()
 
-router.get("/", requireAuth, getUsersController)
-router.get("/:id", requireAuth, getUserController)
-router.post("/", requireAuth, createUserController)
-router.patch("/:id", requireAuth, updateUserController)
-router.delete("/:id", requireAuth, deleteUserController)
-router.post("/:id/reset-password", requireAuth, resetPasswordController)
+router.get("/", requireAdmin, getUsersController)
+router.get("/:id", requireAdmin, getUserController)
+router.post("/", requireAdmin, createUserController)
+router.patch("/:id", requireAdmin, updateUserController)
+router.delete("/:id", requireAdmin, deleteUserController)
+router.post("/:id/reset-password", requireAdmin, resetPasswordController)
 
 export default router

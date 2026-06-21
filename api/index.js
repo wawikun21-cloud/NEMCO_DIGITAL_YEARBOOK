@@ -101,6 +101,31 @@ function validateAvatarFile(file) {
   return { ...file, size: file.data.length }
 }
 
+function validateResumePhoto(file) {
+  const validMimeTypes = ["image/jpeg", "image/png", "image/webp"]
+  if (!validMimeTypes.includes(file.mimeType)) {
+    const error = new Error("Invalid photo type. Only JPEG, PNG, and WebP are allowed.")
+    error.status = 400
+    throw error
+  }
+  const maxSize = 5 * 1024 * 1024
+  if (file.data.length > maxSize) {
+    const error = new Error("Photo too large. Maximum size is 5MB.")
+    error.status = 400
+    throw error
+  }
+  return { ...file, size: file.data.length }
+}
+
+function getImageExtension(mimeType) {
+  const extensions = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  }
+  return extensions[mimeType] || "jpg"
+}
+
 async function handleUploadAvatar(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
@@ -124,6 +149,52 @@ async function handleUploadAvatar(req, res) {
     await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
     json(res, 200, { profile: updatedProfile, avatarUrl })
   } catch (error) { json(res, 500, { message: error.message || "Failed to upload avatar" }) }
+}
+
+async function handleUploadResumePhoto(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const match = url.pathname.match(/^\/api\/my\/resumes\/([^/]+)\/photo$/)
+    const resumeId = match?.[1]
+    if (!resumeId) return json(res, 400, { message: "Resume ID is required" })
+
+    const { data: resume, error: resumeError } = await supabaseAdmin.from("resumes").select("*").eq("id", resumeId).eq("user_id", user.id).maybeSingle()
+    if (resumeError) return json(res, 500, { message: resumeError.message })
+    if (!resume) return json(res, 404, { message: "Resume not found" })
+
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (!boundaryMatch) return json(res, 400, { message: "Invalid multipart form data" })
+    const parts = parseMultipart(req.body, boundaryMatch[1])
+    const file = parts.photo
+    if (!file || !file.data) return json(res, 400, { message: "No photo uploaded" })
+
+    const validated = validateResumePhoto(file)
+    const fileExt = getImageExtension(validated.mimeType)
+    const storagePath = `resume-${resumeId}/photo.${fileExt}`
+    const { error: uploadError } = await supabaseAdmin.storage.from("resume-photos").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
+    if (uploadError) return json(res, 500, { message: `Failed to upload photo: ${uploadError.message}` })
+
+    const { data: publicUrlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(storagePath)
+    const photoUrl = publicUrlData?.publicUrl || ""
+    const updatedData = {
+      ...(resume.data || {}),
+      personal: {
+        ...(resume.data?.personal || {}),
+        photo_url: photoUrl,
+      },
+    }
+
+    const { data: updatedResume, error: updateError } = await supabaseAdmin.from("resumes").update({ data: updatedData, updated_at: new Date().toISOString() }).eq("id", resumeId).eq("user_id", user.id).select().maybeSingle()
+    if (updateError) return json(res, 500, { message: updateError.message })
+
+    json(res, 200, { resume: updatedResume, photoUrl })
+  } catch (error) {
+    if (error.status) return json(res, error.status, { message: error.message })
+    json(res, 500, { message: error.message || "Failed to upload photo" })
+  }
 }
 
 async function handleGetAvatarHistory(req, res) {
@@ -576,7 +647,8 @@ async function handleGetTemplate(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
-  json(res, 200, data)
+  const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
+  json(res, 200, { ...data, sections: sections || [] })
 }
 
 async function handleCreateTemplate(req, res) {
@@ -1031,6 +1103,18 @@ export default async function handler(req, res) {
     let pathname = url.pathname.replace(/\/+$/, "") || "/"
     if (!pathname.startsWith("/api")) pathname = "/api" + pathname
 
+    // Handle multipart form data for resume photo upload
+    const isResumePhotoUpload = pathname.match(/^\/api\/my\/resumes\/[^/]+\/photo$/) && req.method === "POST"
+    if (isResumePhotoUpload) {
+      req.body = await new Promise((resolve, reject) => {
+        const chunks = []
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", () => resolve(Buffer.concat(chunks)))
+        req.on("error", reject)
+      })
+      return handleUploadResumePhoto(req, res)
+    }
+
     // Handle multipart form data for avatar upload
     const isAvatarUpload = pathname === "/api/profiles/me/avatar" && req.method === "POST"
     if (isAvatarUpload) {
@@ -1118,6 +1202,7 @@ export default async function handler(req, res) {
   if (pathname.startsWith("/api/resume-templates/") && req.method === "GET") return handleGetPublicTemplateDetail(req, res)
   if (pathname === "/api/my/resumes" && req.method === "GET") return handleGetMyResumes(req, res)
   if (pathname === "/api/my/resumes" && req.method === "POST") return handleCreateMyResume(req, res)
+  if (pathname.match(/^\/api\/my\/resumes\/[^/]+\/photo$/) && req.method === "POST") return handleUploadResumePhoto(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "GET") return handleGetMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
