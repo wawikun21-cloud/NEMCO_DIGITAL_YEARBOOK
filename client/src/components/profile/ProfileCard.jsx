@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onAvatarSelect }) {
   const { isFlipped, flip } = useFlipCard()
-  const { qrData, hasQrCode, canvasWrapperRef } = useQRCode(profile, setProfile)
+  const { qrData, hasQrCode, canvasWrapperRef, downloadQrCode } = useQRCode(profile, setProfile)
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
@@ -54,6 +54,7 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
               qrData={qrData}
               hasQrCode={hasQrCode}
               canvasWrapperRef={canvasWrapperRef}
+              onDownloadQrCode={downloadQrCode}
             />
           </div>
         </div>

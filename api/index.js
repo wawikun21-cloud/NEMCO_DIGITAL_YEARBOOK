@@ -952,6 +952,29 @@ async function handleGetMyProfile(req, res) {
    json(res, 200, { profile: data })
  }
 
+// Public, unauthenticated lookup by student_number OR id — this is the
+// endpoint hit when someone scans a profile's QR code. This route exists
+// in profileRoutes.js/profileController.js for the local Express server,
+// but that server is never deployed to Vercel — only this file is — so
+// it had no equivalent here and every public profile request 404'd.
+async function handleGetPublicProfile(req, res) {
+  const identifier = decodeURIComponent(req.url.split("/").pop() || "").trim()
+  if (!identifier) return json(res, 404, { message: "Profile not found or not shared" })
+
+  const { data: profile, error } = await supabaseAdmin
+    .from("profiles")
+    .select(PROFILE_COLUMNS)
+    .or(`student_number.eq.${identifier},id.eq.${identifier}`)
+    .maybeSingle()
+
+  if (error) return json(res, 500, { message: "Failed to fetch profile" })
+  if (!profile || (!profile.is_public && !profile.qr_data)) {
+    return json(res, 404, { message: "Profile not found or not shared" })
+  }
+
+  json(res, 200, { profile })
+}
+
  async function handleUpdateMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return

@@ -1,5 +1,5 @@
 import { QRCodeCanvas } from "qrcode.react"
-import { Landmark, Home, Phone, Mail, Globe, QrCode, ExternalLink } from "lucide-react"
+import { Landmark, Home, Phone, Mail, Globe, QrCode, ExternalLink, Download } from "lucide-react"
 
 function FacebookIcon(props) {
   return (
@@ -110,7 +110,7 @@ function CornerBracket({ corner }) {
   return <span className={`${base} ${variants[corner]}`} />
 }
 
-export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }) {
+export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef, onDownloadQrCode }) {
   const socialLinks = [profile?.social_link1, profile?.social_link2, profile?.social_link3]
     .map(normalizeSocialLink)
     .filter(Boolean)
@@ -151,6 +151,22 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }
             </div>
           )}
         </div>
+
+        {hasQrCode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              // Prevent this click from bubbling up to the card's flip
+              // handler — same pattern as the social links below.
+              e.stopPropagation()
+              onDownloadQrCode?.()
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[clamp(0.65rem,2.4vw,0.75rem)] font-medium text-neutral-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#1d4ed8]/30 hover:text-[#1d4ed8]"
+          >
+            <Download size={13} />
+            Download QR Code
+          </button>
+        )}
 
         {/* Social links now live right below the QR code instead of on the front face */}
         {socialLinks.length > 0 && (
