@@ -24,13 +24,24 @@ export async function uploadImport(file) {
   const formData = new FormData()
   formData.append("file", file)
 
-  const response = await fetch(`${API_BASE_URL}/admin/import/users`, {
-    method: "POST",
-    headers: authHeaders,   // NOTE: do NOT set Content-Type manually with FormData
-    body: formData,
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/admin/import/users`, {
+      method: "POST",
+      headers: authHeaders,   // NOTE: do NOT set Content-Type manually with FormData
+      body: formData,
+    })
+  } catch (networkError) {
+    throw new Error(networkError.message || "Network error during import")
+  }
 
-  const data = await response.json()
+  let data
+  try {
+    data = await response.json()
+  } catch (parseError) {
+    const text = await response.text().catch(() => "")
+    throw new Error(`Import failed with status ${response.status}: ${text || "Invalid JSON response"}`)
+  }
 
   if (!response.ok) {
     throw new Error(data.message || "Import failed")

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
+import * as XLSX from "xlsx"
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -35,6 +36,18 @@ async function requireAuth(req, res) {
   return { ...authData.user, id: profile.id }
 }
 
+async function authenticate(req, res) {
+  const authHeader = req.headers.authorization
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null
+  if (!token) { json(res, 401, { message: "Authorization token required" }); return null }
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !authData?.user) { json(res, 401, { message: "Invalid or expired token" }); return null }
+  const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").select("id, role, status").eq("id", authData.user.id).maybeSingle()
+  if (profileError || !profile) { json(res, 401, { message: "User profile not found" }); return null }
+  if (profile.status !== "active") { json(res, 403, { message: "Account is inactive" }); return null }
+  return { ...authData.user, id: profile.id, role: profile.role }
+}
+
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") { resolve({}); return }
@@ -47,6 +60,85 @@ async function parseBody(req) {
     })
     req.on("error", reject)
   })
+}
+
+function parseMultipart(body, boundary) {
+  const parts = {}
+  const raw = body.toString("utf8")
+  const delimiter = `--${boundary}`
+  const sections = raw.split(delimiter)
+  for (const section of sections) {
+    if (!section || section === "--\r\n" || section === "--") continue
+    const headerEnd = section.indexOf("\r\n\r\n")
+    if (headerEnd === -1) continue
+    const headers = section.slice(0, headerEnd)
+    const content = section.slice(headerEnd + 4, -2)
+    const nameMatch = headers.match(/name="([^"]+)"/)
+    const filenameMatch = headers.match(/filename="([^"]+)"/)
+    if (nameMatch) {
+      if (filenameMatch) {
+        const filename = filenameMatch[1]
+        const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
+        const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
+        parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
+      } else {
+        parts[nameMatch[1]] = content
+      }
+    }
+  }
+  return parts
+}
+
+function validateAvatarFile(file) {
+  const validMimeTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+  if (!validMimeTypes.includes(file.mimeType)) {
+    throw new Error("Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.")
+  }
+  const maxSize = 2 * 1024 * 1024
+  if (file.data.length > maxSize) {
+    throw new Error("File too large. Maximum size is 2MB.")
+  }
+  return { ...file, size: file.data.length }
+}
+
+async function handleUploadAvatar(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (!boundaryMatch) return json(res, 400, { message: "Invalid multipart form data" })
+    const parts = parseMultipart(req.body, boundaryMatch[1])
+    const file = parts.avatar
+    if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
+    const validated = validateAvatarFile(file)
+    const { data: currentProfile } = await supabaseAdmin.from("profiles").select("avatar_url").eq("id", user.id).single()
+    const oldAvatarUrl = currentProfile?.avatar_url || null
+    const fileExt = validated.filename.split(".").pop()?.toLowerCase() || "jpg"
+    const storagePath = `${user.id}/avatar.${fileExt}`
+    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
+    if (uploadError) return json(res, 500, { message: `Failed to upload avatar: ${uploadError.message}` })
+    const { data: publicUrlData } = supabaseAdmin.storage.from("avatars").getPublicUrl(storagePath)
+    const avatarUrl = publicUrlData.publicUrl
+    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").single()
+    await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
+    json(res, 200, { profile: updatedProfile, avatarUrl })
+  } catch (error) { json(res, 500, { message: error.message || "Failed to upload avatar" }) }
+}
+
+async function handleGetAvatarHistory(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const page = parseInt(url.searchParams.get("page") || "1", 10)
+    const perPage = parseInt(url.searchParams.get("perPage") || "25", 10)
+    const from = (page - 1) * perPage
+    const to = from + perPage - 1
+    const { data: uploads, error, count } = await supabaseAdmin.from("avatar_uploads").select("id,file_name,mime_type,file_size,file_path,old_avatar_url,created_at", { count: "exact" }).eq("user_id", user.id).order("created_at", { ascending: false }).range(from, to)
+    if (error) return json(res, 500, { message: error.message })
+    json(res, 200, { uploads: uploads || [], total: count || 0, page, perPage })
+  } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 const loginSchema = z.object({ studentId: z.string().trim().min(1), password: z.string().min(1) })
@@ -146,6 +238,29 @@ async function handleResetPassword(req, res) {
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "recovery", email: targetUser.email })
   if (error) return json(res, 400, { message: "Failed to generate password reset link" })
   json(res, 200, { link: data?.properties?.action_link, email: targetUser.email })
+}
+
+const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
+
+function normalizePublicBaseUrl(baseUrl) {
+  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+}
+
+function buildQrPayload(profile, baseUrl) {
+  return `${normalizePublicBaseUrl(baseUrl)}/${profile.student_number || profile.id}`
+}
+
+async function handleGenerateQrCode(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number,full_name").eq("id", user.id).maybeSingle()
+    if (fetchError || !existing) return json(res, 404, { message: "Profile not found" })
+    const qrData = buildQrPayload(existing)
+    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+    if (error) return json(res, 500, { message: error.message })
+    json(res, 200, { profile })
+  } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 const FLIPBOOK_SETTINGS_DEFAULTS = { enabled: true, title: "NEMCO Digital Yearbook", subtitle: "Academic Year 2025-2026", cover_url: "", theme: "default", flip_speed: 0.5, show_page_numbers: true, auto_flip: false, auto_flip_interval: 10 }
@@ -610,7 +725,7 @@ async function handleGetPublicTemplateDetail(req, res) {
 }
 
 async function handleGetMyResumes(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
@@ -618,7 +733,7 @@ async function handleGetMyResumes(req, res) {
 }
 
 async function handleGetMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).eq("user_id", user.id).maybeSingle()
@@ -628,7 +743,7 @@ async function handleGetMyResume(req, res) {
 }
 
 async function handleCreateMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   try {
     const { data, error } = await supabaseAdmin.from("resumes").insert({ ...req.body, user_id: user.id, status: "draft" }).select().maybeSingle()
@@ -638,7 +753,7 @@ async function handleCreateMyResume(req, res) {
 }
 
 async function handleUpdateMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", user.id).select().maybeSingle()
@@ -647,7 +762,7 @@ async function handleUpdateMyResume(req, res) {
 }
 
 async function handleDeleteMyResume(req, res) {
-  const user = await requireAuth(req, res)
+  const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
   const { error } = await supabaseAdmin.from("resumes").delete().eq("id", id).eq("user_id", user.id)
@@ -656,39 +771,228 @@ async function handleDeleteMyResume(req, res) {
 }
 
 async function handleGetMyProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", user.id).maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").eq("id", user.id).maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   if (!data) return json(res, 404, { message: "Profile not found" })
+   json(res, 200, { profile: data })
+ }
 
-async function handleUpdateMyProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select().maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
+ async function handleUpdateMyProfile(req, res) {
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   json(res, 200, { profile: data })
+ }
 
-async function handleSubmitProfile(req, res) {
-  const user = await requireAuth(req, res)
-  if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select().maybeSingle()
-  if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
-}
-
-async function handleUploadAvatar(req, res) {
-  json(res, 501, { message: "Avatar upload not yet implemented in serverless mode" })
-}
-
-async function handleGetAvatarHistory(req, res) {
-  json(res, 200, [])
-}
+ async function handleSubmitProfile(req, res) {
+   const user = await authenticate(req, res)
+   if (!user) return
+   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   if (error) return json(res, 500, { message: error.message })
+   json(res, 200, { profile: data })
+ }
 
 async function handleImportUsers(req, res) {
-  json(res, 501, { message: "Import not yet implemented in serverless mode" })
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const body = req.body
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      return json(res, 400, { message: "No file uploaded or invalid request body" })
+    }
+    const contentType = req.headers["content-type"] || ""
+    const boundaryMatch = contentType.match(/boundary=(.+)/)
+    if (!boundaryMatch) {
+      return json(res, 400, { message: "Invalid multipart form data - no boundary found" })
+    }
+    const parts = parseMultipart(body, boundaryMatch[1])
+    const file = parts.file
+    if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
+    const buffer = file.data
+    const filename = file.filename
+    const ext = filename?.toLowerCase().split(".").pop()
+    if (!["xlsx", "xls"].includes(ext)) {
+      return json(res, 400, { message: "Invalid file type. Only .xlsx and .xls files are allowed" })
+    }
+    if (buffer.length > 5 * 1024 * 1024) {
+      return json(res, 400, { message: "File size exceeds 5MB limit" })
+    }
+
+    // Parse Excel
+    let workbook
+    try {
+      workbook = XLSX.read(buffer, { type: "buffer" })
+    } catch (parseError) {
+      return json(res, 400, { message: `Failed to parse Excel: ${parseError.message}` })
+    }
+    const sheetName = workbook.SheetNames[0]
+    const sheet = workbook.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(sheet, { raw: false })
+    if (rows.length === 0) {
+      return json(res, 400, { message: "Excel file is empty or has no data rows" })
+    }
+
+    // Validate headers
+    const headers = Object.keys(rows[0]).map((h) => h.toLowerCase().trim())
+    const requiredColumns = ["student_number", "email", "full_name", "role", "year_level", "course_or_strand"]
+    const missing = requiredColumns.filter((col) => !headers.includes(col))
+    if (missing.length > 0) {
+      return json(res, 400, { message: `Missing required columns: ${missing.join(", ")}` })
+    }
+
+    // Create batch record
+    const { data: batch, error: batchError } = await supabaseAdmin
+      .from("import_batches")
+      .insert({
+        filename: filename,
+        status: "processing",
+        total_rows: rows.length,
+        success_count: 0,
+        failed_count: 0,
+        admin_id: user.id,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+    if (batchError) return json(res, 500, { message: `Failed to create import batch: ${batchError.message}` })
+
+    // Process rows
+    let successCount = 0
+    let errorCount = 0
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowData = {
+        student_number: String(row.student_number || row["Student Number"] || "").trim().padStart(7, "0"),
+        email: String(row.email || row["Email"] || "").trim(),
+        full_name: String(row.full_name || row["Full Name"] || "").trim(),
+        role: ["admin", "user"].includes(String(row.role || row["Role"] || "user").trim().toLowerCase()) 
+          ? String(row.role || row["Role"] || "user").trim().toLowerCase() 
+          : "user",
+        year_level: String(row.year_level || row["Year Level"] || "").trim(),
+        course_or_strand: String(row.course_or_strand || row["Course or Strand"] || "").trim(),
+        section: String(row.section || row["Section"] || "").trim() || null,
+        display_name: String(row.display_name || row["Display Name"] || "").trim() || null,
+        bio: String(row.bio || row["Bio"] || "").trim() || null,
+        quote: String(row.quote || row["Quote"] || "").trim() || null,
+      }
+
+      // Validate required fields
+      if (!rowData.student_number || !rowData.email || !rowData.full_name || !rowData.year_level || !rowData.course_or_strand) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: "Missing required fields",
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Check for duplicates
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("student_number", rowData.student_number)
+        .maybeSingle()
+      if (existingProfile) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: `Student number ${rowData.student_number} already exists`,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Create user
+      const defaultPassword = rowData.student_number
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: rowData.email,
+        password: defaultPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: rowData.full_name,
+          display_name: rowData.display_name || rowData.full_name,
+          student_number: rowData.student_number,
+        },
+      })
+      if (authError) {
+        errorCount++
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: authError.message,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      // Create profile
+      const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
+        id: authData.user.id,
+        email: rowData.email,
+        student_number: rowData.student_number,
+        full_name: rowData.full_name,
+        display_name: rowData.display_name || rowData.full_name,
+        role: rowData.role,
+        status: "active",
+        profile_status: "approved",
+        year_level: rowData.year_level,
+        course_or_strand: rowData.course_or_strand,
+        section: rowData.section,
+        bio: rowData.bio,
+        quote: rowData.quote,
+        is_public: true,
+        resume_public: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" })
+
+      if (profileError) {
+        errorCount++
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        await supabaseAdmin.from("import_errors").insert({
+          batch_id: batch.id,
+          row_number: i + 2,
+          message: profileError.message,
+          email: rowData.email,
+          student_number: rowData.student_number,
+          created_at: new Date().toISOString(),
+        })
+        continue
+      }
+
+      successCount++
+    }
+
+    const finalStatus = errorCount > 0 ? "completed_with_errors" : "completed"
+    await supabaseAdmin.from("import_batches").update({
+      status: finalStatus,
+      success_count: successCount,
+      failed_count: errorCount,
+    }).eq("id", batch.id)
+
+    json(res, 200, {
+      message: finalStatus === "completed_with_errors" ? "Import completed with errors" : "Import completed",
+      batchId: batch.id,
+      status: finalStatus,
+      totalRows: rows.length,
+      successCount,
+      errorCount,
+    })
+  } catch (error) {
+    json(res, 500, { message: error.message || "Import failed" })
+  }
 }
 
 async function handleGetBatches(req, res) {
@@ -722,13 +1026,46 @@ async function handleGetBatchErrors(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
-  req.body = await parseBody(req)
-  const url = new URL(req.url, `http://${req.headers.host}`)
-  let pathname = url.pathname.replace(/\/+$/, "") || "/"
-  if (!pathname.startsWith("/api")) pathname = "/api" + pathname
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    let pathname = url.pathname.replace(/\/+$/, "") || "/"
+    if (!pathname.startsWith("/api")) pathname = "/api" + pathname
 
-  if (pathname === "/api/health") return json(res, 200, { status: "ok", service: "digital-year-book-api" })
-  if (pathname === "/api/auth/login" && req.method === "POST") return handleLogin(req, res)
+    // Handle multipart form data for avatar upload
+    const isAvatarUpload = pathname === "/api/profiles/me/avatar" && req.method === "POST"
+    if (isAvatarUpload) {
+      const contentType = req.headers["content-type"] || ""
+      const boundaryMatch = contentType.match(/boundary=(.+)/)
+      if (boundaryMatch) {
+        req.body = await new Promise((resolve) => {
+          const chunks = []
+          req.on("data", (chunk) => chunks.push(chunk))
+          req.on("end", () => resolve(Buffer.concat(chunks)))
+        })
+      }
+      return handleUploadAvatar(req, res)
+    }
+
+    // Handle multipart form data for import
+    const isImport = pathname === "/api/admin/import/users" && req.method === "POST"
+    if (isImport) {
+      const contentType = req.headers["content-type"] || ""
+      const boundaryMatch = contentType.match(/boundary=(.+)/)
+      if (!boundaryMatch) {
+        return json(res, 400, { message: "No file uploaded or invalid multipart data" })
+      }
+      req.body = await new Promise((resolve, reject) => {
+        const chunks = []
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", () => resolve(Buffer.concat(chunks)))
+        req.on("error", reject)
+      })
+      return handleImportUsers(req, res)
+    }
+
+    req.body = await parseBody(req)
+    if (pathname === "/api/health") return json(res, 200, { status: "ok", service: "digital-year-book-api" })
+    if (pathname === "/api/auth/login" && req.method === "POST") return handleLogin(req, res)
 
   if (pathname === "/api/admin/users" && req.method === "GET") return handleGetUsers(req, res)
   if (pathname === "/api/admin/users" && req.method === "POST") return handleCreateUser(req, res)
@@ -788,13 +1125,15 @@ export default async function handler(req, res) {
   if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
-  if (pathname === "/api/profiles/me/avatar" && req.method === "POST") return handleUploadAvatar(req, res)
   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
+  if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
 
-  if (pathname === "/api/admin/import/users" && req.method === "POST") return handleImportUsers(req, res)
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
   if (pathname.startsWith("/api/admin/import/batches/") && req.method === "GET") return handleGetBatch(req, res)
 
   json(res, 404, { message: "Not found", pathname })
+  } catch (err) {
+    json(res, 500, { message: err.message || "Server error" })
+  }
 }

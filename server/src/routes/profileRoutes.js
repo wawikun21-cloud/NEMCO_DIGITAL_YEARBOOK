@@ -4,10 +4,12 @@ import { authenticate } from "../middlewares/authMiddleware.js"
 import { avatarRateLimit } from "../middlewares/rateLimiter.js"
 import {
   getMyProfileController,
+  getPublicProfileController,
   updateMyProfileController,
   submitProfileController,
   uploadAvatarController,
   getAvatarHistoryController,
+  generateQrCodeController,
 } from "../controllers/profileController.js"
 
 const upload = multer({
@@ -18,6 +20,7 @@ const upload = multer({
 const router = Router()
 
 router.get("/me", authenticate, getMyProfileController)
+router.get("/public/:identifier", getPublicProfileController)
 router.patch("/me", authenticate, updateMyProfileController)
 router.post("/submit", authenticate, submitProfileController)
 router.post(
@@ -28,5 +31,6 @@ router.post(
   uploadAvatarController
 )
 router.get("/me/avatar/history", authenticate, getAvatarHistoryController)
+router.post("/me/qrcode/generate", authenticate, generateQrCodeController)
 
 export default router

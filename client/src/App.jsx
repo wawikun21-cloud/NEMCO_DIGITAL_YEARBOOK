@@ -12,9 +12,16 @@ import ActivityLogsPage from "@/pages/admin/ActivityLogsPage"
 import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
 import ResumeBuilderPage from "@/pages/student/ResumeBuilderPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
+import PublicProfilePage from "@/pages/student/PublicProfilePage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
+
+  const isPublicProfilePath = /^\/(?:u|profile)\/[^/]+$/.test(window.location.pathname)
+
+  if (isPublicProfilePath) {
+    return <PublicProfilePage />
+  }
 
   if (!user || !profile) {
     return <LoginPage />
@@ -27,10 +34,6 @@ export default function App() {
 
   const handleNavigate = (href) => {
     window.location.href = href
-  }
-
-  const handleProfile = () => {
-    window.location.href = "/profile"
   }
 
   const userDisplay = {
@@ -83,7 +86,6 @@ export default function App() {
         user={userDisplay}
         onNavigate={handleNavigate}
         onLogout={handleLogout}
-        onProfile={handleProfile}
       >
         {getAdminPage()}
       </DashboardLayout>
@@ -96,7 +98,6 @@ export default function App() {
       user={userDisplay}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
-      onProfile={handleProfile}
     >
       {getStudentPage()}
     </DashboardLayout>

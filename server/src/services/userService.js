@@ -198,11 +198,11 @@ export async function resetUserPassword(id, redirectTo) {
   return { link: data?.properties?.action_link, email: user.email }
 }
 
-export async function logAudit({ adminId, action, entityType, entityId, oldData, newData, ipAddress, userAgent }) {
+export async function logAudit({ adminId, userId, action, entityType, entityId, oldData, newData, ipAddress, userAgent }) {
   const { error } = await supabaseAdmin
     .from("audit_logs")
     .insert({
-      user_id: adminId,
+      user_id: adminId ?? userId,
       action,
       entity_type: entityType,
       entity_id: entityId,

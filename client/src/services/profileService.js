@@ -1,173 +1,101 @@
-import { supabase } from "@/lib/supabaseClient"
-import { getStoredProfile, getStoredUser } from "@/services/authService"
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
+const normalizedApiBaseUrl = API_BASE_URL.replace(/\/+$/, "")
+const profileApiBaseUrl = normalizedApiBaseUrl.endsWith("/profiles")
+  ? normalizedApiBaseUrl
+  : `${normalizedApiBaseUrl}/profiles`
 
-async function getAuthHeaders(isJson = true) {
-  const { data: supabaseData } = await supabase.auth.getSession()
-  const accessToken = supabaseData?.session?.access_token || sessionStorage.getItem("digitalYearbookAccessToken")
-
-  if (!accessToken) {
-    throw new Error("You must be logged in to perform this action.")
-  }
-
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-  }
-
-  if (isJson) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  return headers
+function profileUrl(path) {
+  return `${profileApiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`
 }
 
-export async function uploadAvatar(file) {
-  let authHeaders
-  let hasAuth = false
+function getAuthHeaders(extra = {}) {
+  const token = sessionStorage.getItem("digitalYearbookAccessToken")
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  }
+}
 
+async function parseResponse(response) {
+  let data
   try {
-    authHeaders = await getAuthHeaders(false)
-    hasAuth = true
-  } catch (error) {
-    if (error.message !== "You must be logged in to perform this action.") {
-      throw error
-    }
+    data = await response.json()
+  } catch {
+    throw new Error(`Server error (${response.status}). Please try again later.`)
   }
-
-  if (!hasAuth) {
-    const storedUser = getStoredUser()
-    const storedProfile = getStoredProfile() || {}
-    const mockAvatarUrl = URL.createObjectURL(file)
-    const updatedProfile = { ...storedProfile, avatar_url: mockAvatarUrl }
-
-    if (storedUser) {
-      sessionStorage.setItem("digitalYearbookProfile", JSON.stringify(updatedProfile))
-    }
-    return { profile: updatedProfile, avatarUrl: mockAvatarUrl }
-  }
-
-  const formData = new FormData()
-  formData.append("avatar", file)
-
-  const response = await fetch(`${API_BASE_URL}/profiles/me/avatar`, {
-    method: "POST",
-    headers: authHeaders,
-    body: formData,
-  })
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-
-    if (response.status === 429) {
-      throw new Error(data.message || "Rate limit exceeded. Please try again later.")
-    }
-
-    throw new Error(data.message || "Failed to upload avatar")
+    throw new Error(data.message || "Request failed")
   }
 
-  const data = await response.json()
   return data
 }
 
-export async function getAvatarHistory(page = 1, perPage = 25) {
-  try {
-    const authHeaders = await getAuthHeaders()
-
-    const response = await fetch(
-      `${API_BASE_URL}/profiles/me/avatar/history?page=${page}&perPage=${perPage}`,
-      {
-        method: "GET",
-        headers: authHeaders,
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch avatar history")
-    }
-
-    return response.json()
-  } catch (error) {
-    if (error.message === "You must be logged in to perform this action.") {
-      throw error
-    }
-    return { uploads: [], total: 0, page, perPage }
-  }
-}
-
 export async function getMyProfile() {
-  let authHeaders
-  try {
-    authHeaders = await getAuthHeaders()
-  } catch {
-    const stored = getStoredProfile()
-    if (stored) return stored
-    throw new Error("You must be logged in to perform this action.")
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/profiles/me`, {
-      method: "GET",
-      headers: authHeaders,
-    })
-
-    if (!response.ok) {
-      const stored = getStoredProfile()
-      if (stored) return stored
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.message || "Failed to fetch profile")
-    }
-
-    const data = await response.json()
-    return data.profile
-  } catch (error) {
-    const stored = getStoredProfile()
-    if (stored) return stored
-    throw error instanceof Error ? error : new Error("Failed to fetch profile")
-  }
-}
-
-export async function updateMyProfile(profileData) {
-  try {
-    const authHeaders = await getAuthHeaders()
-
-    const response = await fetch(`${API_BASE_URL}/profiles/me`, {
-      method: "PATCH",
-      headers: authHeaders,
-      body: JSON.stringify(profileData),
-    })
-
-    if (!response.ok) {
-      throw new Error((await response.json().catch(() => ({}))).message || "Failed to update profile")
-    }
-
-    const data = await response.json()
-    return data.profile
-  } catch {
-    const storedUser = getStoredUser()
-    const storedProfile = getStoredProfile() || {}
-    const updatedProfile = { ...storedProfile, ...profileData }
-
-    if (storedUser) {
-      sessionStorage.setItem("digitalYearbookProfile", JSON.stringify(updatedProfile))
-    }
-    return updatedProfile
-  }
-}
-
-export async function submitMyProfile() {
-  const authHeaders = await getAuthHeaders()
-
-  const response = await fetch(`${API_BASE_URL}/profiles/submit`, {
-    method: "POST",
-    headers: authHeaders,
+  const response = await fetch(profileUrl("me"), {
+    method: "GET",
+    headers: getAuthHeaders(),
   })
+  const data = await parseResponse(response)
+  return data.profile
+}
 
-  const data = await response.json()
+export async function getPublicProfile(identifier) {
+  const response = await fetch(profileUrl(`public/${encodeURIComponent(identifier)}`), {
+    method: "GET",
+  })
+  const data = await parseResponse(response)
+  return data.profile
+}
 
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to submit profile")
-  }
+export async function updateMyProfile(payload) {
+  const response = await fetch(profileUrl("me"), {
+    method: "PATCH",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload),
+  })
+  const data = await parseResponse(response)
+  return data.profile
+}
 
+export async function uploadAvatar(file) {
+  const formData = new FormData()
+  formData.append("avatar", file)
+
+  const response = await fetch(profileUrl("me/avatar"), {
+    method: "POST",
+    headers: getAuthHeaders(), // no Content-Type — browser sets multipart boundary
+    body: formData,
+  })
+  return parseResponse(response)
+}
+
+export async function getAvatarHistory(page = 1, perPage = 25) {
+  const response = await fetch(
+    profileUrl(`me/avatar/history?page=${page}&perPage=${perPage}`),
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    }
+  )
+  return parseResponse(response)
+}
+
+export async function submitProfile() {
+  const response = await fetch(profileUrl("submit"), {
+    method: "POST",
+    headers: getAuthHeaders(),
+  })
+  const data = await parseResponse(response)
+  return data.profile
+}
+
+// Triggers first-time QR generation, or a manual refresh of an existing one.
+export async function generateProfileQrCode() {
+  const response = await fetch(profileUrl("me/qrcode/generate"), {
+    method: "POST",
+    headers: getAuthHeaders(),
+  })
+  const data = await parseResponse(response)
   return data.profile
 }
