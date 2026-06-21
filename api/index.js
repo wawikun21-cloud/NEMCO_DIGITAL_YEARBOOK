@@ -71,28 +71,68 @@ async function parseBody(req) {
   })
 }
 
+// Binary-safe multipart parser. The previous implementation converted the
+// entire request body to a UTF-8 string (`body.toString("utf8")`) before
+// slicing it apart. Binary file bytes (JPEG/PNG/etc.) are NOT valid UTF-8
+// in general, so that conversion silently and irreversibly corrupted image
+// data — uploads "succeeded" (validation/size checks still passed) but the
+// bytes written to storage no longer matched the original file, producing
+// a broken image. This version operates on the raw Buffer end-to-end and
+// never round-trips file data through a JS string.
 function parseMultipart(body, boundary) {
   const parts = {}
-  const raw = body.toString("utf8")
-  const delimiter = `--${boundary}`
-  const sections = raw.split(delimiter)
-  for (const section of sections) {
-    if (!section || section === "--\r\n" || section === "--") continue
-    const headerEnd = section.indexOf("\r\n\r\n")
-    if (headerEnd === -1) continue
-    const headers = section.slice(0, headerEnd)
-    const content = section.slice(headerEnd + 4, -2)
+  const boundaryBuf = Buffer.from(`--${boundary}`)
+  const CRLF = Buffer.from("\r\n")
+  const CRLFCRLF = Buffer.from("\r\n\r\n")
+
+  // Split the buffer on boundary markers, working with byte offsets only.
+  const sectionBuffers = []
+  let searchStart = 0
+  while (true) {
+    const boundaryIndex = body.indexOf(boundaryBuf, searchStart)
+    if (boundaryIndex === -1) break
+    const sectionStart = searchStart
+    if (sectionStart > 0) {
+      sectionBuffers.push(body.subarray(sectionStart, boundaryIndex))
+    }
+    searchStart = boundaryIndex + boundaryBuf.length
+  }
+
+  for (let section of sectionBuffers) {
+    // Strip a leading CRLF left over from the previous boundary line.
+    if (section.subarray(0, 2).equals(CRLF)) {
+      section = section.subarray(2)
+    }
+    // Skip the closing "--" terminator section.
+    if (section.length === 0 || section.subarray(0, 2).toString("utf8") === "--") continue
+
+    const headerEndIndex = section.indexOf(CRLFCRLF)
+    if (headerEndIndex === -1) continue
+
+    // Headers are plain ASCII text, so UTF-8 decoding here is safe.
+    const headers = section.subarray(0, headerEndIndex).toString("utf8")
+
+    // Content runs from right after the header block to right before the
+    // trailing CRLF that precedes the next boundary marker.
+    let content = section.subarray(headerEndIndex + 4)
+    if (content.subarray(content.length - 2).equals(CRLF)) {
+      content = content.subarray(0, content.length - 2)
+    }
+
     const nameMatch = headers.match(/name="([^"]+)"/)
     const filenameMatch = headers.match(/filename="([^"]+)"/)
-    if (nameMatch) {
-      if (filenameMatch) {
-        const filename = filenameMatch[1]
-        const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
-        const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
-        parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
-      } else {
-        parts[nameMatch[1]] = content
-      }
+    if (!nameMatch) continue
+
+    if (filenameMatch) {
+      const filename = filenameMatch[1]
+      const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
+      const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
+      // `content` is already a Buffer slice of the original body — no
+      // string conversion, so the original bytes are preserved exactly.
+      parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
+    } else {
+      // Plain form fields are text, so utf8 decoding is correct here.
+      parts[nameMatch[1]] = content.toString("utf8")
     }
   }
   return parts
