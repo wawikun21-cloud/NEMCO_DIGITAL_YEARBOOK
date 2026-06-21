@@ -748,7 +748,7 @@ async function handleGetTemplate(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
-  const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
+  const { data: sections } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
   json(res, 200, { template: data, sections: sections || [] })
 }
 
@@ -766,7 +766,16 @@ async function handleCreateTemplate(req, res) {
 async function handleUpdateTemplate(req, res) {
   const id = req.url.split("/").pop()
   try {
-    const { data, error } = await supabaseAdmin.from("resume_templates").update(req.body).eq("id", id).select().maybeSingle()
+    const { name, description, thumbnail_url, default_sections, is_active, is_default, sort_order } = req.body
+    const updatePayload = { updated_at: new Date().toISOString() }
+    if (name !== undefined) updatePayload.name = name
+    if (description !== undefined) updatePayload.description = description
+    if (thumbnail_url !== undefined) updatePayload.thumbnail_url = thumbnail_url
+    if (default_sections !== undefined) updatePayload.default_sections = default_sections
+    if (is_active !== undefined) updatePayload.is_active = is_active
+    if (is_default !== undefined) updatePayload.is_default = is_default
+    if (sort_order !== undefined) updatePayload.sort_order = sort_order
+    const { data, error } = await supabaseAdmin.from("resume_templates").update(updatePayload).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 200, { template: data })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -782,7 +791,7 @@ async function handleDeleteTemplate(req, res) {
 async function handleGetTemplateSections(req, res) {
   const parts = req.url.split("/")
   const templateId = parts[parts.indexOf("templates") + 1]
-  const { data, error } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", templateId).order("sort_order", { ascending: true })
+  const { data, error } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", templateId).order("sort_order", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { sections: data || [] })
 }
@@ -791,9 +800,9 @@ async function handleCreateTemplateSection(req, res) {
   const parts = req.url.split("/")
   const templateId = parts[parts.indexOf("templates") + 1]
   try {
-    const { data: maxOrder } = await supabaseAdmin.from("resume_template_sections").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle()
+    const { data: maxOrder } = await supabaseAdmin.from("resume_sections").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle()
     const nextOrder = maxOrder ? (maxOrder.sort_order || 0) + 1 : 1
-    const { data, error } = await supabaseAdmin.from("resume_template_sections").insert({ ...req.body, template_id: templateId, sort_order: nextOrder }).select().maybeSingle()
+    const { data, error } = await supabaseAdmin.from("resume_sections").insert({ ...req.body, template_id: templateId, sort_order: nextOrder }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 201, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -802,7 +811,16 @@ async function handleCreateTemplateSection(req, res) {
 async function handleUpdateTemplateSection(req, res) {
   const id = req.url.split("/").pop()
   try {
-    const { data, error } = await supabaseAdmin.from("resume_template_sections").update(req.body).eq("id", id).select().maybeSingle()
+    const { label, description, icon, field_type, is_required, sort_order, config } = req.body
+    const updatePayload = { updated_at: new Date().toISOString() }
+    if (label !== undefined) updatePayload.label = label
+    if (description !== undefined) updatePayload.description = description
+    if (icon !== undefined) updatePayload.icon = icon
+    if (field_type !== undefined) updatePayload.field_type = field_type
+    if (is_required !== undefined) updatePayload.is_required = is_required
+    if (sort_order !== undefined) updatePayload.sort_order = sort_order
+    if (config !== undefined) updatePayload.config = config
+    const { data, error } = await supabaseAdmin.from("resume_sections").update(updatePayload).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 200, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -810,7 +828,7 @@ async function handleUpdateTemplateSection(req, res) {
 
 async function handleDeleteTemplateSection(req, res) {
   const id = req.url.split("/").pop()
-  const { error } = await supabaseAdmin.from("resume_template_sections").delete().eq("id", id)
+  const { error } = await supabaseAdmin.from("resume_sections").delete().eq("id", id)
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { message: "Section deleted" })
 }
@@ -819,7 +837,7 @@ async function handleReorderTemplateSections(req, res) {
   try {
     const { orderedIds } = req.body
     for (let i = 0; i < orderedIds.length; i++) {
-      const { error } = await supabaseAdmin.from("resume_template_sections").update({ sort_order: i + 1, updated_at: new Date().toISOString() }).eq("id", orderedIds[i])
+      const { error } = await supabaseAdmin.from("resume_sections").update({ sort_order: i + 1, updated_at: new Date().toISOString() }).eq("id", orderedIds[i])
       if (error) return json(res, 500, { message: error.message })
     }
     json(res, 200, { message: "Reordered" })
@@ -832,12 +850,12 @@ async function handleGetResumes(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`)
   const page = parseInt(url.searchParams.get("page") || "1", 10)
   const perPage = parseInt(url.searchParams.get("perPage") || "25", 10)
-  const status = url.searchParams.get("status") || null
+  const isPublic = url.searchParams.get("isPublic") || null
   const search = url.searchParams.get("search") || null
   const from = (page - 1) * perPage
   const to = from + perPage - 1
-  let query = supabaseAdmin.from("resumes").select("id, user_id, template_id, title, status, data, created_at, updated_at", { count: "exact" }).order("updated_at", { ascending: false }).range(from, to)
-  if (status) query = query.eq("status", status)
+  let query = supabaseAdmin.from("resumes").select("id, user_id, title, template, is_public, data, created_at, updated_at", { count: "exact" }).order("updated_at", { ascending: false }).range(from, to)
+  if (isPublic !== null) query = query.eq("is_public", isPublic === "true")
   const { data, error, count } = await query
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { resumes: data || [], total: count || 0, page, perPage })
@@ -857,7 +875,11 @@ async function handleUpdateResume(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).select().maybeSingle()
+  const { title, isPublic } = req.body
+  const updatePayload = { updated_at: new Date().toISOString() }
+  if (title !== undefined) updatePayload.title = title
+  if (isPublic !== undefined) updatePayload.is_public = isPublic
+  const { data, error } = await supabaseAdmin.from("resumes").update(updatePayload).eq("id", id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { resume: data })
 }
@@ -874,12 +896,12 @@ async function handleDeleteResume(req, res) {
 async function handleGetResumeStats(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
-  const [{ count: total }, { count: draft }, { count: published }] = await Promise.all([
+  const [{ count: total }, { count: publicCount }, { count: privateCount }] = await Promise.all([
     supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }),
-    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("status", "draft"),
-    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("status", "published"),
+    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("is_public", true),
+    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("is_public", false),
   ])
-  json(res, 200, { total: total || 0, draft: draft || 0, published: published || 0 })
+  json(res, 200, { total: total || 0, public: publicCount || 0, private: privateCount || 0 })
 }
 
 async function handleGetPublicTemplates(req, res) {
@@ -893,7 +915,7 @@ async function handleGetPublicTemplateDetail(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("*").eq("slug", slug).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
-  const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
+  const { data: sections } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
   json(res, 200, { template: data, sections: sections || [] })
 }
 
@@ -919,7 +941,15 @@ async function handleCreateMyResume(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
   try {
-    const { data, error } = await supabaseAdmin.from("resumes").insert({ ...req.body, user_id: user.id, status: "draft" }).select().maybeSingle()
+    const { title, template, data: resumeData } = req.body
+    const insertPayload = {
+      user_id: user.id,
+      title: title || "My Resume",
+      template: template || "simple",
+      data: resumeData || {},
+      is_public: false,
+    }
+    const { data, error } = await supabaseAdmin.from("resumes").insert(insertPayload).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 201, { resume: data })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -929,7 +959,13 @@ async function handleUpdateMyResume(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", user.id).select().maybeSingle()
+  const { title, data: resumeData, isPublic, template } = req.body
+  const updatePayload = { updated_at: new Date().toISOString() }
+  if (title !== undefined) updatePayload.title = title
+  if (resumeData !== undefined) updatePayload.data = resumeData
+  if (isPublic !== undefined) updatePayload.is_public = isPublic
+  if (template !== undefined) updatePayload.template = template
+  const { data, error } = await supabaseAdmin.from("resumes").update(updatePayload).eq("id", id).eq("user_id", user.id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { resume: data })
 }
@@ -1318,11 +1354,11 @@ export default async function handler(req, res) {
   if (pathname.match(/\/api\/admin\/resume-sections\/.+$/) && req.method === "PATCH") return handleUpdateTemplateSection(req, res)
   if (pathname.match(/\/api\/admin\/resume-sections\/.+$/) && req.method === "DELETE") return handleDeleteTemplateSection(req, res)
 
+  if (pathname === "/api/admin/resumes/stats" && req.method === "GET") return handleGetResumeStats(req, res)
   if (pathname === "/api/admin/resumes" && req.method === "GET") return handleGetResumes(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "GET") return handleGetResume(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "PATCH") return handleUpdateResume(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "DELETE") return handleDeleteResume(req, res)
-  if (pathname === "/api/admin/resumes/stats" && req.method === "GET") return handleGetResumeStats(req, res)
 
   if (pathname === "/api/resume-templates" && req.method === "GET") return handleGetPublicTemplates(req, res)
   if (pathname.startsWith("/api/resume-templates/") && req.method === "GET") return handleGetPublicTemplateDetail(req, res)
