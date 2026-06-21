@@ -183,15 +183,19 @@ async function ensureAvatarBucket() {
 }
 
 function validateResumePhoto(file) {
+  // Client compresses to JPEG before uploading, but we still accept PNG/WebP
+  // in case someone bypasses the client (e.g. direct API calls).
   const validMimeTypes = ["image/jpeg", "image/png", "image/webp"]
   if (!validMimeTypes.includes(file.mimeType)) {
     const error = new Error("Invalid photo type. Only JPEG, PNG, and WebP are allowed.")
     error.status = 400
     throw error
   }
-  const maxSize = 5 * 1024 * 1024
+  // 2 MB ceiling on the server — client-side compression keeps uploads well
+  // under this, and Vercel's 4.5 MB infrastructure limit is above it.
+  const maxSize = 2 * 1024 * 1024
   if (file.data.length > maxSize) {
-    const error = new Error("Photo too large. Maximum size is 5MB.")
+    const error = new Error("Photo too large. Maximum size is 2MB. Please use a smaller image.")
     error.status = 400
     throw error
   }
@@ -1383,4 +1387,10 @@ export default async function handler(req, res) {
   } catch (err) {
     json(res, 500, { message: err.message || "Server error" })
   }
+}
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
 }
