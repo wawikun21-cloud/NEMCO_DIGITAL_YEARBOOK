@@ -66,7 +66,7 @@ export default function PublicProfilePage() {
             className="absolute left-4 top-4 z-20 h-10 w-auto drop-shadow-md sm:left-6 sm:top-6 sm:h-12"
           />
 
-          <div className="relative z-10">
+          <div className="relative z-10 flex min-h-screen w-full items-center justify-center">
             {isLoading ? (
               <div className="flex min-h-[620px] items-center justify-center p-4">
                 <Skeleton className="h-[520px] w-[300px] rounded-3xl sm:h-[560px] sm:w-[320px]" />
