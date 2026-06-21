@@ -556,15 +556,16 @@ export default function FlipbookPage_() {
           onTouchEnd={handleTouchEnd}
         >
            <div
-             className="relative transition-transform duration-200"
-             style={{
-               perspective: "300px",
-               perspectiveOrigin: "50% 50%",
-               height: "min(80vh, 1.5 * 80vw)",
-               aspectRatio: "3/2",
-               transform: `scale(${zoom})`,
-               transformOrigin: "center center",
-             }}
+              className="relative transition-transform duration-200"
+              style={{
+                perspective: "300px",
+                perspectiveOrigin: "50% 50%",
+                height: "min(80vh, 1.5 * 80vw)",
+                aspectRatio: "3/2",
+                transform: `scale(${zoom})`,
+                transformOrigin: "center center",
+                overflow: "hidden",
+              }}
            >
             <div className="relative h-full w-full rounded-lg" style={{ transformStyle: "preserve-3d" }}>
               <div
