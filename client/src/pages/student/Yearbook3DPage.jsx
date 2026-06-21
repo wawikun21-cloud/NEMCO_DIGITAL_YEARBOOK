@@ -1167,7 +1167,7 @@ export default function Yearbook3DPage() {
       )}
 
        {/* ── 3D Book ── */}
-       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-6">
+       <div className="relative z-10 flex flex-col items-center justify-center px-4 py-6 overflow-hidden">
          {/* Left padding to hide page overflow during flip */}
          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-transparent pointer-events-none z-0" />
          {!allPdfPagesRendered ? (
@@ -1183,15 +1183,15 @@ export default function Yearbook3DPage() {
            </div>
          ) : (
          <>
-             {/* ── Clickable book wrapper with drag support ── */}
-              <div
-                ref={bookRef}
-                className="relative transition-transform duration-400 ease-out shrink-0 select-none"
-                style={{
-                  perspective: "1200px",
-                  perspectiveOrigin: "50% 50%",
-                  width: bookDisplaySize ? `${bookDisplaySize.width}px` : "30vw",
-                  height: bookDisplaySize ? `${bookDisplaySize.height}px` : "45vw",
+              {/* ── Clickable book wrapper with drag support ── */}
+               <div
+                 ref={bookRef}
+                 className="relative transition-transform duration-400 ease-out shrink-0 select-none "
+                 style={{
+                   perspective: "1200px",
+                   perspectiveOrigin: "50% 50%",
+                   width: bookDisplaySize ? `${bookDisplaySize.width}px` : "30vw",
+                   height: bookDisplaySize ? `${bookDisplaySize.height}px` : "45vw",
                   transform: `scale(${zoom})`,
                   transformOrigin: "center center",
                   cursor: cornerHover ? "pointer" : "default",
