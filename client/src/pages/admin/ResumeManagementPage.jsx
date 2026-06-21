@@ -35,6 +35,7 @@ import {
   AlignLeft,
   CalendarRange,
   Link,
+  User,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,6 +73,7 @@ import {
   addTemplateSection,
   updateTemplateSection,
   deleteTemplateSection,
+  reorderTemplateSections,
 } from "@/services/resumeTemplateService"
 
 const FIELD_TYPES = [
@@ -84,6 +86,7 @@ const FIELD_TYPES = [
   { value: "skills", label: "Skills Tags" },
   { value: "achievements", label: "Achievements" },
   { value: "references", label: "References" },
+  { value: "personal", label: "Personal Information" },
 ]
 
 const FIELD_TYPE_ICONS = {
@@ -96,6 +99,7 @@ const FIELD_TYPE_ICONS = {
   skills: Award,
   achievements: Star,
   references: Users,
+  personal: User,
 }
 
 function formatFieldValue(value) {
@@ -731,6 +735,8 @@ function SectionBuilder({ template, onRefresh }) {
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [dragIndex, setDragIndex] = useState(null)
+  const [dragOverIndex, setDragOverIndex] = useState(null)
 
   useEffect(() => {
     if (!template?.id) return
@@ -810,6 +816,39 @@ function SectionBuilder({ template, onRefresh }) {
     }
   }
 
+  const handleDragStart = (index) => (e) => {
+    setDragIndex(index)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleDragOver = (index) => (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverIndex(index)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (index) => async (e) => {
+    e.preventDefault()
+    setDragOverIndex(null)
+    if (dragIndex === null || dragIndex === index) return
+    const newSections = [...sections]
+    const [moved] = newSections.splice(dragIndex, 1)
+    newSections.splice(index, 0, moved)
+    setSections(newSections)
+    setDragIndex(null)
+    try {
+      await reorderTemplateSections(template.id, newSections.map((s) => s.id))
+    } catch (err) {
+      console.error(err)
+      const data = await getTemplateDetail(template.id)
+      setSections(data.sections || [])
+    }
+  }
+
   if (!template) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--border-light)] p-8 text-center">
@@ -855,9 +894,20 @@ function SectionBuilder({ template, onRefresh }) {
           {sections.map((section, index) => (
             <div
               key={section.id}
-              className="flex items-center gap-3 rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-3"
+              className={`flex items-center gap-3 rounded-lg border bg-[var(--bg-surface)] p-3 transition-all ${
+                dragOverIndex === index ? "border-[var(--bg-primary)] ring-2 ring-[var(--bg-primary)]/20" : "border-[var(--border-light)]"
+              }`}
+              draggable
+              onDragStart={handleDragStart(index)}
+              onDragOver={handleDragOver(index)}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop(index)}
+              onDragEnd={() => {
+                setDragIndex(null)
+                setDragOverIndex(null)
+              }}
             >
-              <GripVertical size={16} className="text-[var(--text-muted)] shrink-0 cursor-grab" />
+              <GripVertical size={16} className="text-[var(--text-muted)] shrink-0 cursor-grab active:cursor-grabbing" />
 
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-primary)]/10 text-xs font-bold text-[var(--bg-primary)]">
                 {index + 1}

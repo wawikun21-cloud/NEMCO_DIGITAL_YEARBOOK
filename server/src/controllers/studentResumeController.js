@@ -4,6 +4,7 @@ import {
   createResume,
   updateMyResume,
   deleteMyResume,
+  uploadResumePhoto,
   getPublicTemplates,
   getTemplateWithSections,
 } from "../services/studentResumeService.js"
@@ -75,6 +76,17 @@ export async function removeResume(req, res, next) {
     const { id } = req.params
     await deleteMyResume(id, userId)
     res.json({ message: "Resume deleted successfully" })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function uploadResumePhotoForResume(req, res, next) {
+  try {
+    const userId = req.user.id
+    const { id } = req.params
+    const result = await uploadResumePhoto(id, userId, req.file)
+    res.json(result)
   } catch (error) {
     next(error)
   }

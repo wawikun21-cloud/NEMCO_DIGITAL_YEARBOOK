@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "seed:resume-sections": "node src/seeds/seedResumeSections.js",
     "lint": "eslint .",
     "test": "jest",
     "vercel-build": "echo 'Serverless - no build needed'"

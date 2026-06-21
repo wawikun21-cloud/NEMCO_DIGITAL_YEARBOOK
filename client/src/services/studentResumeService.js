@@ -61,6 +61,20 @@ export async function updateMyResume(id, { title, data, isPublic, template }) {
   return result.resume
 }
 
+export async function uploadResumePhoto(resumeId, file) {
+  const authHeaders = await getAuthHeaders()
+  const formData = new FormData()
+  formData.append("photo", file)
+  const response = await fetch(`${API_BASE_URL}/my/resumes/${resumeId}/photo`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to upload photo")
+  return data
+}
+
 export async function deleteMyResume(id) {
   const authHeaders = await getAuthHeaders()
   const response = await fetch(`${API_BASE_URL}/my/resumes/${id}`, {
