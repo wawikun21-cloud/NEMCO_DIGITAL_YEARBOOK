@@ -14,9 +14,12 @@ export default function LibraryPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => { window.location.href = "/3d-yearbook" }}
-          className="group flex flex-col items-center rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center transition-all hover:border-[var(--bg-primary)]/30 hover:shadow-lg"
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = "/3d-yearbook" } }}
+          className="group flex flex-col items-center rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center transition-all hover:border-[var(--bg-primary)]/30 hover:shadow-lg cursor-pointer"
         >
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-primary)]/10 transition-colors group-hover:bg-[var(--bg-primary)]/20">
             <BookMarked size={32} className="text-[var(--bg-primary)]" />
@@ -25,11 +28,11 @@ export default function LibraryPage() {
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             Browse the interactive 3D flipbook
           </p>
-          <Button size="sm" className="mt-4 gap-2">
+          <Button size="sm" className="mt-4 gap-2" onClick={(e) => { e.stopPropagation(); window.location.href = "/3d-yearbook" }}>
             <BookOpen size={14} />
             Open Flipbook
           </Button>
-        </button>
+        </div>
 
         <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center opacity-60">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-subtle)]">

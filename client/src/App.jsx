@@ -11,6 +11,7 @@ import ActivityLogsPage from "@/pages/admin/ActivityLogsPage"
 import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
 import PublicProfilePage from "@/pages/student/PublicProfilePage"
+import ResumeBuilderPage from "@/pages/student/ResumeBuilderPage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
@@ -71,6 +72,7 @@ export default function App() {
     if (path === "/library") return <LibraryPage />
     if (path === "/profile") return <ProfilePage />
     if (path === "/3d-yearbook") return <Yearbook3DPage />
+    if (path === "/resume") return <ResumeBuilderPage />
     return <LibraryPage />
   }
 
