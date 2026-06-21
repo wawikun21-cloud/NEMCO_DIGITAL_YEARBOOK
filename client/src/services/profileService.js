@@ -28,6 +28,46 @@ async function parseResponse(response) {
     throw new Error(data.message || "Request failed")
   }
 
+  return normalizeResponseData(data)
+}
+
+function normalizeAvatarUrl(url) {
+  if (!url) return ""
+  try {
+    const parsed = new URL(url)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : ""
+  } catch {
+    return ""
+  }
+}
+
+function normalizeSocialLink(value) {
+  if (!value) return ""
+  const trimmed = String(value).trim()
+  if (!trimmed) return ""
+  try {
+    const parsed = new URL(trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href.slice(0, 200) : ""
+  } catch {
+    return ""
+  }
+}
+
+function normalizeProfile(profile) {
+  if (!profile) return profile
+  return {
+    ...profile,
+    avatar_url: normalizeAvatarUrl(profile.avatar_url),
+    social_link1: normalizeSocialLink(profile.social_link1),
+    social_link2: normalizeSocialLink(profile.social_link2),
+    social_link3: normalizeSocialLink(profile.social_link3),
+  }
+}
+
+function normalizeResponseData(data) {
+  if (data?.profile) {
+    return { ...data, profile: normalizeProfile(data.profile) }
+  }
   return data
 }
 

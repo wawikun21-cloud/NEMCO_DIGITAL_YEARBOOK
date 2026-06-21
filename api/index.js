@@ -8,6 +8,15 @@ const supabaseAdmin = createClient(supabaseUrl || "", supabaseServiceRoleKey || 
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
+const PROFILE_COLUMNS =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data,social_link1,social_link2,social_link3"
+
+const PROFILE_COLUMNS_MINIMAL =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,social_link1,social_link2,social_link3"
+
+const PROFILE_COLUMNS_WITH_DATES =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at"
+
 function json(res, status, body) {
   res.setHeader("Content-Type", "application/json")
   res.status(status).end(JSON.stringify(body))
@@ -101,6 +110,38 @@ function validateAvatarFile(file) {
   return { ...file, size: file.data.length }
 }
 
+let avatarBucketInitialized = false
+let avatarBucketInitialization = null
+
+async function ensureAvatarBucket() {
+  if (avatarBucketInitialized) return
+  if (!avatarBucketInitialization) {
+    avatarBucketInitialization = (async () => {
+      const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
+      if (listError) {
+        avatarBucketInitialized = true
+        return
+      }
+      const exists = buckets?.some((b) => b.name === "avatars")
+      if (!exists) {
+        await supabaseAdmin.storage.createBucket("avatars", {
+          public: true,
+          fileSizeLimit: 2 * 1024 * 1024,
+          allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        })
+      } else {
+        await supabaseAdmin.storage.updateBucket("avatars", {
+          public: true,
+          fileSizeLimit: 2 * 1024 * 1024,
+          allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        })
+      }
+      avatarBucketInitialized = true
+    })()
+  }
+  await avatarBucketInitialization
+}
+
 function validateResumePhoto(file) {
   const validMimeTypes = ["image/jpeg", "image/png", "image/webp"]
   if (!validMimeTypes.includes(file.mimeType)) {
@@ -145,7 +186,7 @@ async function handleUploadAvatar(req, res) {
     if (uploadError) return json(res, 500, { message: `Failed to upload avatar: ${uploadError.message}` })
     const { data: publicUrlData } = supabaseAdmin.storage.from("avatars").getPublicUrl(storagePath)
     const avatarUrl = publicUrlData.publicUrl
-    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").single()
+    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).single()
     await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
     json(res, 200, { profile: updatedProfile, avatarUrl })
   } catch (error) { json(res, 500, { message: error.message || "Failed to upload avatar" }) }
@@ -225,7 +266,7 @@ async function handleLogin(req, res) {
     if (!["admin", "user"].includes(profile.role)) return json(res, 403, { message: "This account does not have a valid role" })
     const { data: authData, error: ae } = await supabaseAdmin.auth.signInWithPassword({ email: profile.email, password: body.password })
     if (ae) return json(res, 401, { message: "Invalid Student ID or password" })
-    const { data: publicProfile } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public").eq("id", profile.id).maybeSingle()
+    const { data: publicProfile } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_MINIMAL).eq("id", profile.id).maybeSingle()
     json(res, 200, { message: "Login successful", user: authData.user, session: authData.session, profile: publicProfile })
   } catch (error) {
     if (error.name === "ZodError") return json(res, 400, { message: error.errors[0]?.message || "Invalid request body" })
@@ -238,7 +279,7 @@ async function handleGetUsers(req, res) {
   if (!user) return
   const url = new URL(req.url, `http://${req.headers.host}`)
   const search = url.searchParams.get("search") || ""
-  let query = supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at").order("created_at", { ascending: false })
+  let query = supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_WITH_DATES).order("created_at", { ascending: false })
   if (search) query = query.or([`full_name.ilike.%${search}%`, `email.ilike.%${search}%`, `student_number.ilike.%${search}%`].join(","))
   const { data, error } = await query
   if (error) return json(res, 500, { message: "Failed to fetch users" })
@@ -249,7 +290,7 @@ async function handleGetUser(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at").eq("id", id).maybeSingle()
+  const { data, error } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_WITH_DATES).eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: "Failed to fetch user" })
   if (!data) return json(res, 404, { message: "User not found" })
   json(res, 200, { user: data })
@@ -311,10 +352,21 @@ async function handleResetPassword(req, res) {
   json(res, 200, { link: data?.properties?.action_link, email: targetUser.email })
 }
 
-const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
+const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://nemco-digital-yearbook.vercel.app/u"
 
 function normalizePublicBaseUrl(baseUrl) {
-  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  const value = (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  try {
+    const parsed = new URL(value)
+    if (baseUrl && parsed.pathname === "/") return `${value}/u`
+  } catch {
+    return value
+  }
+  return value
+}
+
+function resolvePublicProfileBaseUrl(req) {
+  return req.headers.origin || PUBLIC_PROFILE_BASE_URL
 }
 
 function buildQrPayload(profile, baseUrl) {
@@ -327,8 +379,8 @@ async function handleGenerateQrCode(req, res) {
   try {
     const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number,full_name").eq("id", user.id).maybeSingle()
     if (fetchError || !existing) return json(res, 404, { message: "Profile not found" })
-    const qrData = buildQrPayload(existing)
-    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+    const qrData = buildQrPayload(existing, resolvePublicProfileBaseUrl(req))
+    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 200, { profile })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -381,7 +433,7 @@ async function handleGetProfiles(req, res) {
   const profileIds = profiles.map((p) => p.profile_id).filter(Boolean)
   let profileMap = {}
   if (profileIds.length > 0) {
-    let pq = supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, profile_status").in("id", profileIds)
+    let pq = supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, profile_status, social_link1, social_link2, social_link3").in("id", profileIds)
     if (search) pq = pq.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%,student_number.ilike.%${search}%`)
     const { data: pd } = await pq
     for (const p of pd || []) profileMap[p.id] = p
@@ -392,7 +444,7 @@ async function handleGetProfiles(req, res) {
 async function handleGetApprovedProfiles(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote").eq("profile_status", "approved").order("full_name", { ascending: true })
+  const { data, error } = await supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, social_link1, social_link2, social_link3").eq("profile_status", "approved").order("full_name", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { profiles: data || [] })
 }
@@ -494,7 +546,7 @@ async function handleGetPublicFlipbook(req, res) {
     const profileIds = (flipbookProfiles || []).map((p) => p.profile_id).filter(Boolean)
     let profileMap = {}
     if (profileIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin.from("profiles").select("id, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote").in("id", profileIds).eq("is_public", true)
+      const { data: profiles } = await supabaseAdmin.from("profiles").select("id, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, social_link1, social_link2, social_link3").in("id", profileIds).eq("is_public", true)
       for (const p of profiles || []) profileMap[p.id] = p
     }
     const { data: sections } = await supabaseAdmin.from("flipbook_sections").select("id, name, sort_order").order("sort_order", { ascending: true })
@@ -845,7 +897,7 @@ async function handleDeleteMyResume(req, res) {
 async function handleGetMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").eq("id", user.id).maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    if (!data) return json(res, 404, { message: "Profile not found" })
    json(res, 200, { profile: data })
@@ -854,7 +906,8 @@ async function handleGetMyProfile(req, res) {
  async function handleUpdateMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   const updatePayload = { ...req.body, updated_at: new Date().toISOString() }
+   const { data, error } = await supabaseAdmin.from("profiles").update(updatePayload).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    json(res, 200, { profile: data })
  }
@@ -862,7 +915,7 @@ async function handleGetMyProfile(req, res) {
  async function handleSubmitProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    json(res, 200, { profile: data })
  }
@@ -1098,6 +1151,7 @@ async function handleGetBatchErrors(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
+  await ensureAvatarBucket()
   try {
     const url = new URL(req.url, `http://${req.headers.host}`)
     let pathname = url.pathname.replace(/\/+$/, "") || "/"

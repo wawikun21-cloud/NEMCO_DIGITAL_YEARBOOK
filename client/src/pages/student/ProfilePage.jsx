@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AlertTriangle, RefreshCw } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { useQRCode } from "@/hooks/useQRCode"
 import { ProfileCard } from "@/components/profile/ProfileCard"
@@ -12,6 +13,7 @@ export default function ProfilePage() {
     setProfile,
     editable,
     isLoading,
+    profileError,
     isEditing,
     isSaving,
     avatarPreview,
@@ -20,6 +22,7 @@ export default function ProfilePage() {
     openEdit,
     cancelEdit,
     saveProfile,
+    fetchProfile,
   } = useProfile()
   const { isGenerating, generateQrCode } = useQRCode(profile, setProfile)
 
@@ -50,6 +53,16 @@ export default function ProfilePage() {
       <div className="flex w-full justify-center">
         {isLoading ? (
           <Skeleton className="aspect-[3/5] w-full max-w-[clamp(260px,80vw,360px)] rounded-3xl" />
+        ) : profileError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50/50 p-6 text-center w-full max-w-[clamp(260px,80vw,360px)]">
+            <AlertTriangle size={32} className="mx-auto mb-3 text-red-500" />
+            <p className="text-sm font-medium text-[var(--text-primary)] mb-2">Failed to load profile</p>
+            <p className="text-xs text-[var(--text-muted)] mb-4">{profileError}</p>
+            <Button variant="outline" size="sm" onClick={fetchProfile} className="gap-2">
+              <RefreshCw size={14} />
+              Retry
+            </Button>
+          </div>
         ) : (
           <ProfileCard
             profile={profile}

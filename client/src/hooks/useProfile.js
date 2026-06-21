@@ -15,21 +15,21 @@ const emptyEditable = {
   home_address: "",
   contact_number: "",
   website: "",
+  social_link1: "",
+  social_link2: "",
+  social_link3: "",
   about_me: "",
   quote: "",
   skills: [],
 }
 
-/**
- * Single source of truth for profile data + edit state.
- * UI components stay presentational; all data logic lives here.
- */
 export function useProfile() {
   const { user, login } = useAuth()
 
   const [profile, setProfile] = useState(null)
   const [editable, setEditable] = useState(emptyEditable)
   const [isLoading, setIsLoading] = useState(true)
+  const [profileError, setProfileError] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [avatarFile, setAvatarFile] = useState(null)
@@ -44,6 +44,9 @@ export function useProfile() {
       home_address: p.home_address || "",
       contact_number: p.contact_number || "",
       website: p.website || "",
+      social_link1: p.social_link1 || "",
+      social_link2: p.social_link2 || "",
+      social_link3: p.social_link3 || "",
       about_me: p.about_me || "",
       quote: p.quote || "",
       skills: Array.isArray(p.skills) ? p.skills : [],
@@ -52,11 +55,13 @@ export function useProfile() {
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true)
+    setProfileError(null)
     try {
       const fetched = await getMyProfile()
       setProfile(fetched)
       hydrateEditable(fetched)
     } catch (error) {
+      setProfileError(error.message || "Failed to load profile")
       toast.error(error.message || "Failed to load profile")
     } finally {
       setIsLoading(false)
@@ -128,6 +133,7 @@ export function useProfile() {
     setProfile,
     editable,
     isLoading,
+    profileError,
     isEditing,
     isSaving,
     avatarPreview,
@@ -136,5 +142,6 @@ export function useProfile() {
     openEdit,
     cancelEdit,
     saveProfile,
+    fetchProfile,
   }
 }

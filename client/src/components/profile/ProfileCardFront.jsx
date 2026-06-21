@@ -1,5 +1,15 @@
 import { GraduationCap, Upload, Quote as QuoteIcon } from "lucide-react"
 
+function normalizeAvatarUrl(url) {
+  if (!url) return ""
+  try {
+    const parsed = new URL(url)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : ""
+  } catch {
+    return ""
+  }
+}
+
 export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSelect }) {
   const fullName = profile?.full_name || "Your Name"
   const course = profile?.course_or_strand || "Your Course / Strand"
@@ -7,7 +17,7 @@ export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSe
   const aboutMe = profile?.about_me || "Tell people a bit about yourself — this shows up right here on your card."
   const quote = profile?.quote || ""
   const skills = Array.isArray(profile?.skills) ? profile.skills : []
-  const imageSrc = avatarPreview || profile?.avatar_url || null
+  const imageSrc = avatarPreview || normalizeAvatarUrl(profile?.avatar_url) || null
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl bg-white">
@@ -20,24 +30,34 @@ export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSe
       />
 
       {/* avatar */}
-      <div className="relative z-10 flex flex-col items-center pt-[14%]">
-        <div className="relative flex aspect-square w-[34%] min-w-[88px] max-w-[150px] items-center justify-center rounded-full bg-white p-1 shadow-md">
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={fullName}
-              className="h-full w-full rounded-full border-[3px] border-[#1d4ed8] object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-full border-[3px] border-[#1d4ed8] bg-neutral-100 text-3xl font-bold text-neutral-500">
-              {fullName.charAt(0).toUpperCase()}
-            </div>
-          )}
+      <div className="relative z-10 flex flex-col items-center pt-[9%]">
+        <div className="relative aspect-square w-[34%] min-w-[88px] max-w-[150px] shrink-0">
+          {/*
+            Clipping circle: a fixed square box with overflow-hidden,
+            completely independent of the uploaded photo's own dimensions.
+            The image is absolutely positioned to fill it with object-cover.
+            This guarantees the circle can NEVER be stretched/distorted by
+            a wide or tall source image — the box's shape is fixed by the
+            wrapper, not by the image's intrinsic aspect ratio.
+          */}
+          <div className="absolute inset-0 overflow-hidden rounded-full border-[3px] border-[#1d4ed8] bg-neutral-100 shadow-md">
+            {imageSrc ? (
+              <img
+                src={imageSrc}
+                alt={fullName}
+                className="absolute inset-0 h-full w-full object-cover object-center"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold text-neutral-500">
+                {fullName.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
 
           {isEditing && (
             <label
               htmlFor="avatar-upload"
-              className="absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-neutral-900 text-white ring-2 ring-white transition-opacity hover:opacity-90"
+              className="absolute bottom-0 right-0 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-neutral-900 text-white ring-2 ring-white transition-opacity hover:opacity-90"
             >
               <Upload size={14} />
               <input

@@ -1,12 +1,19 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
 const PROFILE_COLUMNS =
-  "id,email,student_number,full_name,role,status,profile_status,course_or_strand,about_me,quote,skills,avatar_url,is_public,qr_data,contact_number,website,home_address,school,year_graduated"
+  "id,email,student_number,full_name,role,status,profile_status,course_or_strand,about_me,quote,skills,avatar_url,is_public,qr_data,contact_number,website,home_address,school,year_graduated,social_link1,social_link2,social_link3"
 
 const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
 
 function normalizePublicBaseUrl(baseUrl) {
-  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  const value = (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  try {
+    const parsed = new URL(value)
+    if (baseUrl && parsed.pathname === "/") return `${value}/u`
+  } catch {
+    return value
+  }
+  return value
 }
 
 // The QR always encodes a stable public profile URL rather than raw data,
