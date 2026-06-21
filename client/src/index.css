@@ -413,3 +413,29 @@
   mix-blend-mode: overlay;
 }
 
+/* ── Flipbook 3D Viewer ── */
+.flipbook-root {
+  --flipbook-bg: #1a1a2e;
+  --flipbook-toolbar-bg: rgba(26, 26, 46, 0.85);
+  --flipbook-btn-color: #ffffff;
+  --flipbook-btn-hover-bg: rgba(255, 255, 255, 0.12);
+  --flipbook-accent: #d9a300;
+  --flipbook-panel-bg: rgba(0, 0, 0, 0.8);
+  --flipbook-panel-border: rgba(255, 255, 255, 0.1);
+  --flipbook-text-primary: #ffffff;
+  --flipbook-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+.flipbook-root canvas {
+  touch-action: none;
+}
+
+@keyframes flipbook-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.flipbook-root .flipbook-panel-enter {
+  animation: flipbook-fade-in 0.2s ease-out both;
+}
+

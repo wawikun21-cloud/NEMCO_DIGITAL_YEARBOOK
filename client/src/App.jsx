@@ -13,6 +13,7 @@ import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
 import ResumeBuilderPage from "@/pages/student/ResumeBuilderPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
 import PublicProfilePage from "@/pages/student/PublicProfilePage"
+import FlipbookDemoPage from "@/pages/student/FlipbookDemoPage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
@@ -55,6 +56,7 @@ export default function App() {
     if (path === "/profile") return "profile"
     if (path === "/flipbook") return "flipbook"
     if (path === "/3d-yearbook") return "3d-yearbook"
+    if (path === "/flipbook-demo") return "flipbook-demo"
     if (path === "/resume") return "resume"
     return "library"
   }
@@ -76,6 +78,7 @@ export default function App() {
     if (path === "/flipbook") return <FlipbookPage />
     if (path === "/3d-yearbook") return <Yearbook3DPage />
     if (path === "/resume") return <ResumeBuilderPage />
+    if (path === "/flipbook-demo") return <FlipbookDemoPage />
     return <LibraryPage />
   }
 

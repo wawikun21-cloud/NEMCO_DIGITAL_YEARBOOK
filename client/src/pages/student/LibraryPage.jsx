@@ -1,4 +1,4 @@
-import { BookOpen, BookMarked, FileText } from "lucide-react"
+import { BookOpen, BookMarked, FileText, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function LibraryPage() {
@@ -28,6 +28,23 @@ export default function LibraryPage() {
           <Button size="sm" className="mt-4 gap-2">
             <BookOpen size={14} />
             Open Flipbook
+          </Button>
+        </button>
+
+        <button
+          onClick={() => { window.location.href = "/flipbook-demo" }}
+          className="group flex flex-col items-center rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-6 text-center transition-all hover:border-[var(--bg-primary)]/30 hover:shadow-lg"
+        >
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 transition-colors group-hover:bg-amber-100">
+            <Sparkles size={32} className="text-amber-600" />
+          </div>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">Enhanced 3D Viewer</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            New WebGL flipbook with page-curl effects
+          </p>
+          <Button size="sm" className="mt-4 gap-2 bg-amber-600 hover:bg-amber-700">
+            <Sparkles size={14} />
+            Try Demo
           </Button>
         </button>
 
