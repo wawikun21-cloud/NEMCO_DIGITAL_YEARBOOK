@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { UserActionMenu } from "@/components/admin/UserActionMenu"
 
 export function UserRow({ user, onEdit, onToggleRole, onToggleStatus, onResetPassword, onDelete }) {
@@ -20,23 +21,45 @@ export function UserRow({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
       <td className="whitespace-nowrap px-3 py-3 text-sm font-medium text-[var(--text-primary)] sm:px-5">
         {user.student_number}
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
-        {user.email}
-      </td>
+      
       <td className="px-3 py-3 text-sm font-medium text-[var(--text-primary)] sm:px-5">
-        {user.full_name}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="block truncate">{user.full_name}</span>
+          </TooltipTrigger>
+          <TooltipContent>{user.full_name}</TooltipContent>
+        </Tooltip>
       </td>
       <td className="whitespace-nowrap px-3 py-3 sm:px-5">
         <Badge variant={user.role}>{user.role}</Badge>
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
-        {user.year_level}
+      <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="block truncate">{user.year_level}</span>
+          </TooltipTrigger>
+          <TooltipContent>{user.year_level}</TooltipContent>
+        </Tooltip>
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
-        {user.course_or_strand}
+      <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="block truncate">{user.course_or_strand}</span>
+          </TooltipTrigger>
+          <TooltipContent>{user.course_or_strand}</TooltipContent>
+        </Tooltip>
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
-        {user.section || "—"}
+      <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
+        {user.section ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="block truncate">{user.section}</span>
+            </TooltipTrigger>
+            <TooltipContent>{user.section}</TooltipContent>
+          </Tooltip>
+        ) : (
+          "—"
+        )}
       </td>
       <td className="whitespace-nowrap px-3 py-3 sm:px-5">
         <Badge variant={user.status}>{user.status}</Badge>
