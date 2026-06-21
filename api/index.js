@@ -8,6 +8,15 @@ const supabaseAdmin = createClient(supabaseUrl || "", supabaseServiceRoleKey || 
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
+const PROFILE_COLUMNS =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data,social_link1,social_link2,social_link3"
+
+const PROFILE_COLUMNS_MINIMAL =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,social_link1,social_link2,social_link3"
+
+const PROFILE_COLUMNS_WITH_DATES =
+  "id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at"
+
 function json(res, status, body) {
   res.setHeader("Content-Type", "application/json")
   res.status(status).end(JSON.stringify(body))
@@ -62,28 +71,68 @@ async function parseBody(req) {
   })
 }
 
+// Binary-safe multipart parser. The previous implementation converted the
+// entire request body to a UTF-8 string (`body.toString("utf8")`) before
+// slicing it apart. Binary file bytes (JPEG/PNG/etc.) are NOT valid UTF-8
+// in general, so that conversion silently and irreversibly corrupted image
+// data — uploads "succeeded" (validation/size checks still passed) but the
+// bytes written to storage no longer matched the original file, producing
+// a broken image. This version operates on the raw Buffer end-to-end and
+// never round-trips file data through a JS string.
 function parseMultipart(body, boundary) {
   const parts = {}
-  const raw = body.toString("utf8")
-  const delimiter = `--${boundary}`
-  const sections = raw.split(delimiter)
-  for (const section of sections) {
-    if (!section || section === "--\r\n" || section === "--") continue
-    const headerEnd = section.indexOf("\r\n\r\n")
-    if (headerEnd === -1) continue
-    const headers = section.slice(0, headerEnd)
-    const content = section.slice(headerEnd + 4, -2)
+  const boundaryBuf = Buffer.from(`--${boundary}`)
+  const CRLF = Buffer.from("\r\n")
+  const CRLFCRLF = Buffer.from("\r\n\r\n")
+
+  // Split the buffer on boundary markers, working with byte offsets only.
+  const sectionBuffers = []
+  let searchStart = 0
+  while (true) {
+    const boundaryIndex = body.indexOf(boundaryBuf, searchStart)
+    if (boundaryIndex === -1) break
+    const sectionStart = searchStart
+    if (sectionStart > 0) {
+      sectionBuffers.push(body.subarray(sectionStart, boundaryIndex))
+    }
+    searchStart = boundaryIndex + boundaryBuf.length
+  }
+
+  for (let section of sectionBuffers) {
+    // Strip a leading CRLF left over from the previous boundary line.
+    if (section.subarray(0, 2).equals(CRLF)) {
+      section = section.subarray(2)
+    }
+    // Skip the closing "--" terminator section.
+    if (section.length === 0 || section.subarray(0, 2).toString("utf8") === "--") continue
+
+    const headerEndIndex = section.indexOf(CRLFCRLF)
+    if (headerEndIndex === -1) continue
+
+    // Headers are plain ASCII text, so UTF-8 decoding here is safe.
+    const headers = section.subarray(0, headerEndIndex).toString("utf8")
+
+    // Content runs from right after the header block to right before the
+    // trailing CRLF that precedes the next boundary marker.
+    let content = section.subarray(headerEndIndex + 4)
+    if (content.subarray(content.length - 2).equals(CRLF)) {
+      content = content.subarray(0, content.length - 2)
+    }
+
     const nameMatch = headers.match(/name="([^"]+)"/)
     const filenameMatch = headers.match(/filename="([^"]+)"/)
-    if (nameMatch) {
-      if (filenameMatch) {
-        const filename = filenameMatch[1]
-        const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
-        const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
-        parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
-      } else {
-        parts[nameMatch[1]] = content
-      }
+    if (!nameMatch) continue
+
+    if (filenameMatch) {
+      const filename = filenameMatch[1]
+      const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/)
+      const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream"
+      // `content` is already a Buffer slice of the original body — no
+      // string conversion, so the original bytes are preserved exactly.
+      parts[nameMatch[1]] = { filename, mimeType, data: Buffer.from(content) }
+    } else {
+      // Plain form fields are text, so utf8 decoding is correct here.
+      parts[nameMatch[1]] = content.toString("utf8")
     }
   }
   return parts
@@ -101,16 +150,52 @@ function validateAvatarFile(file) {
   return { ...file, size: file.data.length }
 }
 
+let avatarBucketInitialized = false
+let avatarBucketInitialization = null
+
+async function ensureAvatarBucket() {
+  if (avatarBucketInitialized) return
+  if (!avatarBucketInitialization) {
+    avatarBucketInitialization = (async () => {
+      const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
+      if (listError) {
+        avatarBucketInitialized = true
+        return
+      }
+      const exists = buckets?.some((b) => b.name === "avatars")
+      if (!exists) {
+        await supabaseAdmin.storage.createBucket("avatars", {
+          public: true,
+          fileSizeLimit: 2 * 1024 * 1024,
+          allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        })
+      } else {
+        await supabaseAdmin.storage.updateBucket("avatars", {
+          public: true,
+          fileSizeLimit: 2 * 1024 * 1024,
+          allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        })
+      }
+      avatarBucketInitialized = true
+    })()
+  }
+  await avatarBucketInitialization
+}
+
 function validateResumePhoto(file) {
+  // Client compresses to JPEG before uploading, but we still accept PNG/WebP
+  // in case someone bypasses the client (e.g. direct API calls).
   const validMimeTypes = ["image/jpeg", "image/png", "image/webp"]
   if (!validMimeTypes.includes(file.mimeType)) {
     const error = new Error("Invalid photo type. Only JPEG, PNG, and WebP are allowed.")
     error.status = 400
     throw error
   }
-  const maxSize = 5 * 1024 * 1024
+  // 2 MB ceiling on the server — client-side compression keeps uploads well
+  // under this, and Vercel's 4.5 MB infrastructure limit is above it.
+  const maxSize = 2 * 1024 * 1024
   if (file.data.length > maxSize) {
-    const error = new Error("Photo too large. Maximum size is 5MB.")
+    const error = new Error("Photo too large. Maximum size is 2MB. Please use a smaller image.")
     error.status = 400
     throw error
   }
@@ -141,11 +226,20 @@ async function handleUploadAvatar(req, res) {
     const oldAvatarUrl = currentProfile?.avatar_url || null
     const fileExt = validated.filename.split(".").pop()?.toLowerCase() || "jpg"
     const storagePath = `${user.id}/avatar.${fileExt}`
-    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
+    // cacheControl is set explicitly (rather than left to the bucket
+    // default) so each upsert advertises a short, known TTL — but the real
+    // fix is the cache-busting query param below, since the storage path
+    // itself never changes (same user.id + same extension every time),
+    // so any CDN/browser layer that caches strictly by URL will otherwise
+    // keep serving whatever bytes it first saw at that URL indefinitely.
+    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true, cacheControl: "60" })
     if (uploadError) return json(res, 500, { message: `Failed to upload avatar: ${uploadError.message}` })
     const { data: publicUrlData } = supabaseAdmin.storage.from("avatars").getPublicUrl(storagePath)
-    const avatarUrl = publicUrlData.publicUrl
-    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").single()
+    // Cache-bust: append a unique version token so every upload gets a
+    // distinct URL, completely bypassing CDN/browser image caching for
+    // the fixed avatar.jpg path.
+    const avatarUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`
+    const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).single()
     await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
     json(res, 200, { profile: updatedProfile, avatarUrl })
   } catch (error) { json(res, 500, { message: error.message || "Failed to upload avatar" }) }
@@ -225,7 +319,7 @@ async function handleLogin(req, res) {
     if (!["admin", "user"].includes(profile.role)) return json(res, 403, { message: "This account does not have a valid role" })
     const { data: authData, error: ae } = await supabaseAdmin.auth.signInWithPassword({ email: profile.email, password: body.password })
     if (ae) return json(res, 401, { message: "Invalid Student ID or password" })
-    const { data: publicProfile } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public").eq("id", profile.id).maybeSingle()
+    const { data: publicProfile } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_MINIMAL).eq("id", profile.id).maybeSingle()
     json(res, 200, { message: "Login successful", user: authData.user, session: authData.session, profile: publicProfile })
   } catch (error) {
     if (error.name === "ZodError") return json(res, 400, { message: error.errors[0]?.message || "Invalid request body" })
@@ -238,7 +332,7 @@ async function handleGetUsers(req, res) {
   if (!user) return
   const url = new URL(req.url, `http://${req.headers.host}`)
   const search = url.searchParams.get("search") || ""
-  let query = supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at").order("created_at", { ascending: false })
+  let query = supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_WITH_DATES).order("created_at", { ascending: false })
   if (search) query = query.or([`full_name.ilike.%${search}%`, `email.ilike.%${search}%`, `student_number.ilike.%${search}%`].join(","))
   const { data, error } = await query
   if (error) return json(res, 500, { message: "Failed to fetch users" })
@@ -249,7 +343,7 @@ async function handleGetUser(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at").eq("id", id).maybeSingle()
+  const { data, error } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS_WITH_DATES).eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: "Failed to fetch user" })
   if (!data) return json(res, 404, { message: "User not found" })
   json(res, 200, { user: data })
@@ -311,10 +405,21 @@ async function handleResetPassword(req, res) {
   json(res, 200, { link: data?.properties?.action_link, email: targetUser.email })
 }
 
-const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
+const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://nemco-digital-yearbook.vercel.app/u"
 
 function normalizePublicBaseUrl(baseUrl) {
-  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  const value = (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  try {
+    const parsed = new URL(value)
+    if (baseUrl && parsed.pathname === "/") return `${value}/u`
+  } catch {
+    return value
+  }
+  return value
+}
+
+function resolvePublicProfileBaseUrl(req) {
+  return req.headers.origin || PUBLIC_PROFILE_BASE_URL
 }
 
 function buildQrPayload(profile, baseUrl) {
@@ -327,8 +432,8 @@ async function handleGenerateQrCode(req, res) {
   try {
     const { data: existing, error: fetchError } = await supabaseAdmin.from("profiles").select("id,student_number,full_name").eq("id", user.id).maybeSingle()
     if (fetchError || !existing) return json(res, 404, { message: "Profile not found" })
-    const qrData = buildQrPayload(existing)
-    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+    const qrData = buildQrPayload(existing, resolvePublicProfileBaseUrl(req))
+    const { data: profile, error } = await supabaseAdmin.from("profiles").update({ qr_data: qrData, updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
     if (error) return json(res, 500, { message: error.message })
     json(res, 200, { profile })
   } catch (error) { json(res, 500, { message: error.message }) }
@@ -381,7 +486,7 @@ async function handleGetProfiles(req, res) {
   const profileIds = profiles.map((p) => p.profile_id).filter(Boolean)
   let profileMap = {}
   if (profileIds.length > 0) {
-    let pq = supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, profile_status").in("id", profileIds)
+    let pq = supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, profile_status, social_link1, social_link2, social_link3").in("id", profileIds)
     if (search) pq = pq.or(`display_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%,student_number.ilike.%${search}%`)
     const { data: pd } = await pq
     for (const p of pd || []) profileMap[p.id] = p
@@ -392,7 +497,7 @@ async function handleGetProfiles(req, res) {
 async function handleGetApprovedProfiles(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
-  const { data, error } = await supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote").eq("profile_status", "approved").order("full_name", { ascending: true })
+  const { data, error } = await supabaseAdmin.from("profiles").select("id, email, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, social_link1, social_link2, social_link3").eq("profile_status", "approved").order("full_name", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { profiles: data || [] })
 }
@@ -494,7 +599,7 @@ async function handleGetPublicFlipbook(req, res) {
     const profileIds = (flipbookProfiles || []).map((p) => p.profile_id).filter(Boolean)
     let profileMap = {}
     if (profileIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin.from("profiles").select("id, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote").in("id", profileIds).eq("is_public", true)
+      const { data: profiles } = await supabaseAdmin.from("profiles").select("id, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote, social_link1, social_link2, social_link3").in("id", profileIds).eq("is_public", true)
       for (const p of profiles || []) profileMap[p.id] = p
     }
     const { data: sections } = await supabaseAdmin.from("flipbook_sections").select("id, name, sort_order").order("sort_order", { ascending: true })
@@ -639,7 +744,7 @@ async function handleGetTemplates(req, res) {
   if (!includeInactive) query = query.eq("is_active", true)
   const { data, error } = await query
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { templates: data || [] })
 }
 
 async function handleGetTemplate(req, res) {
@@ -647,8 +752,8 @@ async function handleGetTemplate(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
-  const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
-  json(res, 200, { ...data, sections: sections || [] })
+  const { data: sections } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
+  json(res, 200, { template: data, sections: sections || [] })
 }
 
 async function handleCreateTemplate(req, res) {
@@ -658,16 +763,25 @@ async function handleCreateTemplate(req, res) {
     const order = sort_order || (maxOrder ? (maxOrder.sort_order || 0) + 1 : 1)
     const { data, error } = await supabaseAdmin.from("resume_templates").insert({ name, slug, description: description || null, thumbnail_url: thumbnail_url || null, default_sections: default_sections || [], is_active, sort_order: order }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { template: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 async function handleUpdateTemplate(req, res) {
   const id = req.url.split("/").pop()
   try {
-    const { data, error } = await supabaseAdmin.from("resume_templates").update(req.body).eq("id", id).select().maybeSingle()
+    const { name, description, thumbnail_url, default_sections, is_active, is_default, sort_order } = req.body
+    const updatePayload = { updated_at: new Date().toISOString() }
+    if (name !== undefined) updatePayload.name = name
+    if (description !== undefined) updatePayload.description = description
+    if (thumbnail_url !== undefined) updatePayload.thumbnail_url = thumbnail_url
+    if (default_sections !== undefined) updatePayload.default_sections = default_sections
+    if (is_active !== undefined) updatePayload.is_active = is_active
+    if (is_default !== undefined) updatePayload.is_default = is_default
+    if (sort_order !== undefined) updatePayload.sort_order = sort_order
+    const { data, error } = await supabaseAdmin.from("resume_templates").update(updatePayload).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 200, data)
+    json(res, 200, { template: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -681,35 +795,44 @@ async function handleDeleteTemplate(req, res) {
 async function handleGetTemplateSections(req, res) {
   const parts = req.url.split("/")
   const templateId = parts[parts.indexOf("templates") + 1]
-  const { data, error } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", templateId).order("sort_order", { ascending: true })
+  const { data, error } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", templateId).order("sort_order", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { sections: data || [] })
 }
 
 async function handleCreateTemplateSection(req, res) {
   const parts = req.url.split("/")
   const templateId = parts[parts.indexOf("templates") + 1]
   try {
-    const { data: maxOrder } = await supabaseAdmin.from("resume_template_sections").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle()
+    const { data: maxOrder } = await supabaseAdmin.from("resume_sections").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle()
     const nextOrder = maxOrder ? (maxOrder.sort_order || 0) + 1 : 1
-    const { data, error } = await supabaseAdmin.from("resume_template_sections").insert({ ...req.body, template_id: templateId, sort_order: nextOrder }).select().maybeSingle()
+    const { data, error } = await supabaseAdmin.from("resume_sections").insert({ ...req.body, template_id: templateId, sort_order: nextOrder }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 async function handleUpdateTemplateSection(req, res) {
   const id = req.url.split("/").pop()
   try {
-    const { data, error } = await supabaseAdmin.from("resume_template_sections").update(req.body).eq("id", id).select().maybeSingle()
+    const { label, description, icon, field_type, is_required, sort_order, config } = req.body
+    const updatePayload = { updated_at: new Date().toISOString() }
+    if (label !== undefined) updatePayload.label = label
+    if (description !== undefined) updatePayload.description = description
+    if (icon !== undefined) updatePayload.icon = icon
+    if (field_type !== undefined) updatePayload.field_type = field_type
+    if (is_required !== undefined) updatePayload.is_required = is_required
+    if (sort_order !== undefined) updatePayload.sort_order = sort_order
+    if (config !== undefined) updatePayload.config = config
+    const { data, error } = await supabaseAdmin.from("resume_sections").update(updatePayload).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 200, data)
+    json(res, 200, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
 async function handleDeleteTemplateSection(req, res) {
   const id = req.url.split("/").pop()
-  const { error } = await supabaseAdmin.from("resume_template_sections").delete().eq("id", id)
+  const { error } = await supabaseAdmin.from("resume_sections").delete().eq("id", id)
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { message: "Section deleted" })
 }
@@ -718,7 +841,7 @@ async function handleReorderTemplateSections(req, res) {
   try {
     const { orderedIds } = req.body
     for (let i = 0; i < orderedIds.length; i++) {
-      const { error } = await supabaseAdmin.from("resume_template_sections").update({ sort_order: i + 1, updated_at: new Date().toISOString() }).eq("id", orderedIds[i])
+      const { error } = await supabaseAdmin.from("resume_sections").update({ sort_order: i + 1, updated_at: new Date().toISOString() }).eq("id", orderedIds[i])
       if (error) return json(res, 500, { message: error.message })
     }
     json(res, 200, { message: "Reordered" })
@@ -731,12 +854,12 @@ async function handleGetResumes(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`)
   const page = parseInt(url.searchParams.get("page") || "1", 10)
   const perPage = parseInt(url.searchParams.get("perPage") || "25", 10)
-  const status = url.searchParams.get("status") || null
+  const isPublic = url.searchParams.get("isPublic") || null
   const search = url.searchParams.get("search") || null
   const from = (page - 1) * perPage
   const to = from + perPage - 1
-  let query = supabaseAdmin.from("resumes").select("id, user_id, template_id, title, status, data, created_at, updated_at", { count: "exact" }).order("updated_at", { ascending: false }).range(from, to)
-  if (status) query = query.eq("status", status)
+  let query = supabaseAdmin.from("resumes").select("id, user_id, title, template, is_public, data, created_at, updated_at", { count: "exact" }).order("updated_at", { ascending: false }).range(from, to)
+  if (isPublic !== null) query = query.eq("is_public", isPublic === "true")
   const { data, error, count } = await query
   if (error) return json(res, 500, { message: error.message })
   json(res, 200, { resumes: data || [], total: count || 0, page, perPage })
@@ -749,16 +872,20 @@ async function handleGetResume(req, res) {
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Resume not found" })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleUpdateResume(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).select().maybeSingle()
+  const { title, isPublic } = req.body
+  const updatePayload = { updated_at: new Date().toISOString() }
+  if (title !== undefined) updatePayload.title = title
+  if (isPublic !== undefined) updatePayload.is_public = isPublic
+  const { data, error } = await supabaseAdmin.from("resumes").update(updatePayload).eq("id", id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleDeleteResume(req, res) {
@@ -773,18 +900,18 @@ async function handleDeleteResume(req, res) {
 async function handleGetResumeStats(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
-  const [{ count: total }, { count: draft }, { count: published }] = await Promise.all([
+  const [{ count: total }, { count: publicCount }, { count: privateCount }] = await Promise.all([
     supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }),
-    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("status", "draft"),
-    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("status", "published"),
+    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("is_public", true),
+    supabaseAdmin.from("resumes").select("id", { count: "exact", head: true }).eq("is_public", false),
   ])
-  json(res, 200, { total: total || 0, draft: draft || 0, published: published || 0 })
+  json(res, 200, { total: total || 0, public: publicCount || 0, private: privateCount || 0 })
 }
 
 async function handleGetPublicTemplates(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("id, name, slug, description, thumbnail_url").eq("is_active", true).order("sort_order", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { templates: data || [] })
 }
 
 async function handleGetPublicTemplateDetail(req, res) {
@@ -792,8 +919,8 @@ async function handleGetPublicTemplateDetail(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("*").eq("slug", slug).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
-  const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
-  json(res, 200, { ...data, sections: sections || [] })
+  const { data: sections } = await supabaseAdmin.from("resume_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
+  json(res, 200, { template: data, sections: sections || [] })
 }
 
 async function handleGetMyResumes(req, res) {
@@ -801,7 +928,7 @@ async function handleGetMyResumes(req, res) {
   if (!user) return
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { resumes: data || [] })
 }
 
 async function handleGetMyResume(req, res) {
@@ -811,16 +938,24 @@ async function handleGetMyResume(req, res) {
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).eq("user_id", user.id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Resume not found" })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleCreateMyResume(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
   try {
-    const { data, error } = await supabaseAdmin.from("resumes").insert({ ...req.body, user_id: user.id, status: "draft" }).select().maybeSingle()
+    const { title, template, data: resumeData } = req.body
+    const insertPayload = {
+      user_id: user.id,
+      title: title || "My Resume",
+      template: template || "simple",
+      data: resumeData || {},
+      is_public: false,
+    }
+    const { data, error } = await supabaseAdmin.from("resumes").insert(insertPayload).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { resume: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -828,9 +963,15 @@ async function handleUpdateMyResume(req, res) {
   const user = await authenticate(req, res)
   if (!user) return
   const id = req.url.split("/").pop()
-  const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", user.id).select().maybeSingle()
+  const { title, data: resumeData, isPublic, template } = req.body
+  const updatePayload = { updated_at: new Date().toISOString() }
+  if (title !== undefined) updatePayload.title = title
+  if (resumeData !== undefined) updatePayload.data = resumeData
+  if (isPublic !== undefined) updatePayload.is_public = isPublic
+  if (template !== undefined) updatePayload.template = template
+  const { data, error } = await supabaseAdmin.from("resumes").update(updatePayload).eq("id", id).eq("user_id", user.id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleDeleteMyResume(req, res) {
@@ -845,16 +986,50 @@ async function handleDeleteMyResume(req, res) {
 async function handleGetMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").eq("id", user.id).maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    if (!data) return json(res, 404, { message: "Profile not found" })
    json(res, 200, { profile: data })
  }
 
+// Public, unauthenticated lookup by student_number OR id — this is the
+// endpoint hit when someone scans a profile's QR code. This route exists
+// in profileRoutes.js/profileController.js for the local Express server,
+// but that server is never deployed to Vercel — only this file is — so
+// it had no equivalent here and every public profile request 404'd.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function handleGetPublicProfile(req, res) {
+  const identifier = decodeURIComponent(req.url.split("/").pop() || "").trim()
+  if (!identifier) return json(res, 404, { message: "Profile not found or not shared" })
+
+  // profiles.id is a UUID column. Including "id.eq.<identifier>" in the same
+  // .or() when identifier is a plain student number (e.g. "0026283") makes
+  // Postgres try to cast it to uuid and throw, failing the whole query — so
+  // only add that clause when the identifier actually looks like a UUID.
+  const filter = UUID_PATTERN.test(identifier)
+    ? `student_number.eq.${identifier},id.eq.${identifier}`
+    : `student_number.eq.${identifier}`
+
+  const { data: profile, error } = await supabaseAdmin
+    .from("profiles")
+    .select(PROFILE_COLUMNS)
+    .or(filter)
+    .maybeSingle()
+
+  if (error) return json(res, 500, { message: "Failed to fetch profile" })
+  if (!profile || (!profile.is_public && !profile.qr_data)) {
+    return json(res, 404, { message: "Profile not found or not shared" })
+  }
+
+  json(res, 200, { profile })
+}
+
  async function handleUpdateMyProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update(req.body).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   const updatePayload = { ...req.body, updated_at: new Date().toISOString() }
+   const { data, error } = await supabaseAdmin.from("profiles").update(updatePayload).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    json(res, 200, { profile: data })
  }
@@ -862,7 +1037,7 @@ async function handleGetMyProfile(req, res) {
  async function handleSubmitProfile(req, res) {
    const user = await authenticate(req, res)
    if (!user) return
-   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,avatar_url,is_public,resume_public,school,year_graduated,home_address,contact_number,website,about_me,quote,skills,qr_data").maybeSingle()
+   const { data, error } = await supabaseAdmin.from("profiles").update({ profile_status: "submitted", updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).maybeSingle()
    if (error) return json(res, 500, { message: error.message })
    json(res, 200, { profile: data })
  }
@@ -1098,6 +1273,7 @@ async function handleGetBatchErrors(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
+  await ensureAvatarBucket()
   try {
     const url = new URL(req.url, `http://${req.headers.host}`)
     let pathname = url.pathname.replace(/\/+$/, "") || "/"
@@ -1192,11 +1368,11 @@ export default async function handler(req, res) {
   if (pathname.match(/\/api\/admin\/resume-sections\/.+$/) && req.method === "PATCH") return handleUpdateTemplateSection(req, res)
   if (pathname.match(/\/api\/admin\/resume-sections\/.+$/) && req.method === "DELETE") return handleDeleteTemplateSection(req, res)
 
+  if (pathname === "/api/admin/resumes/stats" && req.method === "GET") return handleGetResumeStats(req, res)
   if (pathname === "/api/admin/resumes" && req.method === "GET") return handleGetResumes(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "GET") return handleGetResume(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "PATCH") return handleUpdateResume(req, res)
   if (pathname.startsWith("/api/admin/resumes/") && req.method === "DELETE") return handleDeleteResume(req, res)
-  if (pathname === "/api/admin/resumes/stats" && req.method === "GET") return handleGetResumeStats(req, res)
 
   if (pathname === "/api/resume-templates" && req.method === "GET") return handleGetPublicTemplates(req, res)
   if (pathname.startsWith("/api/resume-templates/") && req.method === "GET") return handleGetPublicTemplateDetail(req, res)
@@ -1212,6 +1388,10 @@ export default async function handler(req, res) {
   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
   if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
+  // QR-code scan target: GET /api/profiles/public/:identifier. The handler
+  // already existed (handleGetPublicProfile) but was never wired up here,
+  // so every scan fell through to the catch-all 404 below.
+  if (pathname.startsWith("/api/profiles/public/") && req.method === "GET") return handleGetPublicProfile(req, res)
 
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
@@ -1221,4 +1401,10 @@ export default async function handler(req, res) {
   } catch (err) {
     json(res, 500, { message: err.message || "Server error" })
   }
+}
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
 }

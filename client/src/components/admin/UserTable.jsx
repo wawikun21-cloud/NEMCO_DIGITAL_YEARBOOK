@@ -13,21 +13,21 @@ export default function UserTable({ users, onEdit, onToggleRole, onToggleStatus,
   }
 
   return (
-    <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm overflow-hidden">
+    <div className="min-w-0 rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="bg-[var(--bg-subtle)] text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-              <th className="px-3 py-3 sm:px-5">Avatar</th>
-              <th className="px-3 py-3 sm:px-5">Student #</th>
-              <th className="hidden px-3 py-3 sm:table-cell sm:px-5">Email</th>
-              <th className="px-3 py-3 sm:px-5">Full Name</th>
-              <th className="hidden px-3 py-3 sm:table-cell sm:px-5">Role</th>
-              <th className="hidden px-3 py-3 lg:table-cell lg:px-5">Year</th>
-              <th className="hidden px-3 py-3 lg:table-cell lg:px-5">Course</th>
-              <th className="hidden px-3 py-3 lg:table-cell lg:px-5">Section</th>
-              <th className="hidden px-3 py-3 sm:table-cell sm:px-5">Status</th>
-              <th className="px-3 py-3 text-right sm:px-5">Actions</th>
+              <th className="w-[64px] px-3 py-3 sm:px-5">Avatar</th>
+              <th className="w-[120px] px-3 py-3 sm:px-5">Student #</th>
+              
+              <th className="w-[170px] px-3 py-3 sm:px-5">Full Name</th>
+              <th className="hidden w-[90px] px-3 py-3 sm:table-cell sm:px-5">Role</th>
+              <th className="hidden w-[90px] px-3 py-3 lg:table-cell lg:px-5">Year</th>
+              <th className="hidden w-[140px] px-3 py-3 lg:table-cell lg:px-5">Course</th>
+              <th className="hidden w-[100px] px-3 py-3 lg:table-cell lg:px-5">Section</th>
+              <th className="hidden w-[100px] px-3 py-3 sm:table-cell sm:px-5">Status</th>
+              <th className="w-[64px] px-3 py-3 text-right sm:px-5">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-light)]">

@@ -1,12 +1,19 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
 const PROFILE_COLUMNS =
-  "id,email,student_number,full_name,role,status,profile_status,course_or_strand,about_me,quote,skills,avatar_url,is_public,qr_data,contact_number,website,home_address,school,year_graduated"
+  "id,email,student_number,full_name,role,status,profile_status,course_or_strand,about_me,quote,skills,avatar_url,is_public,qr_data,contact_number,website,home_address,school,year_graduated,social_link1,social_link2,social_link3"
 
 const PUBLIC_PROFILE_BASE_URL = process.env.PUBLIC_PROFILE_BASE_URL || "https://yourapp.com/u"
 
 function normalizePublicBaseUrl(baseUrl) {
-  return (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  const value = (baseUrl || PUBLIC_PROFILE_BASE_URL).replace(/\/+$/, "")
+  try {
+    const parsed = new URL(value)
+    if (baseUrl && parsed.pathname === "/") return `${value}/u`
+  } catch {
+    return value
+  }
+  return value
 }
 
 // The QR always encodes a stable public profile URL rather than raw data,
@@ -33,6 +40,8 @@ export async function getProfileByUserId(userId) {
   return profile
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function getPublicProfileByIdentifier(identifier) {
   const normalizedIdentifier = identifier.trim()
 
@@ -42,10 +51,18 @@ export async function getPublicProfileByIdentifier(identifier) {
     throw error
   }
 
+  // profiles.id is a UUID column. Including "id.eq.<identifier>" when the
+  // identifier is a plain student number makes Postgres try to cast it to
+  // uuid and throw, failing the whole query — only add that clause when
+  // the identifier actually looks like a UUID.
+  const filter = UUID_PATTERN.test(normalizedIdentifier)
+    ? `student_number.eq.${normalizedIdentifier},id.eq.${normalizedIdentifier}`
+    : `student_number.eq.${normalizedIdentifier}`
+
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_COLUMNS)
-    .or(`student_number.eq.${normalizedIdentifier},id.eq.${normalizedIdentifier}`)
+    .or(filter)
     .maybeSingle()
 
   if (error) {

@@ -2,6 +2,38 @@ import { supabase } from "@/lib/supabaseClient"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
 
+function normalizeAvatarUrl(url) {
+  if (!url) return ""
+  try {
+    const parsed = new URL(url)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : ""
+  } catch {
+    return ""
+  }
+}
+
+function normalizeSocialLink(value) {
+  if (!value) return ""
+  try {
+    const trimmed = String(value).trim()
+    const parsed = new URL(trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href.slice(0, 200) : ""
+  } catch {
+    return ""
+  }
+}
+
+function normalizeProfile(profile) {
+  if (!profile) return profile
+  return {
+    ...profile,
+    avatar_url: normalizeAvatarUrl(profile.avatar_url),
+    social_link1: normalizeSocialLink(profile.social_link1),
+    social_link2: normalizeSocialLink(profile.social_link2),
+    social_link3: normalizeSocialLink(profile.social_link3),
+  }
+}
+
 export async function loginWithBackend({ studentId, password }) {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
@@ -42,7 +74,7 @@ export async function loginWithBackend({ studentId, password }) {
   // Store user, profile, and session tokens in sessionStorage for AuthProvider
   if (data.user && data.profile) {
     sessionStorage.setItem("digitalYearbookUser", JSON.stringify(data.user))
-    sessionStorage.setItem("digitalYearbookProfile", JSON.stringify(data.profile))
+    sessionStorage.setItem("digitalYearbookProfile", JSON.stringify(normalizeProfile(data.profile)))
     if (data.session?.access_token) {
       sessionStorage.setItem("digitalYearbookAccessToken", data.session.access_token)
     }

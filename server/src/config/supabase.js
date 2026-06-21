@@ -15,6 +15,26 @@ export const supabaseAnon = createClient(config.supabaseUrl, config.supabaseAnon
   },
 })
 
+export async function ensureAvatarBucket() {
+  const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
+  if (listError) return
+
+  const exists = buckets?.some((b) => b.name === "avatars")
+  if (!exists) {
+    await supabaseAdmin.storage.createBucket("avatars", {
+      public: true,
+      fileSizeLimit: 2 * 1024 * 1024,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+    })
+  } else {
+    await supabaseAdmin.storage.updateBucket("avatars", {
+      public: true,
+      fileSizeLimit: 2 * 1024 * 1024,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+    })
+  }
+}
+
 export async function ensureFlipbookBucket() {
   const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
   if (listError) return

@@ -14,6 +14,9 @@ export const updateProfileSchema = z.object({
   home_address: z.string().trim().max(300).optional(),
   contact_number: z.string().trim().max(30).optional(),
   website: z.string().trim().max(100).optional(),
+  social_link1: z.string().trim().max(200).optional(),
+  social_link2: z.string().trim().max(200).optional(),
+  social_link3: z.string().trim().max(200).optional(),
 
   // These three were missing entirely before, which is why edits to them
   // silently disappeared — Zod drops any key not declared in the schema.
