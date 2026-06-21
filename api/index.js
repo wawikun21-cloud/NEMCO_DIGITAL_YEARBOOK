@@ -222,10 +222,19 @@ async function handleUploadAvatar(req, res) {
     const oldAvatarUrl = currentProfile?.avatar_url || null
     const fileExt = validated.filename.split(".").pop()?.toLowerCase() || "jpg"
     const storagePath = `${user.id}/avatar.${fileExt}`
-    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
+    // cacheControl is set explicitly (rather than left to the bucket
+    // default) so each upsert advertises a short, known TTL — but the real
+    // fix is the cache-busting query param below, since the storage path
+    // itself never changes (same user.id + same extension every time),
+    // so any CDN/browser layer that caches strictly by URL will otherwise
+    // keep serving whatever bytes it first saw at that URL indefinitely.
+    const { error: uploadError } = await supabaseAdmin.storage.from("avatars").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true, cacheControl: "60" })
     if (uploadError) return json(res, 500, { message: `Failed to upload avatar: ${uploadError.message}` })
     const { data: publicUrlData } = supabaseAdmin.storage.from("avatars").getPublicUrl(storagePath)
-    const avatarUrl = publicUrlData.publicUrl
+    // Cache-bust: append a unique version token so every upload gets a
+    // distinct URL, completely bypassing CDN/browser image caching for
+    // the fixed avatar.jpg path.
+    const avatarUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`
     const { data: updatedProfile } = await supabaseAdmin.from("profiles").update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", user.id).select(PROFILE_COLUMNS).single()
     await supabaseAdmin.from("avatar_uploads").insert({ user_id: user.id, file_path: storagePath, file_name: validated.filename, mime_type: validated.mimeType, file_size: validated.size, old_avatar_url: oldAvatarUrl, created_at: new Date().toISOString() })
     json(res, 200, { profile: updatedProfile, avatarUrl })
