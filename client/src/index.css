@@ -380,7 +380,7 @@
 }
 
 /* ── Realistic page curl for 3D flipbook ── */
-/* Keyframes are generated dynamically in Yearbook3DPage.jsx via buildCurlKeyframes() */
+/* 3D flipbook styles */
 
 .page-curl-shadow {
   position: absolute;
