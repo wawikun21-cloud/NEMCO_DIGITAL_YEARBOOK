@@ -740,7 +740,7 @@ async function handleGetTemplates(req, res) {
   if (!includeInactive) query = query.eq("is_active", true)
   const { data, error } = await query
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { templates: data || [] })
 }
 
 async function handleGetTemplate(req, res) {
@@ -749,7 +749,7 @@ async function handleGetTemplate(req, res) {
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
   const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
-  json(res, 200, { ...data, sections: sections || [] })
+  json(res, 200, { template: data, sections: sections || [] })
 }
 
 async function handleCreateTemplate(req, res) {
@@ -759,7 +759,7 @@ async function handleCreateTemplate(req, res) {
     const order = sort_order || (maxOrder ? (maxOrder.sort_order || 0) + 1 : 1)
     const { data, error } = await supabaseAdmin.from("resume_templates").insert({ name, slug, description: description || null, thumbnail_url: thumbnail_url || null, default_sections: default_sections || [], is_active, sort_order: order }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { template: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -768,7 +768,7 @@ async function handleUpdateTemplate(req, res) {
   try {
     const { data, error } = await supabaseAdmin.from("resume_templates").update(req.body).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 200, data)
+    json(res, 200, { template: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -784,7 +784,7 @@ async function handleGetTemplateSections(req, res) {
   const templateId = parts[parts.indexOf("templates") + 1]
   const { data, error } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", templateId).order("sort_order", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { sections: data || [] })
 }
 
 async function handleCreateTemplateSection(req, res) {
@@ -795,7 +795,7 @@ async function handleCreateTemplateSection(req, res) {
     const nextOrder = maxOrder ? (maxOrder.sort_order || 0) + 1 : 1
     const { data, error } = await supabaseAdmin.from("resume_template_sections").insert({ ...req.body, template_id: templateId, sort_order: nextOrder }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -804,7 +804,7 @@ async function handleUpdateTemplateSection(req, res) {
   try {
     const { data, error } = await supabaseAdmin.from("resume_template_sections").update(req.body).eq("id", id).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 200, data)
+    json(res, 200, { section: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -850,7 +850,7 @@ async function handleGetResume(req, res) {
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Resume not found" })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleUpdateResume(req, res) {
@@ -859,7 +859,7 @@ async function handleUpdateResume(req, res) {
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleDeleteResume(req, res) {
@@ -885,7 +885,7 @@ async function handleGetResumeStats(req, res) {
 async function handleGetPublicTemplates(req, res) {
   const { data, error } = await supabaseAdmin.from("resume_templates").select("id, name, slug, description, thumbnail_url").eq("is_active", true).order("sort_order", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { templates: data || [] })
 }
 
 async function handleGetPublicTemplateDetail(req, res) {
@@ -894,7 +894,7 @@ async function handleGetPublicTemplateDetail(req, res) {
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Template not found" })
   const { data: sections } = await supabaseAdmin.from("resume_template_sections").select("*").eq("template_id", data.id).order("sort_order", { ascending: true })
-  json(res, 200, { ...data, sections: sections || [] })
+  json(res, 200, { template: data, sections: sections || [] })
 }
 
 async function handleGetMyResumes(req, res) {
@@ -902,7 +902,7 @@ async function handleGetMyResumes(req, res) {
   if (!user) return
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { resumes: data || [] })
 }
 
 async function handleGetMyResume(req, res) {
@@ -912,7 +912,7 @@ async function handleGetMyResume(req, res) {
   const { data, error } = await supabaseAdmin.from("resumes").select("*").eq("id", id).eq("user_id", user.id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Resume not found" })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleCreateMyResume(req, res) {
@@ -921,7 +921,7 @@ async function handleCreateMyResume(req, res) {
   try {
     const { data, error } = await supabaseAdmin.from("resumes").insert({ ...req.body, user_id: user.id, status: "draft" }).select().maybeSingle()
     if (error) return json(res, 500, { message: error.message })
-    json(res, 201, data)
+    json(res, 201, { resume: data })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
 
@@ -931,7 +931,7 @@ async function handleUpdateMyResume(req, res) {
   const id = req.url.split("/").pop()
   const { data, error } = await supabaseAdmin.from("resumes").update({ ...req.body, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", user.id).select().maybeSingle()
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data)
+  json(res, 200, { resume: data })
 }
 
 async function handleDeleteMyResume(req, res) {
