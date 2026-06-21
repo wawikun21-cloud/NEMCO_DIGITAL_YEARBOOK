@@ -40,6 +40,8 @@ export async function getProfileByUserId(userId) {
   return profile
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function getPublicProfileByIdentifier(identifier) {
   const normalizedIdentifier = identifier.trim()
 
@@ -49,10 +51,18 @@ export async function getPublicProfileByIdentifier(identifier) {
     throw error
   }
 
+  // profiles.id is a UUID column. Including "id.eq.<identifier>" when the
+  // identifier is a plain student number makes Postgres try to cast it to
+  // uuid and throw, failing the whole query — only add that clause when
+  // the identifier actually looks like a UUID.
+  const filter = UUID_PATTERN.test(normalizedIdentifier)
+    ? `student_number.eq.${normalizedIdentifier},id.eq.${normalizedIdentifier}`
+    : `student_number.eq.${normalizedIdentifier}`
+
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_COLUMNS)
-    .or(`student_number.eq.${normalizedIdentifier},id.eq.${normalizedIdentifier}`)
+    .or(filter)
     .maybeSingle()
 
   if (error) {

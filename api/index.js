@@ -997,14 +997,24 @@ async function handleGetMyProfile(req, res) {
 // in profileRoutes.js/profileController.js for the local Express server,
 // but that server is never deployed to Vercel — only this file is — so
 // it had no equivalent here and every public profile request 404'd.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function handleGetPublicProfile(req, res) {
   const identifier = decodeURIComponent(req.url.split("/").pop() || "").trim()
   if (!identifier) return json(res, 404, { message: "Profile not found or not shared" })
 
+  // profiles.id is a UUID column. Including "id.eq.<identifier>" in the same
+  // .or() when identifier is a plain student number (e.g. "0026283") makes
+  // Postgres try to cast it to uuid and throw, failing the whole query — so
+  // only add that clause when the identifier actually looks like a UUID.
+  const filter = UUID_PATTERN.test(identifier)
+    ? `student_number.eq.${identifier},id.eq.${identifier}`
+    : `student_number.eq.${identifier}`
+
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_COLUMNS)
-    .or(`student_number.eq.${identifier},id.eq.${identifier}`)
+    .or(filter)
     .maybeSingle()
 
   if (error) return json(res, 500, { message: "Failed to fetch profile" })
@@ -1378,6 +1388,10 @@ export default async function handler(req, res) {
   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
   if (pathname === "/api/profiles/me/avatar/history" && req.method === "GET") return handleGetAvatarHistory(req, res)
   if (pathname === "/api/profiles/me/qrcode/generate" && req.method === "POST") return handleGenerateQrCode(req, res)
+  // QR-code scan target: GET /api/profiles/public/:identifier. The handler
+  // already existed (handleGetPublicProfile) but was never wired up here,
+  // so every scan fell through to the catch-all 404 below.
+  if (pathname.startsWith("/api/profiles/public/") && req.method === "GET") return handleGetPublicProfile(req, res)
 
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
