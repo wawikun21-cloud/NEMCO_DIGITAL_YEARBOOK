@@ -163,7 +163,7 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
   const initial = name.charAt(0).toUpperCase()
   return (
     <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6">
-      <div className="flex flex-1 flex-col items-center">
+      <div className="flex flex-1 flex-col items-center overflow-hidden">
         <div className="w-full h-1 rounded-full bg-gradient-to-r from-transparent via-[var(--bg-primary)]/20 to-transparent mb-4" />
         {profile.avatar_url ? (
           <img src={profile.avatar_url} alt={name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32" />
@@ -177,8 +177,10 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
           {profile.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.year_level}</span>}
           {profile.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.section}</span>}
         </div>
-        {profile.bio && <p className="mt-3 text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs">{profile.bio}</p>}
-        {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
+        <div className="mt-3 flex-1 overflow-y-auto styled-scroll min-h-0">
+          {profile.bio && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs px-2">{profile.bio}</p>}
+          {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
+        </div>
       </div>
       <div className="text-center pt-2"><span className="text-[9px] text-[var(--text-muted)]/50">{pageNum} / {totalPages}</span></div>
     </div>
@@ -319,7 +321,22 @@ export default function Yearbook3DPage() {
   const [flipSpeed, setFlipSpeed] = useState(0.7)
   const [coverReady, setCoverReady] = useState(false)
   const [pendingPage, setPendingPage] = useState(null)
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const [isDragging, setIsDragging] = useState(false)
   const [bookState, setBookState] = useState("read")
+  const [bookTranslateX, setBookTranslateX] = useState(0)
+  const bookWrapperRef = useRef(null)
+  const dragStartPos = useRef({ x: 0, y: 0 })
+  const recomputeCenteringRef = useRef(() => {})
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+      recomputeCenteringRef.current()
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const containerRef = useRef(null)
   const bookRef = useRef(null)
@@ -501,6 +518,49 @@ export default function Yearbook3DPage() {
 
   const totalPages = bookPageList.length
 
+  const recomputeCentering = useCallback(() => {
+    const isSingle = currentPage === 0 || currentPage === totalPages - 1
+    if (!isSingle) {
+      setBookTranslateX(0)
+      return
+    }
+    const wrapper = bookWrapperRef.current
+    if (!wrapper) return
+    const stfWrapper = wrapper.querySelector('.stf__wrapper')
+    if (!stfWrapper) return
+    const stfRect = stfWrapper.getBoundingClientRect()
+    const pageEls = stfWrapper.querySelectorAll('.stf__page')
+    if (pageEls.length === 0) return
+    let visiblePageRect = null
+    for (const el of pageEls) {
+      const style = window.getComputedStyle(el)
+      if (style.display !== 'none') {
+        const r = el.getBoundingClientRect()
+        if (r.width > 0) {
+          visiblePageRect = r
+          break
+        }
+      }
+    }
+    if (!visiblePageRect) {
+      const firstPage = pageEls[0]
+      if (firstPage) visiblePageRect = firstPage.getBoundingClientRect()
+    }
+    if (!visiblePageRect || stfRect.width <= 0 || visiblePageRect.width <= 0) {
+      setBookTranslateX(0)
+      return
+    }
+    const pageCenter = visiblePageRect.left + visiblePageRect.width / 2
+    const stfCenter = stfRect.left + stfRect.width / 2
+    const diffPx = pageCenter - stfCenter
+    const diffPct = (diffPx / stfRect.width) * 100
+    setBookTranslateX(-diffPct)
+  }, [currentPage, totalPages])
+
+  useEffect(() => {
+    recomputeCenteringRef.current = recomputeCentering
+  }, [recomputeCentering])
+
   const pdfListStable = pdfPages.length === 0 || !pdfLoading
 
   useEffect(() => {
@@ -575,10 +635,17 @@ export default function Yearbook3DPage() {
     const params = new URLSearchParams(window.location.search)
     params.set("page", newPage.toString())
     window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
+    requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [playFlipSound])
 
   const onChangeState = useCallback((e) => {
     setBookState(e.data)
+    if (e.data === "user_fold") {
+      setIsDragging(true)
+    } else if (e.data === "read" || e.data === "flipping") {
+      if (e.data === "read") setIsDragging(false)
+    }
+    if (e.data === "read") requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [])
 
   const onInit = useCallback(() => {
@@ -588,6 +655,7 @@ export default function Yearbook3DPage() {
         pf.turnToPage(currentPage)
       }
     }
+    requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [currentPage])
 
   useEffect(() => {
@@ -650,13 +718,12 @@ export default function Yearbook3DPage() {
   }, [filteredToBookIndex, jumpToPage])
 
   const handleCoverClick = useCallback(() => {
-    if (currentPage === 0 && bookState === "read") {
+    if (currentPage === 0 && bookState === "read" && !isDragging) {
       goNext()
     }
-  }, [currentPage, bookState, goNext])
+  }, [currentPage, bookState, goNext, isDragging])
 
   const isSinglePage = currentPage === 0 || currentPage === totalPages - 1
-  const bookTranslateX = isSinglePage ? -25 : 0
   const flipTransitionMs = Math.round(flipSpeed * 1000)
 
   const isFlipping = bookState === "flipping"
@@ -752,7 +819,7 @@ export default function Yearbook3DPage() {
         </div>
       )}
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-hidden">
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-x-hidden overflow-y-auto ${isFullscreen ? "pt-20" : ""}`}>
         {pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -761,7 +828,7 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-        <div style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out` }}>
+        <div ref={bookWrapperRef} style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out`, maxWidth: "100vw", overflow: "visible" }}>
           {pdfListStable ? (
           <HTMLFlipBook
             key={bookPageList.length}
@@ -780,7 +847,11 @@ export default function Yearbook3DPage() {
             usePortrait={true}
             startPage={initialPage !== null ? initialPage : 0}
             clickEventForward={true}
-            mobileScrollSupport={true}
+            mobileScrollSupport={false}
+            useMouseEvents={true}
+            showPageCorners={true}
+            disableFlipByClick={false}
+            swipeDistance={30}
             autoSize={true}
             renderOnlyPageLengthChange={false}
             onFlip={onFlip}
