@@ -549,21 +549,6 @@ export default function Yearbook3DPage() {
     const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
     const diffPx = contentCenter - wrapperCenter
     const offsetPct = -(diffPx / wrapperRect.width) * 100
-
-    console.log('[CENTER]', {
-      page: currentPage,
-      visibleCount: visibleItems.length,
-      contentLeft: Math.round(contentLeft),
-      contentRight: Math.round(contentRight),
-      contentCenter: Math.round(contentCenter),
-      wrapperLeft: Math.round(wrapperRect.left),
-      wrapperRight: Math.round(wrapperRect.left + wrapperRect.width),
-      wrapperCenter: Math.round(wrapperCenter),
-      diffPx: Math.round(diffPx),
-      offsetPct: Math.round(offsetPct * 100) / 100,
-      bookTranslateX: Math.round(offsetPct * 100) / 100,
-    })
-
     setBookTranslateX(offsetPct)
   }, [currentPage, totalPages, windowWidth])
 
@@ -574,13 +559,14 @@ export default function Yearbook3DPage() {
   useEffect(() => {
     const wrapper = bookWrapperRef.current
     if (!wrapper) return
-    const ro = new ResizeObserver(() => recomputeCenteringRef.current())
+    const ro = new ResizeObserver(() => {
+      if (bookState === "read") recomputeCenteringRef.current()
+    })
     ro.observe(wrapper)
     const innerBook = wrapper.querySelector('.stf__wrapper') || wrapper.querySelector('.stf__parent')
     if (innerBook) ro.observe(innerBook)
-    requestAnimationFrame(() => recomputeCenteringRef.current())
     return () => ro.disconnect()
-  }, [bookPageList.length])
+  }, [bookPageList.length, bookState])
 
   const pdfListStable = pdfPages.length === 0 || !pdfLoading
 
@@ -666,9 +652,11 @@ export default function Yearbook3DPage() {
       if (e.data === "read") setIsDragging(false)
     }
     if (e.data === "read") {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => recomputeCenteringRef.current())
-      })
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => recomputeCenteringRef.current())
+        })
+      }, 50)
     }
   }, [])
 
