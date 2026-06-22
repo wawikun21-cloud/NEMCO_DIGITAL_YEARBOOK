@@ -18,7 +18,7 @@ function hasContent(value) {
   return true
 }
 
-export function ResumeSectionRenderer({ section, value, onChange, onPhotoUpload }) {
+export function ResumeSectionRenderer({ section, value, onChange, onPhotoUpload, isExporting }) {
   const [collapsed, setCollapsed] = useState(false)
   const Renderer = FIELD_RENDERERS[section.field_type] || TextInput
   const filled = hasContent(value)
@@ -40,11 +40,13 @@ export function ResumeSectionRenderer({ section, value, onChange, onPhotoUpload 
         role="button"
         aria-expanded={!collapsed}
       >
-        <GripVertical
-          size={14}
-          className="text-[var(--text-muted)] shrink-0 cursor-grab"
-          onClick={(e) => e.stopPropagation()}
-        />
+        {!isExporting && (
+          <GripVertical
+            size={14}
+            className="text-[var(--text-muted)] shrink-0 cursor-grab"
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

@@ -16,6 +16,7 @@ import { extractPersonal } from "./shared/resumeHelpers"
 import { MinimalTemplate } from "./templates/MinimalTemplate"
 import { ClassicTemplate } from "./templates/ClassicTemplate"
 import { ModernTemplate } from "./templates/ModernTemplate"
+import { forwardRef } from "react"
 
 const TEMPLATES = {
   minimal: MinimalTemplate,
@@ -34,13 +35,15 @@ const PAGE_PADDING = {
 const A4_WIDTH = 794
 const A4_HEIGHT = 1123
 
-export function ResumePrintView({ data = {}, sections = [], template, resume }) {
+export const ResumePrintView = forwardRef(function ResumePrintView({ data = {}, sections = [], template, resume }, ref) {
   const slug = template?.slug || "minimal"
   const personal = extractPersonal(data)
   const TemplateComponent = TEMPLATES[slug] || MinimalTemplate
 
   return (
     <div
+      ref={ref}
+      data-pdf-export
       className="resume-print-view"
       style={{
         width: A4_WIDTH,
@@ -61,4 +64,4 @@ export function ResumePrintView({ data = {}, sections = [], template, resume }) 
       />
     </div>
   )
-}
+})

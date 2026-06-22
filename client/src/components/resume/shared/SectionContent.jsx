@@ -14,10 +14,10 @@
 import { formatDateRange } from "./resumeHelpers"
 
 const createTypographyScale = (bodySize) => ({
-  caption: Math.max(10, bodySize - 1),
-  small: bodySize,
-  body: bodySize + 1,
-  heading: bodySize + 3,
+  caption: Math.max(6, bodySize - 2),
+  small: Math.max(7, bodySize - 1),
+  body: bodySize,
+  heading: bodySize + 1,
 })
 
 export function SectionContent({ fieldType, value, tokens }) {
@@ -86,7 +86,7 @@ export function SectionContent({ fieldType, value, tokens }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
         {value.map((skill, i) => (
           <span key={i} style={{
-            fontSize: scale.body,
+            fontSize: scale.small,
             background: "#f3f4f6",
             color: textColor,
             borderRadius: 4,
@@ -112,11 +112,11 @@ export function SectionContent({ fieldType, value, tokens }) {
                   {entry.degree || "Degree"}
                 </div>
                 <div style={{ fontSize: bodySize, color: textColor, marginTop: 1 }}>{entry.school}</div>
+</div>
+              <div style={{ fontSize: scale.caption, color: mutedColor, textAlign: "right", flexShrink: 0 }}>
+                {entry.year}
+                {entry.gpa && <div style={{ marginTop: 1 }}>GPA: {entry.gpa}</div>}
               </div>
-<div style={{ fontSize: scale.caption, color: mutedColor, textAlign: "right", flexShrink: 0 }}>
-                 {entry.year}
-                 {entry.gpa && <div style={{ marginTop: 1 }}>GPA: {entry.gpa}</div>}
-               </div>
             </div>
             {entry.description && (
               <p style={{ fontSize: scale.small, color: mutedColor, margin: "3px 0 0", lineHeight: 1.55 }}>
@@ -148,12 +148,12 @@ export function SectionContent({ fieldType, value, tokens }) {
                 }}>
                   {entry.company}
                 </div>
-              </div>
-{(entry.from || entry.to) && (
-               <div style={{ fontSize: scale.caption, color: mutedColor, flexShrink: 0, textAlign: "right" }}>
-                 {formatDateRange(entry.from, entry.to)}
-               </div>
-             )}
+</div>
+              {(entry.from || entry.to) && (
+                <div style={{ fontSize: scale.caption, color: mutedColor, flexShrink: 0, textAlign: "right" }}>
+                  {formatDateRange(entry.from, entry.to)}
+                </div>
+              )}
             </div>
             {entry.description && (
               <p style={{ fontSize: scale.small, color: mutedColor, margin: "4px 0 0", lineHeight: 1.6, whiteSpace: "pre-line" }}>

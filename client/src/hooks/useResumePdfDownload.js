@@ -1,70 +1,76 @@
 /**
  * useResumePdfDownload.js
  *
- * Calls POST /api/generate-resume-pdf with the current session token
- * and triggers a browser download of the returned PDF.
- *
- * Token resolution (mirrors authService.js → changePassword):
- *   1. supabase.auth.getSession()  — works if setSession() succeeded at login
- *   2. sessionStorage "digitalYearbookAccessToken"  — fallback for the common
- *      case where supabase.auth.setSession() silently failed because the
- *      backend issued a service_role token incompatible with the anon client
+ * Generates a PDF entirely in the browser by capturing the live
+ * ResumePrintView DOM node — no server, no Puppeteer, no GB-hours.
  *
  * Usage:
  *   const { downloadPdf, isGenerating } = useResumePdfDownload()
- *   <button onClick={() => downloadPdf({ data, sections, template, resume })}>
+ *
+ *   // Pass a ref to the ResumePrintView wrapper div
+ *   <div ref={resumeRef}>
+ *     <ResumePrintView ... />
+ *   </div>
+ *
+ *   <button onClick={() => downloadPdf({ resumeRef, resume })}>
+ *     Download PDF
+ *   </button>
  */
 
 import { useState, useCallback } from "react"
 import { toast } from "sonner"
-import { supabase } from "@/lib/supabaseClient"
+
+const A4_WIDTH_PX  = 794
+const A4_HEIGHT_PX = 1123
 
 export function useResumePdfDownload() {
   const [isGenerating, setIsGenerating] = useState(false)
 
-  const downloadPdf = useCallback(async ({ data, sections, template, resume }) => {
+  const downloadPdf = useCallback(async ({ resumeRef, resume }) => {
     if (isGenerating) return
+
+    const node = resumeRef?.current
+    if (!node) {
+      toast.error("Could not find resume to export.")
+      return
+    }
+
     setIsGenerating(true)
 
     try {
-      // ── 1. Resolve token — same pattern as authService.changePassword ────────
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token =
-        sessionData?.session?.access_token ||
-        sessionStorage.getItem("digitalYearbookAccessToken")
+      // Lazy-load so they don't bloat the initial bundle
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ])
 
-      if (!token) {
-        throw new Error("You must be logged in to download a PDF. Please refresh and try again.")
-      }
-
-      // ── 2. Call the PDF endpoint ──────────────────────────────────────────────
-      const response = await fetch("/api/generate-resume-pdf", {
-        method:  "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ data, sections, template }),
+      // ── 1. Capture the DOM node as a canvas ──────────────────────────────────
+      const canvas = await html2canvas(node, {
+        scale:            2,          // 2× for crisp text on retina / print
+        useCORS:          true,        // allow cross-origin images (Supabase photos)
+        allowTaint:       false,
+        backgroundColor:  "#ffffff",
+        width:            A4_WIDTH_PX,
+        height:           A4_HEIGHT_PX,
+        windowWidth:      A4_WIDTH_PX,
+        windowHeight:     A4_HEIGHT_PX,
+        logging:          false,
       })
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.error || err.detail || err.message || `Server error ${response.status}`)
-      }
+      // ── 2. Build the PDF at exact A4 size ────────────────────────────────────
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit:        "px",
+        format:      [A4_WIDTH_PX, A4_HEIGHT_PX],
+        hotfixes:    ["px_scaling"],  // prevents jsPDF internal scaling quirk
+      })
 
-      // ── 3. Trigger browser download ───────────────────────────────────────────
-      const blob     = await response.blob()
-      const url      = URL.createObjectURL(blob)
-      const anchor   = document.createElement("a")
+      const imgData = canvas.toDataURL("image/jpeg", 1.0)
+      pdf.addImage(imgData, "JPEG", 0, 0, A4_WIDTH_PX, A4_HEIGHT_PX)
+
+      // ── 3. Trigger download ───────────────────────────────────────────────────
       const filename = `${resume?.title || "resume"}-${new Date().toISOString().slice(0, 10)}.pdf`
-
-      anchor.href     = url
-      anchor.download = filename
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      pdf.save(filename)
 
       toast.success("Resume downloaded!", { description: filename })
 
