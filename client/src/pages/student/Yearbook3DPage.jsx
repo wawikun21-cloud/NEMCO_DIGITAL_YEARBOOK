@@ -326,7 +326,6 @@ export default function Yearbook3DPage() {
   const [bookState, setBookState] = useState("read")
   const [bookTranslateX, setBookTranslateX] = useState(0)
   const bookWrapperRef = useRef(null)
-  const dragStartPos = useRef({ x: 0, y: 0 })
   const recomputeCenteringRef = useRef(() => {})
 
   useEffect(() => {
@@ -357,6 +356,12 @@ export default function Yearbook3DPage() {
       .finally(() => { if (!cancelled) setDataLoading(false) })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (!coverReady || !data) return
+    const timer = setTimeout(() => recomputeCenteringRef.current(), 100)
+    return () => clearTimeout(timer)
+  }, [coverReady, data])
 
   useEffect(() => {
     if (data?.settings?.flip_speed) setFlipSpeed(data.settings.flip_speed)
@@ -519,47 +524,60 @@ export default function Yearbook3DPage() {
   const totalPages = bookPageList.length
 
   const recomputeCentering = useCallback(() => {
+    if (windowWidth < 640) return
+    const wrapper = bookWrapperRef.current
+    if (!wrapper) return
+    const wrapperRect = wrapper.getBoundingClientRect()
+    if (wrapperRect.width <= 0) return
+    const pf = bookRef.current?.pageFlip()
+    if (!pf) return
+    let bounds = null
+    try { bounds = pf.getBoundsRect() } catch { /* */ }
+    if (!bounds || bounds.pageWidth <= 0) return
+    const pageWidth = bounds.pageWidth
     const isSingle = currentPage === 0 || currentPage === totalPages - 1
     if (!isSingle) {
       setBookTranslateX(0)
       return
     }
-    const wrapper = bookWrapperRef.current
-    if (!wrapper) return
-    const stfWrapper = wrapper.querySelector('.stf__wrapper')
-    if (!stfWrapper) return
-    const stfRect = stfWrapper.getBoundingClientRect()
-    const pageEls = stfWrapper.querySelectorAll('.stf__page')
-    if (pageEls.length === 0) return
-    let visiblePageRect = null
-    for (const el of pageEls) {
-      const style = window.getComputedStyle(el)
-      if (style.display !== 'none') {
-        const r = el.getBoundingClientRect()
-        if (r.width > 0) {
-          visiblePageRect = r
-          break
-        }
+    const blockEl = wrapper.querySelector('.stf__block')
+    if (!blockEl) {
+      console.log('[centering] .stf__block not found, trying .stf__parent')
+      const parentEl = wrapper.querySelector('.stf__parent')
+      if (parentEl) {
+        const parentRect = parentEl.getBoundingClientRect()
+        const parentCenter = parentRect.left + parentRect.width / 2
+        const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
+        const diffPx = parentCenter - wrapperCenter
+        console.log('[centering] parent fallback:', { parentLeft: parentRect.left, parentWidth: parentRect.width, parentCenter, wrapperCenter, diffPx })
+        setBookTranslateX(-(diffPx / wrapperRect.width) * 100)
+        return
       }
-    }
-    if (!visiblePageRect) {
-      const firstPage = pageEls[0]
-      if (firstPage) visiblePageRect = firstPage.getBoundingClientRect()
-    }
-    if (!visiblePageRect || stfRect.width <= 0 || visiblePageRect.width <= 0) {
       setBookTranslateX(0)
       return
     }
-    const pageCenter = visiblePageRect.left + visiblePageRect.width / 2
-    const stfCenter = stfRect.left + stfRect.width / 2
-    const diffPx = pageCenter - stfCenter
-    const diffPct = (diffPx / stfRect.width) * 100
-    setBookTranslateX(-diffPct)
-  }, [currentPage, totalPages])
+    const blockRect = blockEl.getBoundingClientRect()
+    const blockCenter = blockRect.left + blockRect.width / 2
+    const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
+    const diffPx = blockCenter - wrapperCenter
+    console.log('[centering]', { pageWidth, wrapperWidth: wrapperRect.width, blockLeft: blockRect.left, blockWidth: blockRect.width, blockCenter, wrapperCenter, diffPx, offsetPct: -(diffPx / wrapperRect.width) * 100 })
+    setBookTranslateX(-(diffPx / wrapperRect.width) * 100)
+  }, [currentPage, totalPages, windowWidth])
 
   useEffect(() => {
     recomputeCenteringRef.current = recomputeCentering
   }, [recomputeCentering])
+
+  useEffect(() => {
+    const wrapper = bookWrapperRef.current
+    if (!wrapper) return
+    const ro = new ResizeObserver(() => recomputeCenteringRef.current())
+    ro.observe(wrapper)
+    const innerBook = wrapper.querySelector('.stf__wrapper') || wrapper.querySelector('.stf__parent')
+    if (innerBook) ro.observe(innerBook)
+    requestAnimationFrame(() => recomputeCenteringRef.current())
+    return () => ro.disconnect()
+  }, [bookPageList.length])
 
   const pdfListStable = pdfPages.length === 0 || !pdfLoading
 
@@ -635,7 +653,6 @@ export default function Yearbook3DPage() {
     const params = new URLSearchParams(window.location.search)
     params.set("page", newPage.toString())
     window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
-    requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [playFlipSound])
 
   const onChangeState = useCallback((e) => {
@@ -645,7 +662,6 @@ export default function Yearbook3DPage() {
     } else if (e.data === "read" || e.data === "flipping") {
       if (e.data === "read") setIsDragging(false)
     }
-    if (e.data === "read") requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [])
 
   const onInit = useCallback(() => {
@@ -655,7 +671,6 @@ export default function Yearbook3DPage() {
         pf.turnToPage(currentPage)
       }
     }
-    requestAnimationFrame(() => recomputeCenteringRef.current())
   }, [currentPage])
 
   useEffect(() => {
@@ -723,7 +738,7 @@ export default function Yearbook3DPage() {
     }
   }, [currentPage, bookState, goNext, isDragging])
 
-  const isSinglePage = currentPage === 0 || currentPage === totalPages - 1
+  
   const flipTransitionMs = Math.round(flipSpeed * 1000)
 
   const isFlipping = bookState === "flipping"
