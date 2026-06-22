@@ -529,38 +529,32 @@ export default function Yearbook3DPage() {
     if (!wrapper) return
     const wrapperRect = wrapper.getBoundingClientRect()
     if (wrapperRect.width <= 0) return
-    const pf = bookRef.current?.pageFlip()
-    if (!pf) return
-    let bounds = null
-    try { bounds = pf.getBoundsRect() } catch { /* */ }
-    if (!bounds || bounds.pageWidth <= 0) return
-    const pageWidth = bounds.pageWidth
-    const isSingle = currentPage === 0 || currentPage === totalPages - 1
-    if (!isSingle) {
-      setBookTranslateX(0)
-      return
-    }
-    const blockEl = wrapper.querySelector('.stf__block')
-    if (!blockEl) {
-      console.log('[centering] .stf__block not found, trying .stf__parent')
-      const parentEl = wrapper.querySelector('.stf__parent')
-      if (parentEl) {
-        const parentRect = parentEl.getBoundingClientRect()
-        const parentCenter = parentRect.left + parentRect.width / 2
-        const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
-        const diffPx = parentCenter - wrapperCenter
-        console.log('[centering] parent fallback:', { parentLeft: parentRect.left, parentWidth: parentRect.width, parentCenter, wrapperCenter, diffPx })
-        setBookTranslateX(-(diffPx / wrapperRect.width) * 100)
-        return
+const items = wrapper.querySelectorAll('.stf__item')
+    const visibleItems = []
+    for (const el of items) {
+      const style = window.getComputedStyle(el)
+      if (style.display !== 'none') {
+        const r = el.getBoundingClientRect()
+        if (r.width > 0 && r.height > 0) {
+          visibleItems.push(r)
+        }
       }
+    }
+    if (visibleItems.length === 0) {
       setBookTranslateX(0)
       return
     }
-    const blockRect = blockEl.getBoundingClientRect()
-    const blockCenter = blockRect.left + blockRect.width / 2
+    let targetCenter
+    if (visibleItems.length === 1) {
+      const r = visibleItems[0]
+      targetCenter = r.left + r.width / 2
+    } else {
+      const firstLeft = visibleItems[0].left
+      const lastRight = visibleItems[visibleItems.length - 1].left + visibleItems[visibleItems.length - 1].width
+      targetCenter = (firstLeft + lastRight) / 2
+    }
     const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
-    const diffPx = blockCenter - wrapperCenter
-    console.log('[centering]', { pageWidth, wrapperWidth: wrapperRect.width, blockLeft: blockRect.left, blockWidth: blockRect.width, blockCenter, wrapperCenter, diffPx, offsetPct: -(diffPx / wrapperRect.width) * 100 })
+    const diffPx = targetCenter - wrapperCenter
     setBookTranslateX(-(diffPx / wrapperRect.width) * 100)
   }, [currentPage, totalPages, windowWidth])
 
@@ -834,7 +828,7 @@ export default function Yearbook3DPage() {
         </div>
       )}
 
-      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-x-hidden overflow-y-auto ${isFullscreen ? "pt-20" : ""}`}>
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto ${isFullscreen ? "pt-20" : ""}`}>
         {pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
