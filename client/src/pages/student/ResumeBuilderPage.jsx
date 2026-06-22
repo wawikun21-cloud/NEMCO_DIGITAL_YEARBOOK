@@ -15,6 +15,8 @@ import {
   Save,
   X,
   Sparkles,
+  Download,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +32,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { useResumePdfDownload } from "@/hooks/useResumePdfDownload"
 import { ResumeSectionRenderer } from "@/components/resume/ResumeSectionRenderer"
 import { ResumePrintView } from "@/components/resume/ResumePrintView"
 import {
@@ -348,6 +351,7 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
    const [showMobilePreview, setShowMobilePreview] = useState(false)
    const [confirmExit, setConfirmExit] = useState(false)
    const previewContainerRef = useRef(null)
+   const { downloadPdf, isGenerating } = useResumePdfDownload()
 
    useEffect(() => {
     const el = previewContainerRef.current
@@ -463,6 +467,19 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
           >
             {isPublic ? <Globe size={12} /> : <GlobeLock size={12} />}
             <span className="hidden sm:inline">{isPublic ? "Public" : "Private"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-8"
+            disabled={isGenerating}
+            onClick={() => downloadPdf({ data, sections, template, resume })}
+          >
+            {isGenerating
+              ? <><Loader2 size={12} className="animate-spin" /><span className="hidden sm:inline">Generating…</span></>
+              : <><Download size={12} /><span className="hidden sm:inline">Download PDF</span></>
+            }
           </Button>
 
           <Button

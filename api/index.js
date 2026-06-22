@@ -1270,6 +1270,27 @@ async function handleGetBatchErrors(req, res) {
   json(res, 200, data || [])
 }
 
+// ── Resume PDF generation ────────────────────────────────────────────────────
+// On Vercel, api/generate-resume-pdf.js is declared as its own function in
+// vercel.json and its route is served directly before the catch-all rewrite
+// reaches this file.  This handler exists here as a safety net (e.g. local
+// Vercel Dev, or if the rewrite order ever changes) and keeps the monolith
+// self-contained.  It re-implements the same Puppeteer logic inline so that
+// this file stays dependency-free from the api/ sibling.
+async function handleGenerateResumePdf(req, res) {
+  // Delegate to the shared handler in api/generate-resume-pdf.js.
+  // Dynamic import keeps this file loadable even in environments where
+  // @sparticuz/chromium / puppeteer-core are not installed, since the import
+  // only runs when this route is actually called.
+  try {
+    const { default: pdfHandler } = await import("./generate-resume-pdf.js")
+    await pdfHandler(req, res)
+  } catch (err) {
+    console.error("[handleGenerateResumePdf] Error loading PDF handler:", err)
+    json(res, 500, { error: "PDF generation unavailable", detail: err.message })
+  }
+}
+
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
@@ -1382,6 +1403,8 @@ export default async function handler(req, res) {
   if (pathname.startsWith("/api/my/resumes/") && req.method === "GET") return handleGetMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
+
+  if (pathname === "/api/generate-resume-pdf" && req.method === "POST") return handleGenerateResumePdf(req, res)
 
   if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)

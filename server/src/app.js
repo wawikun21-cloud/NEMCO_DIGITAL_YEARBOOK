@@ -13,6 +13,7 @@ import auditLogRoutes from "./routes/auditLogRoutes.js"
 import resumeRoutes from "./routes/resumeRoutes.js"
 import resumeTemplateRoutes from "./routes/resumeTemplateRoutes.js"
 import studentResumeRoutes from "./routes/studentResumeRoutes.js"
+import resumePdfRoutes from "./routes/resumePdfRoutes.js"  // ← NEW
 import flipbookRoutes from "./routes/flipbookRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
 import dashboardRoutes from "./routes/dashboardRoutes.js"
@@ -95,6 +96,7 @@ app.use("/api/admin", auditLogRoutes)
 app.use("/api/admin", resumeRoutes)
 app.use("/api/admin", resumeTemplateRoutes)
 app.use("/api", studentResumeRoutes)
+app.use("/api", resumePdfRoutes)               // ← NEW  (POST /api/generate-resume-pdf)
 app.use("/api/admin", flipbookRoutes)
 app.use("/api/admin/upload", uploadRoutes)
 app.use("/api/admin", dashboardRoutes)
