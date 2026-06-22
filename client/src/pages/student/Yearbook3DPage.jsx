@@ -163,7 +163,7 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
   const initial = name.charAt(0).toUpperCase()
   return (
     <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6">
-      <div className="flex flex-1 flex-col items-center overflow-hidden">
+      <div className="flex flex-1 flex-col items-center">
         <div className="w-full h-1 rounded-full bg-gradient-to-r from-transparent via-[var(--bg-primary)]/20 to-transparent mb-4" />
         {profile.avatar_url ? (
           <img src={profile.avatar_url} alt={name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32" />
@@ -200,7 +200,7 @@ const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible }
 
 const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative overflow-hidden" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
@@ -219,8 +219,6 @@ const BackCover = forwardRef(function BackCover({ title }, ref) {
       <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
       <p className="text-lg font-bold text-white/80">{title || "NEMCO"}</p>
       <p className="mt-1 text-xs text-white/40">Digital Yearbook</p>
-      <div className="mt-4 h-px w-16 bg-white/10" />
-      <p className="mt-4 text-[10px] text-white/30">Made with ❤ by NEMCO</p>
     </div>
   )
 })
@@ -830,7 +828,7 @@ export default function Yearbook3DPage() {
         </div>
       )}
 
-      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto ${isFullscreen ? "pt-20" : ""}`}>
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "pt-20" : ""}`}>
         {pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
