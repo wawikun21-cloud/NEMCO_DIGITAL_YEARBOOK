@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, forwardRef } from "react"
+import HTMLFlipBook from "react-pageflip"
 import {
   BookMarked,
   ChevronLeft,
@@ -93,127 +94,60 @@ function ProfilePageContent({ profile, layoutTemplate, pageNumber, totalPages })
   )
 }
 
-function FlipbookCover3D({ title, subtitle, onClick }) {
+const FlipbookCover = forwardRef(function FlipbookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div
-      className="absolute inset-0 cursor-pointer"
-      style={{ backfaceVisibility: "hidden" }}
-      onClick={onClick}
-    >
-      <div
-        className="h-full w-full rounded-r-sm bg-gradient-to-br from-[var(--bg-primary)] via-[var(--bg-primary)]/90 to-[var(--bg-primary)]/70 p-8 text-center flex flex-col items-center justify-center"
-        style={{
-          boxShadow: "4px 0 16px rgba(0,0,0,0.15), inset -4px 0 8px rgba(0,0,0,0.1)",
-        }}
-      >
-        <div className="mb-6 rounded-full bg-white/10 p-4 backdrop-blur-sm">
-          <BookMarked size={48} className="text-white/90" />
-        </div>
-        <h1 className="text-3xl font-extrabold text-white sm:text-4xl tracking-tight">{title || "NEMCO Digital Yearbook"}</h1>
-        {subtitle && (
-          <p className="mt-3 text-base text-white/70 font-light">{subtitle}</p>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
+      <div className="relative z-10">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10"><BookMarked size={36} className="text-[var(--accent-gold)]" /></div>
+        <h1 className="text-2xl font-extrabold text-white sm:text-3xl tracking-tight leading-tight">{title || "NEMCO Digital Yearbook"}</h1>
+        {subtitle && <p className="mt-2 text-sm text-white/60 font-light">{subtitle}</p>}
+      </div>
+    </div>
+  )
+})
+
+const FlipbookBackCover = forwardRef(function FlipbookBackCover({ title }, ref) {
+  return (
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-6 text-center">
+      <BookMarked size={32} className="mb-3 text-[var(--accent-gold)]/60" />
+      <p className="text-lg font-bold text-white/80">{title || "NEMCO"}</p>
+      <p className="mt-1 text-xs text-white/40">Digital Yearbook</p>
+    </div>
+  )
+})
+
+const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages }, ref) {
+  if (!profile) return <div ref={ref} className="flex h-full w-full items-center justify-center bg-white" />
+  const name = profile.display_name || profile.full_name || "Unknown"
+  const initial = name.charAt(0).toUpperCase()
+  return (
+    <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6">
+      <div className="flex flex-1 flex-col items-center">
+        <div className="w-full h-1 rounded-full bg-gradient-to-r from-transparent via-[var(--bg-primary)]/20 to-transparent mb-4" />
+        {profile.avatar_url ? (
+          <img src={profile.avatar_url} alt={name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32" />
+        ) : (
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[var(--bg-primary)]/10 to-[var(--bg-primary)]/20 text-4xl font-bold text-[var(--bg-primary)] ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32 sm:text-5xl">{initial}</div>
         )}
-        <div className="mt-8 flex items-center gap-2 rounded-full bg-white/15 px-5 py-2 text-sm font-medium text-white/90 backdrop-blur-sm">
-          <BookOpen size={16} />
-          Click to open
+        <h2 className="mt-4 text-lg font-bold text-[var(--text-primary)] sm:text-xl">{name}</h2>
+        {profile.student_number && <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">{profile.student_number}</p>}
+        <div className="mt-2.5 flex flex-wrap gap-1.5 justify-center">
+          {profile.course_or_strand && <span className="rounded-full bg-[var(--bg-primary)]/8 px-2.5 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">{profile.course_or_strand}</span>}
+          {profile.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.year_level}</span>}
+          {profile.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.section}</span>}
         </div>
-        <div className="mt-6 h-0.5 w-24 rounded-full bg-white/30" />
-      </div>
-    </div>
-  )
-}
-
-function Page3DSheet({
-  children,
-  pageIndex,
-  currentPage,
-  totalSheets,
-  isFlipping,
-  flipDirection,
-  flipSpeed,
-  isCover,
-}) {
-  const isFlipped = pageIndex < currentPage
-  const isCurrent = pageIndex === currentPage
-  const isTurning = isFlipping && (isCurrent || pageIndex === currentPage - 1)
-
-  const getTransform = () => {
-    if (isTurning) {
-      return flipDirection === "next" ? "rotateY(-180deg)" : "rotateY(0deg)"
-    }
-    return isFlipped ? "rotateY(-180deg)" : "rotateY(0deg)"
-  }
-
-  const getZIndex = () => {
-    if (isTurning) return totalSheets + 10
-    if (isFlipped) return pageIndex
-    return totalSheets - pageIndex
-  }
-
-  return (
-    <div
-      className="absolute inset-0"
-      style={{
-        transformStyle: "preserve-3d",
-        transformOrigin: "left center",
-        transform: getTransform(),
-        transition: isTurning ? `transform ${flipSpeed}s cubic-bezier(0.645, 0.045, 0.355, 1)` : "none",
-        zIndex: getZIndex(),
-      }}
-    >
-      <div
-        className="absolute inset-0 bg-white overflow-hidden"
-        style={{
-          backfaceVisibility: "hidden",
-          borderRadius: isCover ? "4px 8px 8px 4px" : "2px 6px 6px 2px",
-          boxShadow: isCover
-            ? "4px 0 16px rgba(0,0,0,0.15), inset -4px 0 8px rgba(0,0,0,0.08)"
-            : "2px 0 10px rgba(0,0,0,0.08), inset -3px 0 6px rgba(0,0,0,0.04)",
-        }}
-      >
-        {children}
-      </div>
-
-      <div
-        className="absolute inset-0 bg-[#fafafa] overflow-hidden"
-        style={{
-          backfaceVisibility: "hidden",
-          transform: "rotateY(180deg)",
-          borderRadius: "6px 2px 2px 6px",
-          boxShadow: "-2px 0 10px rgba(0,0,0,0.08), inset 3px 0 6px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div className="flex h-full w-full items-center justify-center">
-          <div className="h-[90%] w-[90%] rounded border border-dashed border-gray-200" />
+        <div className="mt-3 flex-1 overflow-y-auto styled-scroll min-h-0">
+          {profile.bio && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs px-2">{profile.bio}</p>}
+          {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
         </div>
       </div>
+      <div className="text-center pt-2"><span className="text-[9px] text-[var(--text-muted)]/50">{pageNum} / {totalPages}</span></div>
     </div>
   )
-}
-
-function BookSpine3D() {
-  return (
-    <div
-      className="absolute left-0 top-0 h-full"
-      style={{
-        width: "14px",
-        transform: "translateX(-7px)",
-        zIndex: 9999,
-        background: "linear-gradient(90deg, #374151 0%, #4b5563 30%, #6b7280 50%, #4b5563 70%, #374151 100%)",
-        borderRadius: "3px 0 0 3px",
-        boxShadow: "inset -2px 0 6px rgba(0,0,0,0.4), -3px 0 10px rgba(0,0,0,0.25)",
-      }}
-    >
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 30%, rgba(0,0,0,0.15) 100%)",
-          borderRadius: "3px 0 0 3px",
-        }}
-      />
-    </div>
-  )
-}
+})
 
 function PageThumbnails({ pages, currentPage, onSelect }) {
   const scrollRef = useRef(null)
@@ -274,12 +208,13 @@ export default function FlipbookPage_() {
   const [currentPage, setCurrentPage] = useState(0)
   const [search, setSearch] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
-  const [isFlipping, setIsFlipping] = useState(false)
-  const [flipDirection, setFlipDirection] = useState(null)
   const [contentView, setContentView] = useState("auto")
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [zoom, setZoom] = useState(1)
+  const [isFlipping, setIsFlipping] = useState(false)
+  const [bookState, setBookState] = useState("read")
   const containerRef = useRef(null)
+  const bookRef = useRef(null)
   const touchStartRef = useRef(null)
 
   const flipSpeed = data?.settings?.flip_speed || 0.6
@@ -321,36 +256,50 @@ export default function FlipbookPage_() {
         : "profiles"
       : contentView
 
-  const totalSheets = hasProfiles ? filteredProfiles.length + 1 : 0
+  const totalPages = filteredProfiles.length + 2
 
   const goToPage = useCallback(
-    (pageIndex, direction) => {
+    (pageIndex) => {
       if (isFlipping) return
-      if (pageIndex < 0 || pageIndex >= totalSheets) return
+      if (pageIndex < 0 || pageIndex >= totalPages) return
+      if (!bookRef.current) return
+
+      const pf = bookRef.current.pageFlip()
+      if (!pf) return
 
       setIsFlipping(true)
-      setFlipDirection(direction)
-
-      setTimeout(() => {
-        setCurrentPage(pageIndex)
-        setIsFlipping(false)
-        setFlipDirection(null)
-      }, flipSpeed * 1000)
+      pf.flip(pageIndex)
     },
-    [totalSheets, isFlipping, flipSpeed]
+    [totalPages, isFlipping]
   )
 
   const goNext = useCallback(() => {
-    if (currentPage < totalSheets - 1) {
-      goToPage(currentPage + 1, "next")
-    }
-  }, [currentPage, totalSheets, goToPage])
+    if (!bookRef.current) return
+    const pf = bookRef.current.pageFlip()
+    if (!pf) return
+    setIsFlipping(true)
+    pf.flipNext()
+  }, [])
 
   const goPrev = useCallback(() => {
-    if (currentPage > 0) {
-      goToPage(currentPage - 1, "prev")
+    if (!bookRef.current) return
+    const pf = bookRef.current.pageFlip()
+    if (!pf) return
+    setIsFlipping(true)
+    pf.flipPrev()
+  }, [])
+
+  const onFlip = useCallback((e) => {
+    setCurrentPage(e.data)
+    setIsFlipping(false)
+  }, [])
+
+  const onChangeState = useCallback((e) => {
+    setBookState(e.data)
+    if (e.data === "read") {
+      setIsFlipping(false)
     }
-  }, [currentPage, goToPage])
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -387,6 +336,12 @@ export default function FlipbookPage_() {
     }
     touchStartRef.current = null
   }, [goNext, goPrev])
+
+  const handleCoverClick = useCallback(() => {
+    if (currentPage === 0 && bookState === "read" && !isFlipping) {
+      goNext()
+    }
+  }, [currentPage, bookState, goNext, isFlipping])
 
   if (loading) {
     return (
@@ -531,7 +486,7 @@ export default function FlipbookPage_() {
               )}
 
               <span className="text-xs text-[var(--text-muted)]">
-                {currentPage === 0 ? "Cover" : `${currentPage} / ${totalSheets - 1}`}
+                {currentPage === 0 ? "Cover" : `${currentPage} / ${totalPages - 1}`}
               </span>
             </div>
           </div>
@@ -543,7 +498,7 @@ export default function FlipbookPage_() {
               <PageThumbnails
                 pages={[{ isCover: true }, ...filteredProfiles]}
                 currentPage={currentPage}
-                onSelect={(idx) => goToPage(idx, idx > currentPage ? "next" : "prev")}
+                onSelect={(idx) => goToPage(idx)}
               />
             </div>
           </div>
@@ -555,67 +510,58 @@ export default function FlipbookPage_() {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-           <div
-             className="relative transition-transform duration-200"
-             style={{
-               perspective: "2500px",
-               perspectiveOrigin: "50% 50%",
-               height: "min(80vh, 1.5 * 80vw)",
-               aspectRatio: "3/2",
-               transform: `scale(${zoom})`,
-               transformOrigin: "center center",
-             }}
-           >
-            <div className="relative h-full w-full rounded-lg" style={{ transformStyle: "preserve-3d" }}>
-              <div
-                className="absolute inset-0 rounded-lg bg-gradient-to-br from-gray-200 to-gray-300"
-                style={{
-                  transform: "translateZ(-3px)",
-                  boxShadow: "0 0 30px rgba(0,0,0,0.15)",
-                }}
+          <div
+            className="relative transition-transform duration-200"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "center center",
+            }}
+          >
+            <HTMLFlipBook
+              key={totalPages}
+              ref={bookRef}
+              width={300}
+              height={400}
+              size="stretch"
+              minWidth={250}
+              maxWidth={500}
+              minHeight={350}
+              maxHeight={600}
+              showCover={true}
+              drawShadow={true}
+              maxShadowOpacity={0.5}
+              flippingTime={Math.round(flipSpeed * 1000)}
+              usePortrait={true}
+              startPage={0}
+              clickEventForward={true}
+              mobileScrollSupport={true}
+              useMouseEvents={true}
+              showPageCorners={true}
+              disableFlipByClick={false}
+              swipeDistance={30}
+              autoSize={true}
+              onFlip={onFlip}
+              onChangeState={onChangeState}
+              className="mx-auto"
+              style={{ maxWidth: "100%" }}
+            >
+              <FlipbookCover
+                title={data.settings.title}
+                subtitle={data.settings.subtitle}
+                onClick={handleCoverClick}
               />
 
-              <BookSpine3D />
-
-              <Page3DSheet
-                pageIndex={0}
-                currentPage={currentPage}
-                totalSheets={totalSheets}
-                isFlipping={isFlipping}
-                flipDirection={flipDirection}
-                flipSpeed={flipSpeed}
-                isCover={true}
-              >
-                <FlipbookCover3D
-                  title={data.settings.title}
-                  subtitle={data.settings.subtitle}
-                  onClick={() => {
-                    if (currentPage === 0 && !isFlipping) {
-                      goNext()
-                    }
-                  }}
-                />
-              </Page3DSheet>
-
               {filteredProfiles.map((fp, index) => (
-                <Page3DSheet
+                <StudentPage
                   key={fp.id}
-                  pageIndex={index + 1}
-                  currentPage={currentPage}
-                  totalSheets={totalSheets}
-                  isFlipping={isFlipping}
-                  flipDirection={flipDirection}
-                  flipSpeed={flipSpeed}
-                >
-                  <ProfilePageContent
-                    profile={fp.profile}
-                    layoutTemplate={fp.layout_template}
-                    pageNumber={index + 1}
-                    totalPages={totalSheets - 1}
-                  />
-                </Page3DSheet>
+                  profile={fp.profile}
+                  pageNum={index + 1}
+                  totalPages={totalPages - 2}
+                />
               ))}
-            </div>
+
+              <FlipbookBackCover title={data.settings.title} />
+            </HTMLFlipBook>
           </div>
 
           <div className="mt-6 flex items-center gap-4">
@@ -630,18 +576,18 @@ export default function FlipbookPage_() {
             </Button>
 
             <div className="flex items-center gap-1.5">
-              {Array.from({ length: Math.min(totalSheets, 9) }, (_, i) => {
+              {Array.from({ length: Math.min(totalPages, 9) }, (_, i) => {
                 let pageNum
-                if (totalSheets <= 9) {
+                if (totalPages <= 9) {
                   pageNum = i
                 } else {
-                  const start = Math.max(0, Math.min(currentPage - 4, totalSheets - 9))
+                  const start = Math.max(0, Math.min(currentPage - 4, totalPages - 9))
                   pageNum = start + i
                 }
                 return (
                   <button
                     key={pageNum}
-                    onClick={() => goToPage(pageNum, pageNum > currentPage ? "next" : "prev")}
+                    onClick={() => goToPage(pageNum)}
                     disabled={isFlipping}
                     title={pageNum === 0 ? "Cover" : `Page ${pageNum}`}
                     className={`h-2 rounded-full transition-all ${
@@ -658,7 +604,7 @@ export default function FlipbookPage_() {
               variant="outline"
               size="icon"
               onClick={goNext}
-              disabled={currentPage >= totalSheets - 1 || isFlipping}
+              disabled={currentPage >= totalPages - 1 || isFlipping}
               className="h-10 w-10 rounded-full shadow-md"
             >
               <ChevronRight size={20} />
@@ -702,13 +648,3 @@ export default function FlipbookPage_() {
   )
 }
 
-function Users({ size }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
-}
