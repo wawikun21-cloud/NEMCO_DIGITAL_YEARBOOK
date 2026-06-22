@@ -1,6 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext"
 import LoginPage from "./pages/student/LoginPage"
-import LibraryPage from "./pages/student/LibraryPage"
 import ProfilePage from "./pages/student/ProfilePage"
 import Yearbook3DPage from "./pages/student/Yearbook3DPage"
 import DashboardLayout from "@/components/layout/DashboardLayout"
@@ -50,11 +49,9 @@ export default function App() {
     if (path === "/admin/yearbook") return "admin-yearbook"
     if (path === "/admin/logs") return "admin-logs"
     if (path === "/admin/settings") return "admin-settings"
-    if (path === "/library") return "library"
     if (path === "/profile") return "profile"
-    if (path === "/3d-yearbook") return "3d-yearbook"
     if (path === "/resume") return "resume"
-    return "library"
+    return "3d-yearbook"
   }
 
   const getAdminPage = () => {
@@ -69,11 +66,9 @@ export default function App() {
 
   const getStudentPage = () => {
     const path = window.location.pathname
-    if (path === "/library") return <LibraryPage />
     if (path === "/profile") return <ProfilePage />
-    if (path === "/3d-yearbook") return <Yearbook3DPage />
     if (path === "/resume") return <ResumeBuilderPage />
-    return <LibraryPage />
+    return <Yearbook3DPage />
   }
 
   if (role === "admin") {
