@@ -563,3 +563,10 @@
   }
 }
 
+/* Fix 3D flip: ensure page content participates in 3D transforms */
+.stf__item > * {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+

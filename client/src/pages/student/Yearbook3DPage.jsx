@@ -738,8 +738,10 @@ export default function Yearbook3DPage() {
   const isFlipping = bookState === "flipping"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
-  const bookWidth = 400
+  const bookWidth = isFullscreen ? 600 : 400
   const bookHeight = Math.round(bookWidth / bookAspectRatio)
+  const bookMaxWidth = isFullscreen ? 900 : 600
+  const bookMaxHeight = isFullscreen ? 1200 : 800
 
   const pageLabel = currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "Back Cover" : `${currentPage} / ${totalPages - 1}`
 
@@ -780,7 +782,7 @@ export default function Yearbook3DPage() {
 
       <div aria-live="polite" className="sr-only">{pageLabel}</div>
 
-      <header className="relative z-10 border-b border-black/5 bg-white/70 backdrop-blur-md">
+      <header className={`relative z-10 border-b border-black/5 bg-white/70 backdrop-blur-md ${isFullscreen ? "hidden" : ""}`}>
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-lg shadow-[var(--bg-primary)]/20">
@@ -815,20 +817,20 @@ export default function Yearbook3DPage() {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
+      <div className={`relative z-10 mx-auto w-full max-w-2xl px-8 ${isFullscreen ? "hidden" : ""}`}>
         <div className="h-0.5 rounded-full bg-black/10 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)]/80 to-[var(--accent-gold)] transition-all duration-500 ease-out"
             style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
         </div>
       </div>
 
-      {showStrip && (
+      {showStrip && !isFullscreen && (
         <div className="relative z-10 border-b border-black/5 bg-white/50 backdrop-blur-sm">
           <PageStrip pages={displayPageList} currentPage={displayCurrentPage} onSelect={handleStripSelect} disabled={isFlipping} />
         </div>
       )}
 
-      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "pt-20" : ""}`}>
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
         {pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -846,9 +848,9 @@ export default function Yearbook3DPage() {
             height={bookHeight}
             size="stretch"
             minWidth={250}
-            maxWidth={600}
+            maxWidth={bookMaxWidth}
             minHeight={350}
-            maxHeight={800}
+            maxHeight={bookMaxHeight}
             showCover={true}
             drawShadow={true}
             maxShadowOpacity={0.5}
@@ -915,7 +917,7 @@ export default function Yearbook3DPage() {
           )}
         </div>
 
-        <div className="mt-4 w-full max-w-xs">
+        <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : ""}`}>
           <div className="h-1 rounded-full bg-black/10 overflow-hidden">
             <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold)]/70 transition-all duration-500 ease-out"
               style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
@@ -927,7 +929,7 @@ export default function Yearbook3DPage() {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-5">
+        <div className={`mt-6 flex items-center gap-5 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="outline" size="icon" onClick={goPrev} disabled={currentPage <= 0 || isFlipping}
             className="h-11 w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
             aria-label="Previous page">
@@ -952,19 +954,34 @@ export default function Yearbook3DPage() {
           </Button>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
+        <div className={`mt-3 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom out"><ZoomOut size={13} /></Button>
           <div className="h-1 w-20 rounded-full bg-black/10 overflow-hidden"><div className="h-full rounded-full bg-[var(--accent-gold)] transition-all" style={{ width: `${((zoom - 0.5) / 1) * 100}%` }} /></div>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom in"><ZoomIn size={13} /></Button>
         </div>
 
-        <p className="mt-2 text-[10px] text-[var(--text-muted)]/60">Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
+        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className={`mt-4 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
           <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
           <DownloadFlipbookButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
         </div>
       </div>
+
+      {isFullscreen && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-black/60 backdrop-blur-md px-4 py-2">
+          <button onClick={goPrev} disabled={currentPage <= 0 || isFlipping} className="text-white/80 hover:text-white disabled:opacity-30 transition-colors" aria-label="Previous page">
+            <ChevronLeft size={20} />
+          </button>
+          <span className="text-white/60 text-xs min-w-[60px] text-center">{currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "End" : `${currentPage}/${totalPages - 1}`}</span>
+          <button onClick={goNext} disabled={currentPage >= totalPages - 1 || isFlipping} className="text-white/80 hover:text-white disabled:opacity-30 transition-colors" aria-label="Next page">
+            <ChevronRight size={20} />
+          </button>
+          <button onClick={toggleFullscreen} className="text-white/80 hover:text-white ml-2 transition-colors" aria-label="Exit fullscreen">
+            <Minimize2 size={16} />
+          </button>
+        </div>
+      )}
 
       {search && filtered.length === 0 && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black/5 bg-white/90 backdrop-blur-md px-4 py-3 text-center">
