@@ -63,7 +63,7 @@ export default function PublicProfilePage() {
           <img
             src="/NEMCO-Logo.png"
             alt="NEMCO Logo"
-            className="absolute left-4 top-4 z-20 h-10 w-auto drop-shadow-md sm:left-6 sm:top-6 sm:h-12"
+            className="absolute left-4 top-4 z-20 mt-2 h-10 w-auto drop-shadow-md sm:left-6 sm:top-6 sm:mt-3 sm:h-12"
           />
 
           <div className="relative z-10 flex min-h-screen w-full items-center justify-center">
