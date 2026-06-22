@@ -20,7 +20,7 @@ export const updateProfileSchema = z.object({
 
   // These three were missing entirely before, which is why edits to them
   // silently disappeared — Zod drops any key not declared in the schema.
-  about_me: z.string().trim().max(1000).optional(),
+  about_me: z.string().trim().max(110).optional(),
   quote: z.string().trim().max(200).optional(),
-  skills: z.array(z.string().trim().min(1).max(30)).max(12).optional(),
+  skills: z.array(z.string().trim().min(1).max(30)).max(3).optional(),
 })

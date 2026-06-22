@@ -1,13 +1,11 @@
 import { RotateCw } from "lucide-react"
 import { useFlipCard } from "@/hooks/useFlipCard"
-import { useQRCode } from "@/hooks/useQRCode"
 import { ProfileCardFront } from "@/components/profile/ProfileCardFront"
 import { ProfileCardBack } from "@/components/profile/ProfileCardBack"
 import { cn } from "@/lib/utils"
 
-export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onAvatarSelect }) {
+export function ProfileCard({ profile, avatarPreview, isEditing, onAvatarSelect, canvasWrapperRef, qrData, hasQrCode }) {
   const { isFlipped, flip } = useFlipCard()
-  const { qrData, hasQrCode, canvasWrapperRef, downloadQrCode } = useQRCode(profile, setProfile)
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
@@ -54,7 +52,6 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
               qrData={qrData}
               hasQrCode={hasQrCode}
               canvasWrapperRef={canvasWrapperRef}
-              onDownloadQrCode={downloadQrCode}
             />
           </div>
         </div>

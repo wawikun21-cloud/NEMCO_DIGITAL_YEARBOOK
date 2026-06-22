@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  BookOpen,
   ChevronsUpDown,
   FileText,
   LayoutDashboard,

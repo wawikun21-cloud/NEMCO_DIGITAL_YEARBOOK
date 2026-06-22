@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --bg-page: #f0f6fa;
+  --bg-page: #F2F2F2;
   --bg-surface: #ffffff;
   --bg-sidebar: #132F45;
   --bg-topbar: #ffffff;
@@ -35,8 +35,8 @@
   --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.3);
-  --navy: #132F45;
-  --navy-foreground: #a0c4d8;
+  --navy: #020F59;
+  --navy-foreground: #ffffff;
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
@@ -61,8 +61,8 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar:                    #132F45;
-  --sidebar-foreground:         #c8dde9;
+  --sidebar:                    #020F59;
+  --sidebar-foreground:         #ffffff;
   --sidebar-primary:            #d9a300;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent:             rgba(255, 255, 255, 0.10);
@@ -124,7 +124,7 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar:                    #0a1520;
-  --sidebar-foreground:         #8bb8cc;
+  --sidebar-foreground:         #ffffff;
   --sidebar-primary:            #F3B940;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent:             rgba(255, 255, 255, 0.08);

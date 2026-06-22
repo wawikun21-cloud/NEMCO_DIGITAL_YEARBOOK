@@ -16,7 +16,7 @@ export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSe
   const yearGraduated = profile?.year_graduated || "—"
   const aboutMe = profile?.about_me || "Tell people a bit about yourself — this shows up right here on your card."
   const quote = profile?.quote || ""
-  const skills = Array.isArray(profile?.skills) ? profile.skills : []
+  const skills = Array.isArray(profile?.skills) ? profile.skills.slice(0, 3) : []
   const imageSrc = avatarPreview || normalizeAvatarUrl(profile?.avatar_url) || null
 
   return (
@@ -88,7 +88,7 @@ export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSe
       <div className="relative z-10 flex flex-col gap-3 px-[7%] pb-[6%] pt-[5%] text-neutral-800">
         <div className="border-t border-neutral-200 pt-3">
           <h3 className="text-[clamp(0.85rem,3vw,0.95rem)] font-bold text-neutral-900">About me</h3>
-          <p className="mt-1 text-[clamp(0.7rem,2.6vw,0.8rem)] leading-relaxed text-neutral-500">
+          <p className="mt-1 line-clamp-3 text-[clamp(0.7rem,2.6vw,0.8rem)] leading-relaxed text-neutral-500">
             {aboutMe}
           </p>
         </div>

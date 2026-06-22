@@ -5,7 +5,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useQRCode } from "@/hooks/useQRCode"
 import { ProfileCard } from "@/components/profile/ProfileCard"
 import { EditProfileDialog } from "@/components/profile/EditProfileDialog"
-import { Loader2, Pencil, QrCode } from "lucide-react"
+import { Loader2, Pencil, QrCode, Download } from "lucide-react"
 
 export default function ProfilePage() {
   const {
@@ -24,7 +24,7 @@ export default function ProfilePage() {
     saveProfile,
     fetchProfile,
   } = useProfile()
-  const { isGenerating, generateQrCode } = useQRCode(profile, setProfile)
+  const { isGenerating, generateQrCode, qrData, hasQrCode, canvasWrapperRef, downloadQrCode } = useQRCode(profile, setProfile)
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -42,6 +42,10 @@ export default function ProfilePage() {
           <Button variant="outline" onClick={generateQrCode} disabled={isLoading || isGenerating} className="gap-2">
             {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
             Generate QR
+          </Button>
+          <Button variant="outline" onClick={downloadQrCode} disabled={isLoading || !hasQrCode} className="gap-2">
+            <Download size={16} />
+            Download QR
           </Button>
           <Button onClick={openEdit} disabled={isLoading} className="gap-2">
             <Pencil size={16} />
@@ -66,10 +70,12 @@ export default function ProfilePage() {
         ) : (
           <ProfileCard
             profile={profile}
-            setProfile={setProfile}
             avatarPreview={avatarPreview}
             isEditing={false}
             onAvatarSelect={handleAvatarSelect}
+            canvasWrapperRef={canvasWrapperRef}
+            qrData={qrData}
+            hasQrCode={hasQrCode}
           />
         )}
       </div>
