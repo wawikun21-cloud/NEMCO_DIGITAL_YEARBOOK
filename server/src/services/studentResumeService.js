@@ -145,8 +145,8 @@ export async function uploadResumePhoto(id, userId, file) {
     throw new Error(`Failed to upload photo: ${uploadError.message}`)
   }
 
-  const { data: urlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(filePath)
-  const photoUrl = urlData?.publicUrl || ""
+   const { data: urlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(filePath)
+   const photoUrl = urlData?.publicUrl ? `${urlData.publicUrl}?v=${Date.now()}` : ""
   const updatedData = {
     ...(resume.data || {}),
     personal: {

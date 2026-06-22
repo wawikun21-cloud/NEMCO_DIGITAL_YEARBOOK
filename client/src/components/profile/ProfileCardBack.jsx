@@ -125,10 +125,10 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }
         className="pointer-events-none absolute inset-x-0 bottom-0 w-full select-none"
       />
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-4 px-[8%] pt-[10%]">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-5 px-[2%] pt-[10%]">
         <div
           ref={canvasWrapperRef}
-          className="relative flex items-center justify-center p-5"
+          className="relative flex items-center justify-center p-2"
         >
           <CornerBracket corner="top-left" />
           <CornerBracket corner="top-right" />

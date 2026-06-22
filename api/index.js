@@ -271,8 +271,8 @@ async function handleUploadResumePhoto(req, res) {
     const { error: uploadError } = await supabaseAdmin.storage.from("resume-photos").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
     if (uploadError) return json(res, 500, { message: `Failed to upload photo: ${uploadError.message}` })
 
-    const { data: publicUrlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(storagePath)
-    const photoUrl = publicUrlData?.publicUrl || ""
+     const { data: publicUrlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(storagePath)
+     const photoUrl = publicUrlData?.publicUrl ? `${publicUrlData.publicUrl}?v=${Date.now()}` : ""
     const updatedData = {
       ...(resume.data || {}),
       personal: {
