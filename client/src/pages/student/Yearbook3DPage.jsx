@@ -529,33 +529,42 @@ export default function Yearbook3DPage() {
     if (!wrapper) return
     const wrapperRect = wrapper.getBoundingClientRect()
     if (wrapperRect.width <= 0) return
-const items = wrapper.querySelectorAll('.stf__item')
+
+    const items = wrapper.querySelectorAll('.stf__item')
     const visibleItems = []
     for (const el of items) {
       const style = window.getComputedStyle(el)
       if (style.display !== 'none') {
         const r = el.getBoundingClientRect()
-        if (r.width > 0 && r.height > 0) {
-          visibleItems.push(r)
-        }
+        if (r.width > 0 && r.height > 0) visibleItems.push(r)
       }
     }
-    if (visibleItems.length === 0) {
-      setBookTranslateX(0)
-      return
-    }
-    let targetCenter
-    if (visibleItems.length === 1) {
-      const r = visibleItems[0]
-      targetCenter = r.left + r.width / 2
-    } else {
-      const firstLeft = visibleItems[0].left
-      const lastRight = visibleItems[visibleItems.length - 1].left + visibleItems[visibleItems.length - 1].width
-      targetCenter = (firstLeft + lastRight) / 2
-    }
+    if (visibleItems.length === 0) { setBookTranslateX(0); return }
+
+    const firstItem = visibleItems[0]
+    const lastItem = visibleItems[visibleItems.length - 1]
+    const contentLeft = firstItem.left
+    const contentRight = lastItem.left + lastItem.width
+    const contentCenter = (contentLeft + contentRight) / 2
     const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
-    const diffPx = targetCenter - wrapperCenter
-    setBookTranslateX(-(diffPx / wrapperRect.width) * 100)
+    const diffPx = contentCenter - wrapperCenter
+    const offsetPct = -(diffPx / wrapperRect.width) * 100
+
+    console.log('[CENTER]', {
+      page: currentPage,
+      visibleCount: visibleItems.length,
+      contentLeft: Math.round(contentLeft),
+      contentRight: Math.round(contentRight),
+      contentCenter: Math.round(contentCenter),
+      wrapperLeft: Math.round(wrapperRect.left),
+      wrapperRight: Math.round(wrapperRect.left + wrapperRect.width),
+      wrapperCenter: Math.round(wrapperCenter),
+      diffPx: Math.round(diffPx),
+      offsetPct: Math.round(offsetPct * 100) / 100,
+      bookTranslateX: Math.round(offsetPct * 100) / 100,
+    })
+
+    setBookTranslateX(offsetPct)
   }, [currentPage, totalPages, windowWidth])
 
   useEffect(() => {
@@ -655,6 +664,11 @@ const items = wrapper.querySelectorAll('.stf__item')
       setIsDragging(true)
     } else if (e.data === "read" || e.data === "flipping") {
       if (e.data === "read") setIsDragging(false)
+    }
+    if (e.data === "read") {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => recomputeCenteringRef.current())
+      })
     }
   }, [])
 
