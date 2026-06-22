@@ -177,8 +177,10 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
           {profile.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.year_level}</span>}
           {profile.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.section}</span>}
         </div>
-        {profile.bio && <p className="mt-3 text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs">{profile.bio}</p>}
-        {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
+        <div className="mt-3 flex-1 overflow-y-auto styled-scroll min-h-0">
+          {profile.bio && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs px-2">{profile.bio}</p>}
+          {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
+        </div>
       </div>
       <div className="text-center pt-2"><span className="text-[9px] text-[var(--text-muted)]/50">{pageNum} / {totalPages}</span></div>
     </div>
@@ -198,7 +200,7 @@ const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible }
 
 const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative overflow-hidden" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
@@ -217,8 +219,6 @@ const BackCover = forwardRef(function BackCover({ title }, ref) {
       <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
       <p className="text-lg font-bold text-white/80">{title || "NEMCO"}</p>
       <p className="mt-1 text-xs text-white/40">Digital Yearbook</p>
-      <div className="mt-4 h-px w-16 bg-white/10" />
-      <p className="mt-4 text-[10px] text-white/30">Made with ❤ by NEMCO</p>
     </div>
   )
 })
@@ -319,7 +319,21 @@ export default function Yearbook3DPage() {
   const [flipSpeed, setFlipSpeed] = useState(0.7)
   const [coverReady, setCoverReady] = useState(false)
   const [pendingPage, setPendingPage] = useState(null)
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const [isDragging, setIsDragging] = useState(false)
   const [bookState, setBookState] = useState("read")
+  const [bookTranslateX, setBookTranslateX] = useState(0)
+  const bookWrapperRef = useRef(null)
+  const recomputeCenteringRef = useRef(() => {})
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+      recomputeCenteringRef.current()
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const containerRef = useRef(null)
   const bookRef = useRef(null)
@@ -340,6 +354,12 @@ export default function Yearbook3DPage() {
       .finally(() => { if (!cancelled) setDataLoading(false) })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (!coverReady || !data) return
+    const timer = setTimeout(() => recomputeCenteringRef.current(), 100)
+    return () => clearTimeout(timer)
+  }, [coverReady, data])
 
   useEffect(() => {
     if (data?.settings?.flip_speed) setFlipSpeed(data.settings.flip_speed)
@@ -501,6 +521,51 @@ export default function Yearbook3DPage() {
 
   const totalPages = bookPageList.length
 
+  const recomputeCentering = useCallback(() => {
+    if (windowWidth < 640) return
+    const wrapper = bookWrapperRef.current
+    if (!wrapper) return
+    const wrapperRect = wrapper.getBoundingClientRect()
+    if (wrapperRect.width <= 0) return
+
+    const items = wrapper.querySelectorAll('.stf__item')
+    const visibleItems = []
+    for (const el of items) {
+      const style = window.getComputedStyle(el)
+      if (style.display !== 'none') {
+        const r = el.getBoundingClientRect()
+        if (r.width > 0 && r.height > 0) visibleItems.push(r)
+      }
+    }
+    if (visibleItems.length === 0) { setBookTranslateX(0); return }
+
+    const firstItem = visibleItems[0]
+    const lastItem = visibleItems[visibleItems.length - 1]
+    const contentLeft = firstItem.left
+    const contentRight = lastItem.left + lastItem.width
+    const contentCenter = (contentLeft + contentRight) / 2
+    const wrapperCenter = wrapperRect.left + wrapperRect.width / 2
+    const diffPx = contentCenter - wrapperCenter
+    const offsetPct = -(diffPx / wrapperRect.width) * 100
+    setBookTranslateX(offsetPct)
+  }, [currentPage, totalPages, windowWidth])
+
+  useEffect(() => {
+    recomputeCenteringRef.current = recomputeCentering
+  }, [recomputeCentering])
+
+  useEffect(() => {
+    const wrapper = bookWrapperRef.current
+    if (!wrapper) return
+    const ro = new ResizeObserver(() => {
+      if (bookState === "read") recomputeCenteringRef.current()
+    })
+    ro.observe(wrapper)
+    const innerBook = wrapper.querySelector('.stf__wrapper') || wrapper.querySelector('.stf__parent')
+    if (innerBook) ro.observe(innerBook)
+    return () => ro.disconnect()
+  }, [bookPageList.length, bookState])
+
   const pdfListStable = pdfPages.length === 0 || !pdfLoading
 
   useEffect(() => {
@@ -579,6 +644,18 @@ export default function Yearbook3DPage() {
 
   const onChangeState = useCallback((e) => {
     setBookState(e.data)
+    if (e.data === "user_fold") {
+      setIsDragging(true)
+    } else if (e.data === "read" || e.data === "flipping") {
+      if (e.data === "read") setIsDragging(false)
+    }
+    if (e.data === "read") {
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => recomputeCenteringRef.current())
+        })
+      }, 50)
+    }
   }, [])
 
   const onInit = useCallback(() => {
@@ -650,20 +727,21 @@ export default function Yearbook3DPage() {
   }, [filteredToBookIndex, jumpToPage])
 
   const handleCoverClick = useCallback(() => {
-    if (currentPage === 0 && bookState === "read") {
+    if (currentPage === 0 && bookState === "read" && !isDragging) {
       goNext()
     }
-  }, [currentPage, bookState, goNext])
+  }, [currentPage, bookState, goNext, isDragging])
 
-  const isSinglePage = currentPage === 0 || currentPage === totalPages - 1
-  const bookTranslateX = isSinglePage ? -25 : 0
+  
   const flipTransitionMs = Math.round(flipSpeed * 1000)
 
   const isFlipping = bookState === "flipping"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
-  const bookWidth = 400
+  const bookWidth = isFullscreen ? 600 : 400
   const bookHeight = Math.round(bookWidth / bookAspectRatio)
+  const bookMaxWidth = isFullscreen ? 900 : 600
+  const bookMaxHeight = isFullscreen ? 1200 : 800
 
   const pageLabel = currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "Back Cover" : `${currentPage} / ${totalPages - 1}`
 
@@ -704,7 +782,7 @@ export default function Yearbook3DPage() {
 
       <div aria-live="polite" className="sr-only">{pageLabel}</div>
 
-      <header className="relative z-10 border-b border-black/5 bg-white/70 backdrop-blur-md">
+      <header className={`relative z-10 border-b border-black/5 bg-white/70 backdrop-blur-md ${isFullscreen ? "hidden" : ""}`}>
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-lg shadow-[var(--bg-primary)]/20">
@@ -739,20 +817,20 @@ export default function Yearbook3DPage() {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
+      <div className={`relative z-10 mx-auto w-full max-w-2xl px-8 ${isFullscreen ? "hidden" : ""}`}>
         <div className="h-0.5 rounded-full bg-black/10 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)]/80 to-[var(--accent-gold)] transition-all duration-500 ease-out"
             style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
         </div>
       </div>
 
-      {showStrip && (
+      {showStrip && !isFullscreen && (
         <div className="relative z-10 border-b border-black/5 bg-white/50 backdrop-blur-sm">
           <PageStrip pages={displayPageList} currentPage={displayCurrentPage} onSelect={handleStripSelect} disabled={isFlipping} />
         </div>
       )}
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-hidden">
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
         {pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -761,7 +839,7 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-        <div style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out` }}>
+        <div ref={bookWrapperRef} style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out`, maxWidth: "100vw", overflow: "visible" }}>
           {pdfListStable ? (
           <HTMLFlipBook
             key={bookPageList.length}
@@ -770,9 +848,9 @@ export default function Yearbook3DPage() {
             height={bookHeight}
             size="stretch"
             minWidth={250}
-            maxWidth={600}
+            maxWidth={bookMaxWidth}
             minHeight={350}
-            maxHeight={800}
+            maxHeight={bookMaxHeight}
             showCover={true}
             drawShadow={true}
             maxShadowOpacity={0.5}
@@ -780,7 +858,11 @@ export default function Yearbook3DPage() {
             usePortrait={true}
             startPage={initialPage !== null ? initialPage : 0}
             clickEventForward={true}
-            mobileScrollSupport={true}
+            mobileScrollSupport={false}
+            useMouseEvents={true}
+            showPageCorners={true}
+            disableFlipByClick={false}
+            swipeDistance={30}
             autoSize={true}
             renderOnlyPageLengthChange={false}
             onFlip={onFlip}
@@ -835,7 +917,7 @@ export default function Yearbook3DPage() {
           )}
         </div>
 
-        <div className="mt-4 w-full max-w-xs">
+        <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : ""}`}>
           <div className="h-1 rounded-full bg-black/10 overflow-hidden">
             <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold)]/70 transition-all duration-500 ease-out"
               style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
@@ -847,7 +929,7 @@ export default function Yearbook3DPage() {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-5">
+        <div className={`mt-6 flex items-center gap-5 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="outline" size="icon" onClick={goPrev} disabled={currentPage <= 0 || isFlipping}
             className="h-11 w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
             aria-label="Previous page">
@@ -872,19 +954,34 @@ export default function Yearbook3DPage() {
           </Button>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
+        <div className={`mt-3 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom out"><ZoomOut size={13} /></Button>
           <div className="h-1 w-20 rounded-full bg-black/10 overflow-hidden"><div className="h-full rounded-full bg-[var(--accent-gold)] transition-all" style={{ width: `${((zoom - 0.5) / 1) * 100}%` }} /></div>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom in"><ZoomIn size={13} /></Button>
         </div>
 
-        <p className="mt-2 text-[10px] text-[var(--text-muted)]/60">Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
+        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className={`mt-4 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
           <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
           <DownloadFlipbookButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
         </div>
       </div>
+
+      {isFullscreen && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-black/60 backdrop-blur-md px-4 py-2">
+          <button onClick={goPrev} disabled={currentPage <= 0 || isFlipping} className="text-white/80 hover:text-white disabled:opacity-30 transition-colors" aria-label="Previous page">
+            <ChevronLeft size={20} />
+          </button>
+          <span className="text-white/60 text-xs min-w-[60px] text-center">{currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "End" : `${currentPage}/${totalPages - 1}`}</span>
+          <button onClick={goNext} disabled={currentPage >= totalPages - 1 || isFlipping} className="text-white/80 hover:text-white disabled:opacity-30 transition-colors" aria-label="Next page">
+            <ChevronRight size={20} />
+          </button>
+          <button onClick={toggleFullscreen} className="text-white/80 hover:text-white ml-2 transition-colors" aria-label="Exit fullscreen">
+            <Minimize2 size={16} />
+          </button>
+        </div>
+      )}
 
       {search && filtered.length === 0 && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black/5 bg-white/90 backdrop-blur-md px-4 py-3 text-center">
