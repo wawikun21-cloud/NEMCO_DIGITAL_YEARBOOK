@@ -655,6 +655,10 @@ export default function Yearbook3DPage() {
     }
   }, [currentPage, bookState, goNext])
 
+  const isSinglePage = currentPage === 0 || currentPage === totalPages - 1
+  const bookTranslateX = isSinglePage ? -25 : 0
+  const flipTransitionMs = Math.round(flipSpeed * 1000)
+
   const isFlipping = bookState === "flipping"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
@@ -757,7 +761,7 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center" }}>
+        <div style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out` }}>
           {pdfListStable ? (
           <HTMLFlipBook
             key={bookPageList.length}
