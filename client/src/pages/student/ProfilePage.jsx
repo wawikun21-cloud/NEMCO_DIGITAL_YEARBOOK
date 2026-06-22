@@ -5,7 +5,13 @@ import { useProfile } from "@/hooks/useProfile"
 import { useQRCode } from "@/hooks/useQRCode"
 import { ProfileCard } from "@/components/profile/ProfileCard"
 import { EditProfileDialog } from "@/components/profile/EditProfileDialog"
-import { Loader2, Pencil, QrCode, Download } from "lucide-react"
+import { Loader2, Pencil, QrCode, Download, ChevronDown } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function ProfilePage() {
   const {
@@ -39,14 +45,25 @@ export default function ProfilePage() {
         </div>
 
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={generateQrCode} disabled={isLoading || isGenerating} className="gap-2">
-            {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
-            Generate QR
-          </Button>
-          <Button variant="outline" onClick={downloadQrCode} disabled={isLoading || !hasQrCode} className="gap-2">
-            <Download size={16} />
-            Download QR
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <QrCode size={16} />
+                QR CODE
+                <ChevronDown size={14} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={generateQrCode} disabled={isLoading || isGenerating}>
+                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
+                Generate QR
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={downloadQrCode} disabled={isLoading || !hasQrCode}>
+                <Download size={16} />
+                Download QR
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={openEdit} disabled={isLoading} className="gap-2">
             <Pencil size={16} />
             Edit Profile
