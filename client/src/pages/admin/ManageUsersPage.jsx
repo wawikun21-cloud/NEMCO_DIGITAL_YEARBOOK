@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo } from "react"
 import AdminStatCard from "@/components/admin/AdminStatCard"
 import { Button } from "@/components/ui/button"
-import { Users, UserCheck, UserX, Clock, UserPlus } from "lucide-react"
+import { Users, UserCheck, UserX, Clock, UserPlus, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
 import UserFilters from "@/components/admin/UserFilters"
 import UserTable from "@/components/admin/UserTable"
 import MobileUserList from "@/components/admin/MobileUserList"
 import UserFormModal from "@/components/admin/UserFormModal"
-import { AlertTriangle } from "lucide-react"
 import { getUsers, createUser, updateUser, deleteUser, resetPassword } from "@/services/userService"
 import { toast } from "sonner"
 
@@ -68,6 +67,18 @@ export default function ManageUsersPage() {
     })
   }, [users, filters])
 
+   const [currentPage, setCurrentPage] = useState(1)
+   const itemsPerPage = 10
+
+   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage))
+
+  const safePage = Math.min(currentPage, totalPages)
+
+  const paginatedUsers = useMemo(() => {
+    const start = (safePage - 1) * itemsPerPage
+    return filteredUsers.slice(start, start + itemsPerPage)
+  }, [filteredUsers, safePage])
+
   const stats = useMemo(() => {
     const total = users.length
     const active = users.filter((u) => u.status === "active").length
@@ -76,7 +87,10 @@ export default function ManageUsersPage() {
     return { total, active, inactive, pending }
   }, [users])
 
-  const handleFilterChange = (newFilters) => setFilters(newFilters)
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+  }
 
   const handleClearFilters = () => {
     setFilters({
@@ -86,6 +100,7 @@ export default function ManageUsersPage() {
       course_or_strand: "all",
       section: "all",
     })
+    setCurrentPage(1)
   }
 
   const handleEdit = (user) => setEditingUser(user)
@@ -211,23 +226,75 @@ export default function ManageUsersPage() {
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-[var(--text-muted)]">
-          Showing {filteredUsers.length} of {users.length} users
+          Showing {filteredUsers.length > 0 ? (safePage - 1) * itemsPerPage + 1 : 0}–{Math.min(safePage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
         </p>
       </div>
 
       <div className="hidden sm:block min-w-0">
-        <UserTable
-          users={filteredUsers}
-          onEdit={handleEdit}
-          onToggleRole={handleToggleRole}
-          onToggleStatus={handleToggleStatus}
-          onResetPassword={handleResetPassword}
-          onDelete={handleDelete}
-        />
+        <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm overflow-hidden">
+          <UserTable
+            users={paginatedUsers}
+            onEdit={handleEdit}
+            onToggleRole={handleToggleRole}
+            onToggleStatus={handleToggleStatus}
+            onResetPassword={handleResetPassword}
+            onDelete={handleDelete}
+          />
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-[var(--border-light)] px-4 py-3">
+              <p className="text-xs text-[var(--text-muted)]">
+                Page {safePage} of {totalPages}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="h-8 w-8"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={14} />
+                </Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (safePage <= 3) {
+                    pageNum = i + 1
+                  } else if (safePage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = safePage - 2 + i
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === safePage ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 w-8 text-xs"
+                      onClick={() => setCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                })}
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="h-8 w-8"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  <ChevronRight size={14} />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <div className="sm:hidden">
         <MobileUserList
-          users={filteredUsers}
+          users={paginatedUsers}
           onEdit={handleEdit}
           onToggleRole={handleToggleRole}
           onToggleStatus={handleToggleStatus}
