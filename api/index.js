@@ -719,7 +719,7 @@ async function handleDashboard(req, res) {
   try {
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImports }] = await Promise.all([
+    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImports }, recentLogsRaw, failedBatchesRaw] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("profile_status", "approved"),
@@ -728,11 +728,35 @@ async function handleDashboard(req, res) {
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", firstDayOfMonth),
       supabaseAdmin.from("import_batches").select("id", { count: "exact", head: true }).gte("created_at", firstDayOfMonth),
       supabaseAdmin.from("import_batches").select("id", { count: "exact", head: true }).in("status", ["failed", "completed_with_errors"]).gte("created_at", firstDayOfMonth),
+      supabaseAdmin.from("audit_logs").select("id, user_id, action, entity_type, entity_id, created_at").order("created_at", { ascending: false }).limit(5),
+      supabaseAdmin.from("import_batches").select("id, filename, status, created_at").in("status", ["failed", "completed_with_errors"]).order("created_at", { ascending: false }).limit(10),
     ])
+
+    const logUserIds = [...new Set((recentLogsRaw || []).map((l) => l.user_id).filter(Boolean))]
+    let userNameMap = {}
+    if (logUserIds.length > 0) {
+      const { data: users } = await supabaseAdmin.from("profiles").select("id, full_name, display_name, student_number").in("id", logUserIds)
+      for (const u of users || []) userNameMap[u.id] = u.display_name || u.full_name || u.student_number || "Unknown"
+    }
+    const recentLogs = (recentLogsRaw || []).map((log) => ({
+      id: log.id,
+      user: userNameMap[log.user_id] || "System",
+      action: log.action,
+      entity: log.entity_type || log.entity_id || "—",
+      time: new Date(log.created_at).toLocaleString(),
+    }))
+
+    const failedImports = (failedBatchesRaw || []).map((batch) => ({
+      id: batch.id,
+      fileName: batch.filename,
+      timestamp: new Date(batch.created_at).toLocaleString(),
+      reason: batch.status === "failed" ? "Import failed" : "Completed with errors",
+    }))
+
     json(res, 200, {
       stats: { totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, completedProfiles: completedProfiles || 0, pendingApprovals: pendingApprovals || 0, resumesCreated: resumesCreated || 0, newUsersThisMonth: newUsersThisMonth || 0, recentImports: recentImports || 0, failedImports: failedImports || 0 },
-      recentLogs: [],
-      failedImports: [],
+      recentLogs,
+      failedImports,
     })
   } catch (error) { json(res, 500, { message: error.message }) }
 }
