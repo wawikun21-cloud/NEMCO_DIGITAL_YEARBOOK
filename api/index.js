@@ -1251,7 +1251,7 @@ async function handleGetBatches(req, res) {
   if (!user) return
   const { data, error } = await supabaseAdmin.from("import_batches").select("*").order("created_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { batches: data || [] })
 }
 
 async function handleGetBatch(req, res) {
@@ -1261,7 +1261,7 @@ async function handleGetBatch(req, res) {
   const { data, error } = await supabaseAdmin.from("import_batches").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Batch not found" })
-  json(res, 200, data)
+  json(res, 200, { batch: data })
 }
 
 async function handleGetBatchErrors(req, res) {
@@ -1269,9 +1269,9 @@ async function handleGetBatchErrors(req, res) {
   if (!user) return
   const parts = req.url.split("/")
   const batchId = parts[parts.indexOf("batches") + 1]
-  const { data, error } = await supabaseAdmin.from("import_errors").select("*").eq("batch_id", batchId)
+  const { data, error } = await supabaseAdmin.from("import_errors").select("*").eq("batch_id", batchId).order("row_number", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { errors: data || [] })
 }
 
 // ── Resume PDF generation ────────────────────────────────────────────────────
