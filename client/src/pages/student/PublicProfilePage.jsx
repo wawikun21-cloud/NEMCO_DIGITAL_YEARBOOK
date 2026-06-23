@@ -88,33 +88,13 @@ export default function PublicProfilePage() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") flip()
                   }}
-                  className="group h-[520px] w-[300px] cursor-pointer sm:h-[560px] sm:w-[320px]"
-                  style={{ perspective: "1600px", WebkitPerspective: "1600px" }}
+                  className="card-flip-container h-[520px] w-[300px] cursor-pointer sm:h-[560px] sm:w-[320px]"
                 >
-                  <div
-                    className="relative h-full w-full transition-transform duration-500"
-                    style={{
-                      transformStyle: "preserve-3d",
-                      WebkitTransformStyle: "preserve-3d",
-                      transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-                      WebkitTransform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-                    }}
-                  >
-                    <div
-                      className={cn("absolute inset-0 shadow-xl", isFlipped && "pointer-events-none")}
-                      style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
-                    >
+                  <div className={cn("card-flip-inner", isFlipped && "is-flipped")}>
+                    <div className={cn("card-flip-face shadow-xl", isFlipped && "pointer-events-none")}>
                       <ProfileCardFront profile={profile} />
                     </div>
-                    <div
-                      className={cn("absolute inset-0 shadow-xl", !isFlipped && "pointer-events-none")}
-                      style={{
-                        WebkitBackfaceVisibility: "hidden",
-                        backfaceVisibility: "hidden",
-                        WebkitTransform: "rotateY(180deg)",
-                        transform: "rotateY(180deg)",
-                      }}
-                    >
+                    <div className={cn("card-flip-face card-flip-face--back shadow-xl", !isFlipped && "pointer-events-none")}>
                       <ProfileCardBack
                         profile={profile}
                         qrData={profile.qr_data}

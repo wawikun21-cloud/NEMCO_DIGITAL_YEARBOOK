@@ -570,3 +570,40 @@
   -webkit-backface-visibility: hidden;
 }
 
+/* ── Profile Card 3D Flip ── */
+/* Named classes so Safari's CSS engine applies webkit prefixes correctly.
+   Tailwind arbitrary values and React inline styles are both unreliable
+   for 3D transforms on iOS Safari — proper CSS classes are the fix. */
+
+.card-flip-container {
+  perspective: 1600px;
+  -webkit-perspective: 1600px;
+}
+
+.card-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.5s ease, -webkit-transform 0.5s ease;
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+}
+
+.card-flip-inner.is-flipped {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
+
+.card-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-flip-face--back {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
