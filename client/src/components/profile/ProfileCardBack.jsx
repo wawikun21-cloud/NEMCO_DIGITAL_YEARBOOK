@@ -116,7 +116,7 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }
     .filter(Boolean)
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl bg-white">
+    <div className="relative flex h-full w-full flex-col rounded-3xl bg-white" style={{ clipPath: "inset(0 round 1.5rem)" }}>
       {/* decorative bottom-right blob background */}
       <img
         src="/assets/blob-bottom-bg.png"

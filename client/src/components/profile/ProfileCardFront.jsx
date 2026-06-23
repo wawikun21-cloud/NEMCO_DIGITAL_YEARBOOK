@@ -20,7 +20,7 @@ export function ProfileCardFront({ profile, avatarPreview, isEditing, onAvatarSe
   const imageSrc = avatarPreview || normalizeAvatarUrl(profile?.avatar_url) || null
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl bg-white">
+    <div className="relative flex h-full w-full flex-col rounded-3xl bg-white" style={{ clipPath: "inset(0 round 1.5rem)" }}>
       {/* decorative top wave background */}
       <img
         src="/assets/wave-top-bg.png"
