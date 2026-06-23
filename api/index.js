@@ -719,7 +719,22 @@ async function handleDashboard(req, res) {
   try {
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImportsCount }, recentLogsRaw, failedBatchesRaw] = await Promise.all([
+
+    // Run all queries concurrently. Each result is kept as the full Supabase
+    // response object { data, error, count } so a failure in one query never
+    // crashes the destructuring step — we safely read .count / .data below.
+    const [
+      totalUsersRes,
+      activeUsersRes,
+      completedProfilesRes,
+      pendingApprovalsRes,
+      resumesCreatedRes,
+      newUsersThisMonthRes,
+      recentImportsRes,
+      failedImportsCountRes,
+      recentLogsRes,
+      failedBatchesRes,
+    ] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("profile_status", "approved"),
@@ -732,13 +747,30 @@ async function handleDashboard(req, res) {
       supabaseAdmin.from("import_batches").select("id, filename, status, created_at").in("status", ["failed", "completed_with_errors"]).order("created_at", { ascending: false }).limit(10),
     ])
 
-    const logUserIds = [...new Set((recentLogsRaw || []).map((l) => l.user_id).filter(Boolean))]
+    // Safely extract counts — a query error yields null which we coerce to 0.
+    const totalUsers        = totalUsersRes.count ?? 0
+    const activeUsers       = activeUsersRes.count ?? 0
+    const completedProfiles = completedProfilesRes.count ?? 0
+    const pendingApprovals  = pendingApprovalsRes.count ?? 0
+    const resumesCreated    = resumesCreatedRes.count ?? 0
+    const newUsersThisMonth = newUsersThisMonthRes.count ?? 0
+    const recentImports     = recentImportsRes.count ?? 0
+    const failedImportsCount = failedImportsCountRes.count ?? 0
+
+    // Safely extract data arrays — fall back to [] when the query errored.
+    const recentLogsRaw  = Array.isArray(recentLogsRes.data)  ? recentLogsRes.data  : []
+    const failedBatchesRaw = Array.isArray(failedBatchesRes.data) ? failedBatchesRes.data : []
+
+    if (recentLogsRes.error)   console.error("[DASHBOARD] audit_logs query failed:", recentLogsRes.error.message)
+    if (failedBatchesRes.error) console.error("[DASHBOARD] import_batches query failed:", failedBatchesRes.error.message)
+
+    const logUserIds = [...new Set(recentLogsRaw.map((l) => l.user_id).filter(Boolean))]
     let userNameMap = {}
     if (logUserIds.length > 0) {
       const { data: users } = await supabaseAdmin.from("profiles").select("id, full_name, display_name, student_number").in("id", logUserIds)
       for (const u of users || []) userNameMap[u.id] = u.display_name || u.full_name || u.student_number || "Unknown"
     }
-    const recentLogs = (recentLogsRaw || []).map((log) => ({
+    const recentLogs = recentLogsRaw.map((log) => ({
       id: log.id,
       user: userNameMap[log.user_id] || "System",
       action: log.action,
@@ -746,7 +778,7 @@ async function handleDashboard(req, res) {
       time: new Date(log.created_at).toLocaleString(),
     }))
 
-    const failedImports = (failedBatchesRaw || []).map((batch) => ({
+    const failedImports = failedBatchesRaw.map((batch) => ({
       id: batch.id,
       fileName: batch.filename,
       timestamp: new Date(batch.created_at).toLocaleString(),
@@ -754,11 +786,11 @@ async function handleDashboard(req, res) {
     }))
 
     json(res, 200, {
-      stats: { totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, completedProfiles: completedProfiles || 0, pendingApprovals: pendingApprovals || 0, resumesCreated: resumesCreated || 0, newUsersThisMonth: newUsersThisMonth || 0, recentImports: recentImports || 0, failedImports: failedImportsCount || 0 },
+      stats: { totalUsers, activeUsers, completedProfiles, pendingApprovals, resumesCreated, newUsersThisMonth, recentImports, failedImports: failedImportsCount },
       recentLogs,
       failedImports,
     })
-  } catch (error) { json(res, 500, { message: error.message }) }
+  } catch (error) { json(res, 500, { message: error.message || "Failed to load dashboard" }) }
 }
 
 async function handleGetTemplates(req, res) {
