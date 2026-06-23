@@ -719,7 +719,7 @@ async function handleDashboard(req, res) {
   try {
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImports }, recentLogsRaw, failedBatchesRaw] = await Promise.all([
+    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImportsCount }, recentLogsRaw, failedBatchesRaw] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("profile_status", "approved"),
@@ -754,7 +754,7 @@ async function handleDashboard(req, res) {
     }))
 
     json(res, 200, {
-      stats: { totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, completedProfiles: completedProfiles || 0, pendingApprovals: pendingApprovals || 0, resumesCreated: resumesCreated || 0, newUsersThisMonth: newUsersThisMonth || 0, recentImports: recentImports || 0, failedImports: failedImports || 0 },
+      stats: { totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, completedProfiles: completedProfiles || 0, pendingApprovals: pendingApprovals || 0, resumesCreated: resumesCreated || 0, newUsersThisMonth: newUsersThisMonth || 0, recentImports: recentImports || 0, failedImports: failedImportsCount || 0 },
       recentLogs,
       failedImports,
     })
@@ -1325,8 +1325,10 @@ async function handleGenerateResumePdf(req, res) {
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
-  await ensureAvatarBucket()
-  try {
+   try {
+     await ensureAvatarBucket()
+   } catch (e) { console.error("[ensureAvatarBucket]", e.message) }
+   try {
     const url = new URL(req.url, `http://${req.headers.host}`)
     let pathname = url.pathname.replace(/\/+$/, "") || "/"
     if (!pathname.startsWith("/api")) pathname = "/api" + pathname
@@ -1451,7 +1453,7 @@ export default async function handler(req, res) {
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
   if (pathname.startsWith("/api/admin/import/batches/") && req.method === "GET") return handleGetBatch(req, res)
 
-  json(res, 404, { message: "Not found", pathname })
+   json(res, 404, { message: "Not found", pathname })
   } catch (err) {
     json(res, 500, { message: err.message || "Server error" })
   }
