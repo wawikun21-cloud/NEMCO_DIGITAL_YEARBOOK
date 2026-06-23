@@ -1057,6 +1057,7 @@ async function handleImportUsers(req, res) {
     }
     const parts = parseMultipart(body, boundaryMatch[1])
     const file = parts.file
+    const sheetNameParam = parts.sheetName
     if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
     const buffer = file.data
     const filename = file.filename
@@ -1075,8 +1076,11 @@ async function handleImportUsers(req, res) {
     } catch (parseError) {
       return json(res, 400, { message: `Failed to parse Excel: ${parseError.message}` })
     }
-    const sheetName = workbook.SheetNames[0]
-    const sheet = workbook.Sheets[sheetName]
+    const resolvedSheetName = sheetNameParam || workbook.SheetNames[0]
+    if (!workbook.SheetNames.includes(resolvedSheetName)) {
+      return json(res, 400, { message: `Sheet "${resolvedSheetName}" not found. Available sheets: ${workbook.SheetNames.join(", ")}` })
+    }
+    const sheet = workbook.Sheets[resolvedSheetName]
     const rows = XLSX.utils.sheet_to_json(sheet, { raw: false })
     if (rows.length === 0) {
       return json(res, 400, { message: "Excel file is empty or has no data rows" })

@@ -34,13 +34,16 @@ export default function ImportPreviewModal({
   invalidRows,
   onConfirm,
   onCancel,
+  sheetNames,
+  selectedSheet,
+  onSheetChange,
 }) {
   const totalRows = validRows.length + invalidRows.length
   const visibleColumns = getVisibleColumns(validRows)
 
   const handleConfirm = () => {
     onOpenChange(false)
-    onConfirm()
+    onConfirm(selectedSheet)
   }
 
   const handleCancel = () => {
@@ -82,6 +85,29 @@ export default function ImportPreviewModal({
             )}
           </div>
         </div>
+
+        {/* ── Sheet selector ──────────────────────────────────────────── */}
+        {sheetNames.length > 0 && (
+          <div className="px-6 py-3 border-b border-[var(--border-light)] bg-[var(--bg-subtle)] shrink-0">
+            <p className="text-xs font-medium text-[var(--text-muted)] mb-2">Select sheet to import</p>
+            <div className="flex flex-wrap gap-2">
+              {sheetNames.map((name) => (
+                <label
+                  key={name}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-light)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs cursor-pointer select-none hover:border-[var(--text-muted)] transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSheet === name}
+                    onChange={() => onSheetChange(name)}
+                    className="h-3.5 w-3.5 rounded accent-[var(--status-green)] cursor-pointer"
+                  />
+                  <span className="text-[var(--text-primary)]">{name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Scrollable body ─────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">

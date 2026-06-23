@@ -10,7 +10,8 @@ export async function uploadImport(req, res, next) {
     const adminId = req.user.id
     const batch = await createImportBatch(req.file.originalname, adminId)
 
-    const rows = await parseExcelFile(req.file.buffer)
+    const sheetName = req.body.sheetName || undefined
+    const rows = await parseExcelFile(req.file.buffer, sheetName)
 
     await updateBatchProgress(batch.id, {
       total_rows: rows.length,

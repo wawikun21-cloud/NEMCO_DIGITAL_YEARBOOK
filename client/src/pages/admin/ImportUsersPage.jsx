@@ -40,6 +40,9 @@ export default function ImportUsersPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [importStatus, setImportStatus] = useState(null)
   const [error, setError] = useState(null)
+  const [sheetNames, setSheetNames] = useState([])
+  const [selectedSheet, setSelectedSheet] = useState("")
+  const [fileBuffer, setFileBuffer] = useState(null)
 
   const handleReset = () => {
     setSelectedFile(null)
@@ -48,11 +51,14 @@ export default function ImportUsersPage() {
     setPreviewOpen(false)
     setImportStatus(null)
     setError(null)
+    setSheetNames([])
+    setSelectedSheet("")
+    setFileBuffer(null)
     const input = document.getElementById("import-file")
     if (input) input.value = ""
   }
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -66,14 +72,19 @@ export default function ImportUsersPage() {
     setError(null)
     setImportStatus(null)
     setSelectedFile(file)
-    parseAndValidate(file)
+    const buffer = await file.arrayBuffer()
+    setFileBuffer(buffer)
+    const workbook = XLSX.read(buffer, { type: "array" })
+    const names = workbook.SheetNames
+    setSheetNames(names)
+    const firstSheet = names[0] || ""
+    setSelectedSheet(firstSheet)
+    parseAndValidate(buffer, firstSheet)
   }
 
-  const parseAndValidate = async (file) => {
+  const parseAndValidate = async (buffer, sheetName) => {
     try {
-      const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: "array" })
-      const sheetName = workbook.SheetNames[0]
       const sheet = workbook.Sheets[sheetName]
 
       /*
@@ -153,7 +164,7 @@ export default function ImportUsersPage() {
     setImportStatus({ progress: 0, status: "processing" })
 
     try {
-      const results = await uploadImport(selectedFile)
+      const results = await uploadImport(selectedFile, selectedSheet)
       const status = results.errorCount > 0 ? "completed_with_errors" : "completed"
 
       setImportStatus({
@@ -167,6 +178,13 @@ export default function ImportUsersPage() {
     } catch (err) {
       setError(err.message || "An unexpected error occurred during import.")
       setImportStatus({ progress: 100, status: "failed" })
+    }
+  }
+
+  const handleSheetChange = (newSheet) => {
+    setSelectedSheet(newSheet)
+    if (fileBuffer) {
+      parseAndValidate(fileBuffer, newSheet)
     }
   }
 
@@ -265,6 +283,9 @@ export default function ImportUsersPage() {
         invalidRows={invalidRows}
         onConfirm={handleImport}
         onCancel={() => setPreviewOpen(false)}
+        sheetNames={sheetNames}
+        selectedSheet={selectedSheet}
+        onSheetChange={handleSheetChange}
       />
     </div>
   )

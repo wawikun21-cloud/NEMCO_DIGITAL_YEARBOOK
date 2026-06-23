@@ -23,10 +23,13 @@ const normalizeRoleValue = (value) => {
   return String(value).trim().toLowerCase()
 }
 
-export async function parseExcelFile(buffer) {
+export async function parseExcelFile(buffer, sheetName) {
   const workbook = XLSX.read(buffer, { type: "buffer" })
-  const sheetName = workbook.SheetNames[0]
-  const sheet = workbook.Sheets[sheetName]
+  const resolvedSheetName = sheetName || workbook.SheetNames[0]
+  if (!workbook.SheetNames.includes(resolvedSheetName)) {
+    throw new Error(`Sheet "${resolvedSheetName}" not found. Available sheets: ${workbook.SheetNames.join(", ")}`)
+  }
+  const sheet = workbook.Sheets[resolvedSheetName]
 
   /*
     KEY FIX: { raw: false } tells SheetJS to return every cell value as the

@@ -18,11 +18,14 @@ async function getAuthHeaders() {
 }
 
 // ─── Upload & import an Excel file ───────────────────────────────────────────
-export async function uploadImport(file) {
+export async function uploadImport(file, sheetName) {
   const authHeaders = await getAuthHeaders()
 
   const formData = new FormData()
   formData.append("file", file)
+  if (sheetName) {
+    formData.append("sheetName", sheetName)
+  }
 
   let response
   try {
@@ -32,7 +35,7 @@ export async function uploadImport(file) {
       body: formData,
     })
   } catch (networkError) {
-    throw new Error(networkError.message || "Network error during import")
+    throw new Error(networkError.message || "Network error during import", { cause: networkError })
   }
 
   let data
@@ -40,11 +43,11 @@ export async function uploadImport(file) {
     data = await response.json()
   } catch (parseError) {
     const text = await response.text().catch(() => "")
-    throw new Error(`Import failed with status ${response.status}: ${text || "Invalid JSON response"}`)
+    throw new Error(`Import failed with status ${response.status}: ${text || "Invalid JSON response"}`, { cause: parseError })
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Import failed")
+    throw new Error(data.message || "Import failed", { cause: data })
   }
 
   return data
