@@ -39,6 +39,8 @@ export default function ImportPreviewModal({
   onSheetChange,
 }) {
   const totalRows = validRows.length + invalidRows.length
+  const maxRows = 200
+  const isOverLimit = totalRows > maxRows
   const visibleColumns = getVisibleColumns(validRows)
 
   const handleConfirm = () => {
@@ -74,7 +76,7 @@ export default function ImportPreviewModal({
           </DialogHeader>
 
           {/* Summary pills */}
-          <div className="flex gap-3 mt-3">
+          <div className="flex flex-wrap gap-3 mt-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-[var(--status-green)] border border-green-200">
               ✓ {validRows.length} valid
             </span>
@@ -83,6 +85,9 @@ export default function ImportPreviewModal({
                 ✕ {invalidRows.length} invalid
               </span>
             )}
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border ${isOverLimit ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+              {totalRows}/{maxRows} rows
+            </span>
           </div>
         </div>
 
@@ -212,11 +217,16 @@ export default function ImportPreviewModal({
 
         {/* ── Footer ──────────────────────────────────────────────────── */}
         <div className="px-6 py-4 border-t border-[var(--border-light)] shrink-0">
+          {isOverLimit && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
+              ⚠ This file exceeds the {maxRows}-row limit. Please remove {totalRows - maxRows} row{totalRows - maxRows !== 1 ? "s" : ""} or split into smaller batches.
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button onClick={handleConfirm} disabled={validRows.length === 0}>
+            <Button onClick={handleConfirm} disabled={validRows.length === 0 || isOverLimit}>
               Import {validRows.length} User{validRows.length !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>

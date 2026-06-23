@@ -42,6 +42,15 @@ app.use(cors(corsOptions))
 app.use(express.json({ limit: "10mb" }))
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"))
 
+// Set a 5-minute timeout for long-running requests (e.g., bulk imports)
+app.use((req, res, next) => {
+  req.setTimeout(300000, () => {
+    res.status(408).json({ message: "Request timeout" })
+  })
+  res.setTimeout(300000)
+  next()
+})
+
 app.post("/api/test-no-middleware", (req, res) => {
   let total = 0
   req.on("data", (chunk) => { total += chunk.length })

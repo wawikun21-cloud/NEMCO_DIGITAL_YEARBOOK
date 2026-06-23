@@ -1085,6 +1085,9 @@ async function handleImportUsers(req, res) {
     if (rows.length === 0) {
       return json(res, 400, { message: "Excel file is empty or has no data rows" })
     }
+     if (rows.length > 100) {
+       return json(res, 400, { message: `The sheet "${resolvedSheetName}" contains ${rows.length} rows, which exceeds the maximum of 100 rows per import. Please split your file into smaller batches and try again.` })
+    }
 
     // Validate headers
     const headers = Object.keys(rows[0]).map((h) => h.toLowerCase().trim())

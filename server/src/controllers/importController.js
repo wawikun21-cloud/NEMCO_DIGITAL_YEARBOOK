@@ -13,11 +13,24 @@ export async function uploadImport(req, res, next) {
     const sheetName = req.body.sheetName || undefined
     const rows = await parseExcelFile(req.file.buffer, sheetName)
 
+    // Guard: reject very large imports to prevent timeouts
+    if (rows.length > 500) {
+      await updateBatchProgress(batch.id, {
+        status: "failed",
+        message: "Too many rows. Maximum 500 rows per import.",
+      })
+      return res.status(400).json({
+        message: `Too many rows (${rows.length}). Please split into batches of 500 or fewer.`,
+      })
+    }
+
     await updateBatchProgress(batch.id, {
       total_rows: rows.length,
       status: "processing",
     })
 
+    // processImportRows is async and handles per-row errors internally.
+    // It will NOT throw — it collects errors and returns counts.
     const results = await processImportRows(rows, batch.id)
     const status = results.errorCount > 0 ? "completed_with_errors" : "completed"
 
@@ -37,6 +50,8 @@ export async function uploadImport(req, res, next) {
       errorCount: results.errorCount,
     })
   } catch (error) {
+    // If a fatal error happens before processing starts, try to mark the batch as failed
+    console.error("[IMPORT] Fatal error in uploadImport:", error.message)
     next(error)
   }
 }
