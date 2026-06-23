@@ -20,22 +20,28 @@ export function ProfileCard({ profile, avatarPreview, isEditing, onAvatarSelect,
         className={cn(
           // Fluid sizing: scales smoothly from phone -> tablet -> desktop
           // instead of jumping between fixed breakpoint pixel values.
-          "group [perspective:1600px] [-webkit-perspective:1600px] w-full",
+          "group w-full",
           "max-w-[clamp(260px,80vw,360px)] aspect-[3/5]",
           isEditing ? "cursor-default" : "cursor-pointer"
         )}
+        style={{ perspective: "1600px", WebkitPerspective: "1600px" }}
       >
         <div
-          className={cn(
-            "relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] [-webkit-transform-style:preserve-3d]",
-            isFlipped && "[transform:rotateY(180deg)]"
-          )}
-          style={isFlipped ? { WebkitTransform: "rotateY(180deg)" } : { WebkitTransform: "rotateY(0deg)" }}
+          className="relative h-full w-full transition-transform duration-500"
+          style={{
+            transformStyle: "preserve-3d",
+            WebkitTransformStyle: "preserve-3d",
+            transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+            WebkitTransform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          }}
         >
-          <div className={cn(
-            "absolute inset-0 shadow-xl [backface-visibility:hidden] [-webkit-backface-visibility:hidden]",
-            isFlipped && "pointer-events-none"
-          )}>
+          <div
+            className={cn(
+              "absolute inset-0 shadow-xl [backface-visibility:hidden]",
+              isFlipped && "pointer-events-none"
+            )}
+            style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
+          >
             <ProfileCardFront
               profile={profile}
               avatarPreview={avatarPreview}
@@ -46,10 +52,15 @@ export function ProfileCard({ profile, avatarPreview, isEditing, onAvatarSelect,
 
           <div
             className={cn(
-              "absolute inset-0 shadow-xl [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]",
+              "absolute inset-0 shadow-xl [backface-visibility:hidden]",
               !isFlipped && "pointer-events-none"
             )}
-            style={{ WebkitTransform: "rotateY(180deg)" }}
+            style={{
+              WebkitBackfaceVisibility: "hidden",
+              backfaceVisibility: "hidden",
+              WebkitTransform: "rotateY(180deg)",
+              transform: "rotateY(180deg)",
+            }}
           >
             <ProfileCardBack
               profile={profile}

@@ -88,21 +88,32 @@ export default function PublicProfilePage() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") flip()
                   }}
-                  className="group [perspective:1600px] [-webkit-perspective:1600px] h-[520px] w-[300px] cursor-pointer sm:h-[560px] sm:w-[320px]"
+                  className="group h-[520px] w-[300px] cursor-pointer sm:h-[560px] sm:w-[320px]"
+                  style={{ perspective: "1600px", WebkitPerspective: "1600px" }}
                 >
                   <div
-                    className={cn(
-                      "relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] [-webkit-transform-style:preserve-3d]",
-                      isFlipped && "[transform:rotateY(180deg)]"
-                    )}
-                    style={isFlipped ? { WebkitTransform: "rotateY(180deg)" } : { WebkitTransform: "rotateY(0deg)" }}
+                    className="relative h-full w-full transition-transform duration-500"
+                    style={{
+                      transformStyle: "preserve-3d",
+                      WebkitTransformStyle: "preserve-3d",
+                      transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+                      WebkitTransform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+                    }}
                   >
-                    <div className={cn("absolute inset-0 shadow-xl [backface-visibility:hidden] [-webkit-backface-visibility:hidden]", isFlipped && "pointer-events-none")}>
+                    <div
+                      className={cn("absolute inset-0 shadow-xl", isFlipped && "pointer-events-none")}
+                      style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
+                    >
                       <ProfileCardFront profile={profile} />
                     </div>
                     <div
-                      className={cn("absolute inset-0 shadow-xl [backface-visibility:hidden] [-webkit-backface-visibility:hidden] [transform:rotateY(180deg)]", !isFlipped && "pointer-events-none")}
-                      style={{ WebkitTransform: "rotateY(180deg)" }}
+                      className={cn("absolute inset-0 shadow-xl", !isFlipped && "pointer-events-none")}
+                      style={{
+                        WebkitBackfaceVisibility: "hidden",
+                        backfaceVisibility: "hidden",
+                        WebkitTransform: "rotateY(180deg)",
+                        transform: "rotateY(180deg)",
+                      }}
                     >
                       <ProfileCardBack
                         profile={profile}
