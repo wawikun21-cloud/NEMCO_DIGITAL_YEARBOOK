@@ -8,9 +8,8 @@ function injectBook3DStyles() {
   if (document.getElementById(BOOK_3D_STYLES_ID)) return
   const style = document.createElement("style")
   style.id = BOOK_3D_STYLES_ID
-  style.textContent = `
-    .stf__block { perspective: 1500px !important; }
-    .book-resting-shadow {
+   style.textContent = `
+     .book-resting-shadow {
       filter: drop-shadow(0 24px 48px rgba(0,0,0,0.22)) drop-shadow(0 10px 20px rgba(0,0,0,0.12));
     }
     .book-page-edge {
@@ -724,7 +723,6 @@ export default function Yearbook3DPage() {
   }, [playFlipSound])
 
   const goNext = useCallback(() => {
-    console.log("[DEBUG] goNext called", new Error().stack)
     if (!bookRef.current) return
     const pf = bookRef.current.pageFlip()
     if (!pf) return
@@ -739,7 +737,6 @@ export default function Yearbook3DPage() {
   }, [])
 
   const onFlip = useCallback((e) => {
-    console.log("[DEBUG] onFlip fired, newPage:", e.data)
     const newPage = e.data
     setCurrentPage(newPage)
     playFlipSound()
@@ -749,7 +746,6 @@ export default function Yearbook3DPage() {
   }, [playFlipSound])
 
   const onChangeState = useCallback((e) => {
-    console.log("[DEBUG] onChangeState:", e.data)
     setBookState(e.data)
     if (e.data === "user_fold") {
       setIsDragging(true)
@@ -759,13 +755,13 @@ export default function Yearbook3DPage() {
   }, [])
 
   const onInit = useCallback(() => {
-    if (bookRef.current) {
-      const pf = bookRef.current.pageFlip()
-      if (pf && initialPage !== null && initialPage !== 0) {
-        pf.turnToPage(initialPage)
+     if (bookRef.current) {
+        const pf = bookRef.current.pageFlip()
+        if (pf && initialPage !== null && initialPage !== 0) {
+          pf.turnToPage(initialPage)
+        }
       }
-    }
-  }, [initialPage])
+    }, [initialPage])
 
   useEffect(() => {
     const handler = (e) => {
@@ -942,7 +938,7 @@ export default function Yearbook3DPage() {
              maxWidth={bookMaxWidth}
              minHeight={350}
              maxHeight={bookMaxHeight}
-              showCover={true}
+               showCover={false}
              drawShadow={true}
              maxShadowOpacity={0.5}
              flippingTime={Math.round(flipSpeed * 1000)}
@@ -952,8 +948,8 @@ export default function Yearbook3DPage() {
              mobileScrollSupport={false}
              useMouseEvents={true}
              showPageCorners={true}
-             disableFlipByClick={false}
-             swipeDistance={30}
+              disableFlipByClick={false}
+              swipeDistance={30}
              autoSize={true}
              renderOnlyPageLengthChange={false}
              onFlip={onFlip}
