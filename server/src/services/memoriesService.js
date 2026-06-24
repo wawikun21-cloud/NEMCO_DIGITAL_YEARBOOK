@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
-const ALBUM_COLUMNS = "id,title,event_date,event_time,location,description,category,cover_image_url,item_count,created_by,created_at,updated_at,is_shared,visible_to,visible_to_section,visible_to_batch,visible_to_student_ids"
+const ALBUM_COLUMNS = "id,title,event_date,event_time,location,description,category,cover_image_url,album_link,image_url_2,image_url_3,image_url_4,item_count,created_by,created_at,updated_at,is_shared,visible_to,visible_to_section,visible_to_batch,visible_to_student_ids"
 const ITEM_COLUMNS = "id,album_id,cloud_url,thumbnail_url,media_type,caption,tagged_student_ids,order_index,created_at,updated_at"
 
 export async function getAlbumsForStudent(studentId, { category, search, sharedOnly, sortBy = "newest", page = 1, perPage = 12 } = {}) {
@@ -160,6 +160,10 @@ export async function createAlbum(data) {
       description: data.description || null,
       category: data.category || "photo",
       cover_image_url: data.cover_image_url || null,
+      album_link: data.album_link || null,
+      image_url_2: data.image_url_2 || null,
+      image_url_3: data.image_url_3 || null,
+      image_url_4: data.image_url_4 || null,
       created_by: data.created_by,
       is_shared: data.is_shared || false,
       visible_to: data.visible_to || "all",

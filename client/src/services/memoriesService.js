@@ -80,7 +80,7 @@ export async function getAdminAlbums(params = {}) {
   if (params.search) query.set("search", params.search)
   if (params.category && params.category !== "all") query.set("category", params.category)
 
-  const response = await fetch(memoriesUrl(`/admin/memories/albums?${query}`), {
+  const response = await fetch(memoriesUrl(`/admin/albums?${query}`), {
     method: "GET",
     headers: getAuthHeaders(),
   })
@@ -88,7 +88,7 @@ export async function getAdminAlbums(params = {}) {
 }
 
 export async function createAlbum(data) {
-  const response = await fetch(memoriesUrl("/admin/memories/albums"), {
+  const response = await fetch(memoriesUrl("/admin/albums"), {
     method: "POST",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
@@ -97,7 +97,7 @@ export async function createAlbum(data) {
 }
 
 export async function updateAlbum(albumId, data) {
-  const response = await fetch(memoriesUrl(`/admin/memories/albums/${albumId}`), {
+  const response = await fetch(memoriesUrl(`/admin/albums/${albumId}`), {
     method: "PATCH",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
@@ -106,7 +106,7 @@ export async function updateAlbum(albumId, data) {
 }
 
 export async function deleteAlbum(albumId) {
-  const response = await fetch(memoriesUrl(`/admin/memories/albums/${albumId}`), {
+  const response = await fetch(memoriesUrl(`/admin/albums/${albumId}`), {
     method: "DELETE",
     headers: getAuthHeaders(),
   })
@@ -114,7 +114,7 @@ export async function deleteAlbum(albumId) {
 }
 
 export async function createMemoryItem(data) {
-  const response = await fetch(memoriesUrl("/admin/memories/items"), {
+  const response = await fetch(memoriesUrl("/admin/items"), {
     method: "POST",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
@@ -123,7 +123,7 @@ export async function createMemoryItem(data) {
 }
 
 export async function createMemoryItemsBulk(albumId, items) {
-  const response = await fetch(memoriesUrl("/admin/memories/items/bulk"), {
+  const response = await fetch(memoriesUrl("/admin/items/bulk"), {
     method: "POST",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ album_id: albumId, items }),
@@ -132,7 +132,7 @@ export async function createMemoryItemsBulk(albumId, items) {
 }
 
 export async function updateMemoryItem(itemId, data) {
-  const response = await fetch(memoriesUrl(`/admin/memories/items/${itemId}`), {
+  const response = await fetch(memoriesUrl(`/admin/items/${itemId}`), {
     method: "PATCH",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
@@ -141,7 +141,7 @@ export async function updateMemoryItem(itemId, data) {
 }
 
 export async function deleteMemoryItem(itemId) {
-  const response = await fetch(memoriesUrl(`/admin/memories/items/${itemId}`), {
+  const response = await fetch(memoriesUrl(`/admin/items/${itemId}`), {
     method: "DELETE",
     headers: getAuthHeaders(),
   })
@@ -149,7 +149,7 @@ export async function deleteMemoryItem(itemId) {
 }
 
 export async function reorderItems(albumId, itemIds) {
-  const response = await fetch(memoriesUrl(`/admin/memories/albums/${albumId}/reorder`), {
+  const response = await fetch(memoriesUrl(`/admin/albums/${albumId}/reorder`), {
     method: "POST",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ itemIds }),

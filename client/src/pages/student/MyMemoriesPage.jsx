@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,6 +26,7 @@ import {
   Share2,
   Flag,
   Play,
+  ExternalLink,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAlbumGrid, useAlbumDetail } from "@/hooks/useMemories"
+import { getDisplayThumbnailUrl, resolveCoverUrl } from "@/utils/coverImageHelpers"
 import { toast } from "sonner"
 
 const FILTER_TABS = [
@@ -71,13 +73,15 @@ function formatTime(timeStr) {
 
 function AlbumCard({ album, onOpen, onToggleFavorite }) {
   const [imgError, setImgError] = useState(false)
+  const coverUrl = resolveCoverUrl(album)
+  const coverThumb = coverUrl ? getDisplayThumbnailUrl(coverUrl, 400) : null ? getDisplayThumbnailUrl(coverUrl, 400) : null
 
   return (
     <div className="group relative flex flex-col rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] overflow-hidden transition-shadow hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden bg-[var(--bg-subtle)]">
-        {!imgError && album.cover_image_url ? (
+        {!imgError && coverThumb ? (
           <img
-            src={album.cover_image_url}
+            src={coverThumb}
             alt={album.title}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             onError={() => setImgError(true)}
@@ -148,9 +152,24 @@ function AlbumCard({ album, onOpen, onToggleFavorite }) {
 }
 
 function AlbumDetailView({ albumId, onBack }) {
-  const { album, isLoading, error, toggleItemFavorite } = useAlbumDetail()
+  const { album, isLoading, error, toggleItemFavorite, fetchAlbum } = useAlbumDetail()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [filmstripScrollRef, setFilmstripScrollRef] = useState(null)
+  const [mainImgError, setMainImgError] = useState(false)
+
+  const additionalImages = album
+    ? [album.image_url_2, album.image_url_3, album.image_url_4].filter(Boolean)
+    : []
+
+  useEffect(() => {
+    if (albumId) {
+      fetchAlbum(albumId)
+    }
+  }, [albumId, fetchAlbum])
+
+  useEffect(() => {
+    setMainImgError(false)
+  }, [currentIndex])
 
   if (isLoading) {
     return (
@@ -175,6 +194,8 @@ function AlbumDetailView({ albumId, onBack }) {
 
   const items = album.items || []
   const currentItem = items[currentIndex]
+  const coverUrl = resolveCoverUrl(album)
+  const coverThumb = coverUrl ? getDisplayThumbnailUrl(coverUrl, 800) : null
 
   const goToPrev = () => setCurrentIndex((i) => Math.max(0, i - 1))
   const goToNext = () => setCurrentIndex((i) => Math.min(items.length - 1, i + 1))
@@ -208,7 +229,21 @@ function AlbumDetailView({ albumId, onBack }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 px-4 pb-4 lg:flex-row">
+      <div className="flex flex-col gap-4 px-8 pb-8 lg:flex-row">
+        {coverThumb && (
+          <div className="relative shrink-0 overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--bg-subtle)] lg:w-160">
+            <img
+              src={coverThumb}
+              alt={album.title}
+              className="h-72 w-full object-cover lg:h-[420px]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+            <div className="absolute bottom-3 left-3 right-3">
+              <p className="text-sm font-medium text-white/90 line-clamp-2">{album.title}</p>
+            </div>
+          </div>
+        )}
+
         <div className="relative flex-1">
           {currentItem && (
             <div className="relative overflow-hidden rounded-xl bg-[var(--bg-subtle)]">
@@ -219,12 +254,21 @@ function AlbumDetailView({ albumId, onBack }) {
                   className="mx-auto max-h-[70vh] w-full object-contain"
                 />
               ) : (
-                <img
-                  src={currentItem.thumbnail_url || currentItem.cloud_url}
-                  alt={currentItem.caption || `Item ${currentIndex + 1}`}
-                  className="mx-auto max-h-[70vh] w-full object-contain"
-                />
+                <>
+                  <img
+                    src={getDisplayThumbnailUrl(currentItem.thumbnail_url || currentItem.cloud_url, 800)}
+                    alt={currentItem.caption || `Item ${currentIndex + 1}`}
+                    className="mx-auto max-h-[70vh] w-full object-contain"
+                    onError={() => setMainImgError(true)}
+                  />
+                  {mainImgError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-subtle)]">
+                      <Image size={48} className="text-[var(--text-muted)]/30" />
+                    </div>
+                  )}
+                </>
               )}
+              )
 
               {items.length > 1 && (
                 <>
@@ -252,96 +296,110 @@ function AlbumDetailView({ albumId, onBack }) {
           )}
         </div>
 
-        <div className="flex w-full flex-col gap-4 lg:w-80">
-          <div className="flex flex-col gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
-            <Badge variant="default" className="w-fit gap-1 text-xs">
-              {album.category === "video" ? <Film size={12} /> : <Image size={12} />}
-              {album.title}
-            </Badge>
+         <div className="flex w-full flex-col gap-4 lg:w-80">
+           <div className="flex flex-col gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
+             <Badge variant="default" className="w-fit gap-1 text-xs">
+               {album.category === "video" ? <Film size={12} /> : <Image size={12} />}
+               {album.title}
+             </Badge>
 
-            <h2 className="text-lg font-bold text-[var(--text-primary)]">{album.title}</h2>
+             <h2 className="text-lg font-bold text-[var(--text-primary)]">{album.title}</h2>
 
-            <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-              {album.event_date && (
-                <div className="flex items-center gap-2">
-                  <Calendar size={14} className="shrink-0 text-[var(--text-muted)]" />
-                  <span>{formatDate(album.event_date)}{album.event_time ? ` at ${formatTime(album.event_time)}` : ""}</span>
-                </div>
-              )}
-              {album.location && (
-                <div className="flex items-center gap-2">
-                  <MapPin size={14} className="shrink-0 text-[var(--text-muted)]" />
-                  <span>{album.location}</span>
-                </div>
-              )}
-            </div>
+             <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
+               {album.event_date && (
+                 <div className="flex items-center gap-2">
+                   <Calendar size={14} className="shrink-0 text-[var(--text-muted)]" />
+                   <span>{formatDate(album.event_date)}{album.event_time ? ` at ${formatTime(album.event_time)}` : ""}</span>
+                 </div>
+               )}
+               {album.location && (
+                 <div className="flex items-center gap-2">
+                   <MapPin size={14} className="shrink-0 text-[var(--text-muted)]" />
+                   <span>{album.location}</span>
+                 </div>
+               )}
+             </div>
 
-            {album.description && (
-              <div className="border-t border-[var(--border-light)] pt-3">
-                <p className="text-xs font-semibold text-[var(--text-primary)] mb-1">Description</p>
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{album.description}</p>
-              </div>
-            )}
+             {album.description && (
+               <div className="border-t border-[var(--border-light)] pt-3">
+                 <p className="text-xs font-semibold text-[var(--text-primary)] mb-1">Description</p>
+                 <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{album.description}</p>
+               </div>
+             )}
 
-            {currentItem?.tagged_student_ids?.length > 0 && (
-              <div className="border-t border-[var(--border-light)] pt-3">
-                <p className="text-xs font-semibold text-[var(--text-primary)] mb-2">Tagged People ({currentItem.tagged_student_ids.length})</p>
-                <div className="flex items-center -space-x-2">
-                  {currentItem.tagged_student_ids.slice(0, 5).map((id) => (
-                    <div key={id} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--bg-surface)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
-                      {id.charAt(0).toUpperCase()}
-                    </div>
-                  ))}
-                  {currentItem.tagged_student_ids.length > 5 && (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--bg-surface)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
-                      +{currentItem.tagged_student_ids.length - 5}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+             {currentItem?.tagged_student_ids?.length > 0 && (
+               <div className="border-t border-[var(--border-light)] pt-3">
+                 <p className="text-xs font-semibold text-[var(--text-primary)] mb-2">Tagged People ({currentItem.tagged_student_ids.length})</p>
+                 <div className="flex items-center -space-x-2">
+                   {currentItem.tagged_student_ids.slice(0, 5).map((id) => (
+                     <div key={id} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--bg-surface)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
+                       {id.charAt(0).toUpperCase()}
+                     </div>
+                   ))}
+                   {currentItem.tagged_student_ids.length > 5 && (
+                     <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--bg-surface)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
+                       +{currentItem.tagged_student_ids.length - 5}
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
 
-            <div className="border-t border-[var(--border-light)] pt-3">
-              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <BookOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
-                <span>{album.title}</span>
-              </div>
-            </div>
+             <div className="border-t border-[var(--border-light)] pt-3">
+               <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                 <BookOpen size={14} className="shrink-0 text-[var(--text-muted)]" />
+                 <span>{album.title}</span>
+               </div>
+             </div>
 
-            {album.creator && (
-              <div className="border-t border-[var(--border-light)] pt-3">
-                <p className="text-xs font-semibold text-[var(--text-primary)] mb-1">Uploaded by</p>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
-                    {album.creator.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-sm text-[var(--text-secondary)]">{album.creator.name}</span>
-                </div>
-              </div>
-            )}
+             {album.creator && (
+               <div className="border-t border-[var(--border-light)] pt-3">
+                 <p className="text-xs font-semibold text-[var(--text-primary)] mb-1">Uploaded by</p>
+                 <div className="flex items-center gap-2">
+                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
+                     {album.creator.name.charAt(0).toUpperCase()}
+                   </div>
+                   <span className="text-sm text-[var(--text-secondary)]">{album.creator.name}</span>
+                 </div>
+               </div>
+             )}
 
-            <div className="flex gap-2 border-t border-[var(--border-light)] pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => currentItem && toggleItemFavorite(currentItem.id)}
-              >
-                <Heart size={14} className={currentItem?.is_favorite ? "fill-red-500 text-red-500" : ""} />
-                {currentItem?.is_favorite ? "Favorited" : "Favorite"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => currentItem && window.open(currentItem.cloud_url, "_blank")}
-              >
-                <Download size={14} />
-                Download
-              </Button>
-            </div>
-          </div>
-        </div>
+             <div className="flex flex-col gap-2 border-t border-[var(--border-light)] pt-3">
+               {album.album_link && (
+                 <a
+                   href={album.album_link}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-gold)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-gold)]/90"
+                 >
+                   <ExternalLink size={14} />
+                   Open Album Link
+                 </a>
+               )}
+
+               <div className="flex gap-2">
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="flex-1 gap-2"
+                   onClick={() => currentItem && toggleItemFavorite(currentItem.id)}
+                 >
+                   <Heart size={14} className={currentItem?.is_favorite ? "fill-red-500 text-red-500" : ""} />
+                   {currentItem?.is_favorite ? "Favorited" : "Favorite"}
+                 </Button>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="flex-1 gap-2"
+                   onClick={() => currentItem && window.open(currentItem.cloud_url, "_blank")}
+                 >
+                   <Download size={14} />
+                   Download
+                 </Button>
+               </div>
+             </div>
+           </div>
+         </div>
       </div>
 
       {items.length > 0 && (
@@ -372,7 +430,7 @@ function AlbumDetailView({ albumId, onBack }) {
                 )}
                 <div className="h-16 w-20 overflow-hidden bg-[var(--bg-subtle)]">
                   <img
-                    src={item.thumbnail_url || item.cloud_url}
+                    src={getDisplayThumbnailUrl(item.thumbnail_url || item.cloud_url, 200)}
                     alt=""
                     className="h-full w-full object-cover"
                   />
@@ -396,6 +454,25 @@ function AlbumDetailView({ albumId, onBack }) {
           </button>
         </div>
       )}
+
+      {additionalImages.length > 0 && (
+        <div className="border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-3">
+          <p className="text-xs font-semibold text-[var(--text-primary)] mb-2">More Images</p>
+          <div className="flex gap-2 overflow-x-auto">
+            {additionalImages.map((imgUrl, idx) => (
+              <div key={idx} className="h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-[var(--bg-subtle)]">
+                <img
+                  src={getDisplayThumbnailUrl(imgUrl, 400)}
+                  alt={`Additional image ${idx + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
     </div>
   )
 }
@@ -432,12 +509,7 @@ export default function MyMemoriesPage() {
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-2">
-          <Button className="gap-2">
-            <Plus size={16} />
-            Add Memory
-          </Button>
-        </div>
+
       </div>
 
       <div className="flex flex-col gap-4">

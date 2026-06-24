@@ -24,16 +24,16 @@ router.get("/student/albums/:albumId", authenticate, getStudentAlbumDetailContro
 router.get("/student/favorites", authenticate, getStudentFavoritesController)
 router.post("/student/favorites/:itemId", authenticate, toggleFavoriteController)
 
-router.get("/admin/memories/albums", authenticate, getAdminAlbumsController)
-router.post("/admin/memories/albums", authenticate, createAlbumController)
-router.patch("/admin/memories/albums/:albumId", authenticate, updateAlbumController)
-router.delete("/admin/memories/albums/:albumId", authenticate, deleteAlbumController)
+router.get("/admin/albums", authenticate, getAdminAlbumsController)
+router.post("/admin/albums", authenticate, createAlbumController)
+router.patch("/admin/albums/:albumId", authenticate, updateAlbumController)
+router.delete("/admin/albums/:albumId", authenticate, deleteAlbumController)
 
-router.post("/admin/memories/items", authenticate, createMemoryItemController)
-router.post("/admin/memories/items/bulk", authenticate, createMemoryItemsBulkController)
-router.patch("/admin/memories/items/:itemId", authenticate, updateMemoryItemController)
-router.delete("/admin/memories/items/:itemId", authenticate, deleteMemoryItemController)
-router.post("/admin/memories/albums/:albumId/reorder", authenticate, reorderItemsController)
+router.post("/admin/items", authenticate, createMemoryItemController)
+router.post("/admin/items/bulk", authenticate, createMemoryItemsBulkController)
+router.patch("/admin/items/:itemId", authenticate, updateMemoryItemController)
+router.delete("/admin/items/:itemId", authenticate, deleteMemoryItemController)
+router.post("/admin/albums/:albumId/reorder", authenticate, reorderItemsController)
 
 router.get("/memories/tagged-students", authenticate, getTaggedStudentsController)
 
