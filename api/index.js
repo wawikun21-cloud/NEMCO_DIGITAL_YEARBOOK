@@ -1333,6 +1333,188 @@ async function handleGetBatchErrors(req, res) {
   json(res, 200, { errors: data || [] })
 }
 
+// ── Memories handlers ────────────────────────────────────────────────────────
+
+async function handleGetStudentAlbums(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const { category, search, shared, sortBy, page, perPage } = Object.fromEntries(url.searchParams)
+    const { getAlbumsForStudent } = await import("../server/src/services/memoriesService.js")
+    const result = await getAlbumsForStudent(user.id, {
+      category,
+      search,
+      sharedOnly: shared === "true",
+      sortBy: sortBy || "newest",
+      page: parseInt(page) || 1,
+      perPage: parseInt(perPage) || 12,
+    })
+    json(res, 200, result)
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleGetStudentAlbumDetail(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const albumId = req.url.split("/").pop()
+    const { getAlbumById } = await import("../server/src/services/memoriesService.js")
+    const album = await getAlbumById(albumId, user.id)
+    json(res, 200, { album })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleGetStudentFavorites(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const { sortBy, page, perPage } = Object.fromEntries(url.searchParams)
+    const { getFavoriteItemsForStudent } = await import("../server/src/services/memoriesService.js")
+    const result = await getFavoriteItemsForStudent(user.id, {
+      sortBy: sortBy || "newest",
+      page: parseInt(page) || 1,
+      perPage: parseInt(perPage) || 12,
+    })
+    json(res, 200, result)
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleToggleFavorite(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const itemId = req.url.split("/").pop()
+    const { toggleFavorite } = await import("../server/src/services/memoriesService.js")
+    const isFavorite = await toggleFavorite(user.id, itemId)
+    json(res, 200, { is_favorite: isFavorite })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleGetAdminAlbums(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const { page, perPage, search, category } = Object.fromEntries(url.searchParams)
+    const { getAdminAlbums } = await import("../server/src/services/memoriesService.js")
+    const result = await getAdminAlbums({
+      page: parseInt(page) || 1,
+      perPage: parseInt(perPage) || 20,
+      search,
+      category,
+    })
+    json(res, 200, result)
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleCreateAlbum(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const { createAlbum } = await import("../server/src/services/memoriesService.js")
+    const album = await createAlbum({ ...req.body, created_by: user.id })
+    json(res, 201, { album })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleUpdateAlbum(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const albumId = req.url.split("/").pop()
+    const { updateAlbum } = await import("../server/src/services/memoriesService.js")
+    const album = await updateAlbum(albumId, req.body)
+    json(res, 200, { album })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleDeleteAlbum(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const albumId = req.url.split("/").pop()
+    const { deleteAlbum } = await import("../server/src/services/memoriesService.js")
+    await deleteAlbum(albumId)
+    json(res, 200, { success: true })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleCreateMemoryItem(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const { createMemoryItem } = await import("../server/src/services/memoriesService.js")
+    const item = await createMemoryItem(req.body)
+    json(res, 201, { item })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleCreateMemoryItemsBulk(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const { createMemoryItemsBulk } = await import("../server/src/services/memoriesService.js")
+    const items = req.body.items.map((item) => ({
+      album_id: req.body.album_id,
+      cloud_url: item.cloud_url,
+      thumbnail_url: item.thumbnail_url || null,
+      media_type: item.media_type || "photo",
+      caption: item.caption || null,
+      tagged_student_ids: item.tagged_student_ids || [],
+      order_index: item.order_index || 0,
+    }))
+    const created = await createMemoryItemsBulk(items)
+    json(res, 201, { items: created, count: created.length })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleUpdateMemoryItem(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const itemId = req.url.split("/").pop()
+    const { updateMemoryItem } = await import("../server/src/services/memoriesService.js")
+    const item = await updateMemoryItem(itemId, req.body)
+    json(res, 200, { item })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleDeleteMemoryItem(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const itemId = req.url.split("/").pop()
+    const { deleteMemoryItem } = await import("../server/src/services/memoriesService.js")
+    await deleteMemoryItem(itemId)
+    json(res, 200, { success: true })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleReorderItems(req, res) {
+  const user = await requireAuth(req, res)
+  if (!user) return
+  try {
+    const albumId = req.url.split("/")[req.url.split("/").indexOf("albums") + 1]
+    const { reorderItems } = await import("../server/src/services/memoriesService.js")
+    await reorderItems(albumId, req.body.itemIds)
+    json(res, 200, { success: true })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
+async function handleGetTaggedStudents(req, res) {
+  const user = await authenticate(req, res)
+  if (!user) return
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`)
+    const ids = url.searchParams.get("ids") ? url.searchParams.get("ids").split(",") : []
+    const { getTaggedStudents } = await import("../server/src/services/memoriesService.js")
+    const students = await getTaggedStudents(ids)
+    json(res, 200, { students })
+  } catch (error) { json(res, 500, { message: error.message }) }
+}
+
 // ── Resume PDF generation ────────────────────────────────────────────────────
 // On Vercel, api/generate-resume-pdf.js is declared as its own function in
 // vercel.json and its route is served directly before the catch-all rewrite
@@ -1484,6 +1666,25 @@ export default async function handler(req, res) {
   if (pathname === "/api/admin/import/batches" && req.method === "GET") return handleGetBatches(req, res)
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
   if (pathname.startsWith("/api/admin/import/batches/") && req.method === "GET") return handleGetBatch(req, res)
+
+  // Memories routes
+  if (pathname === "/api/memories/student/albums" && req.method === "GET") return handleGetStudentAlbums(req, res)
+  if (pathname.match(/\/api\/memories\/student\/albums\/[^/]+$/) && req.method === "GET") return handleGetStudentAlbumDetail(req, res)
+  if (pathname === "/api/memories/student/favorites" && req.method === "GET") return handleGetStudentFavorites(req, res)
+  if (pathname.match(/\/api\/memories\/student\/favorites\/[^/]+$/) && req.method === "POST") return handleToggleFavorite(req, res)
+
+  if (pathname === "/api/memories/admin/memories/albums" && req.method === "GET") return handleGetAdminAlbums(req, res)
+  if (pathname === "/api/memories/admin/memories/albums" && req.method === "POST") return handleCreateAlbum(req, res)
+  if (pathname.match(/\/api\/memories\/admin\/memories\/albums\/[^/]+$/) && req.method === "PATCH") return handleUpdateAlbum(req, res)
+  if (pathname.match(/\/api\/memories\/admin\/memories\/albums\/[^/]+$/) && req.method === "DELETE") return handleDeleteAlbum(req, res)
+
+  if (pathname === "/api/memories/admin/memories/items" && req.method === "POST") return handleCreateMemoryItem(req, res)
+  if (pathname === "/api/memories/admin/memories/items/bulk" && req.method === "POST") return handleCreateMemoryItemsBulk(req, res)
+  if (pathname.match(/\/api\/memories\/admin\/memories\/items\/[^/]+$/) && req.method === "PATCH") return handleUpdateMemoryItem(req, res)
+  if (pathname.match(/\/api\/memories\/admin\/memories\/items\/[^/]+$/) && req.method === "DELETE") return handleDeleteMemoryItem(req, res)
+  if (pathname.match(/\/api\/memories\/admin\/memories\/albums\/[^/]+\/reorder$/) && req.method === "POST") return handleReorderItems(req, res)
+
+  if (pathname === "/api/memories/memories/tagged-students" && req.method === "GET") return handleGetTaggedStudents(req, res)
 
    json(res, 404, { message: "Not found", pathname })
   } catch (err) {
