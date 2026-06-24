@@ -12,9 +12,27 @@
  *   2. @sparticuz/chromium              → used automatically on Vercel serverless
  */
 
-import chromium from "@sparticuz/chromium"
-import puppeteer from "puppeteer-core"
 import fs from "fs"
+
+// Vercel-only packages — loaded dynamically to avoid ERR_MODULE_NOT_FOUND
+// when they aren't installed in local dev environments.
+let _chromium = null
+async function getChromium() {
+  if (_chromium) return _chromium
+  try {
+    _chromium = await import("@sparticuz/chromium")
+  } catch {
+    _chromium = { default: null }
+  }
+  return _chromium
+}
+
+let _puppeteer = null
+async function getPuppeteer() {
+  if (_puppeteer) return _puppeteer
+  _puppeteer = await import("puppeteer-core")
+  return _puppeteer
+}
 
 // ── A4 dimensions at 96 dpi ────────────────────────────────────────────────
 const A4_WIDTH_PX  = 794
@@ -81,9 +99,11 @@ export default async function handler(req, res) {
       console.log("[generate-resume-pdf] Dev mode — local Chrome:", executablePath)
     } else {
       // Vercel serverless — use the bundled Chromium binary
-      executablePath = await chromium.executablePath()
-      launchArgs     = chromium.args
-      headless       = chromium.headless
+      const sparticuz = await getChromium()
+      const chromiumDefault = sparticuz.default || sparticuz
+      executablePath = await chromiumDefault.executablePath()
+      launchArgs     = chromiumDefault.args
+      headless       = chromiumDefault.headless
       console.log("[generate-resume-pdf] Serverless mode — @sparticuz/chromium:", executablePath)
     }
 
@@ -96,7 +116,8 @@ export default async function handler(req, res) {
     }
 
     // ── 3. Launch headless Chrome ─────────────────────────────────────────────
-    browser = await puppeteer.launch({
+     const puppeteer = await getPuppeteer()
+     browser = await puppeteer.launch({
       args: launchArgs,
       defaultViewport: { width: A4_WIDTH_PX, height: A4_HEIGHT_PX },
       executablePath,
