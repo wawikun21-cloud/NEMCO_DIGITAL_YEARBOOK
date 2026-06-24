@@ -1,12 +1,15 @@
 /**
  * resumePdfController.js  (server/src/controllers)
  *
- * Thin Express wrapper around api/generate-resume-pdf.js.
- * The shared handler owns all logic; this file only adapts it to Express.
+ * DEPRECATED: This controller is no longer wired into the Express app.
+ * PDF generation is now handled client-side via html2canvas + jspdf in:
+ *   - client/src/hooks/usePdfExport.js
+ *   - client/src/hooks/useResumePdfDownload.js
  *
- * NOTE: The shared handler calls res.end() / res.json() directly.
- * We must NOT call next(error) after it has already written headers,
- * otherwise Express throws "Cannot set headers after they are sent".
+ * Optionally, deploy supabase/functions/generate-resume-pdf as an Edge Function
+ * for server-side PDF generation.
+ *
+ * Kept for reference — safe to delete.
  */
 
 import pdfHandler from "../../../api/generate-resume-pdf.js"

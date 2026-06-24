@@ -105,11 +105,9 @@ import { getPublicFlipbook } from "@/services/flipbookService"
 import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
 import * as pdfjsLib from "pdfjs-dist"
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url
-).toString()
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 function usePdfPageImages(pdfPages) {
   const [images, setImages] = useState({})

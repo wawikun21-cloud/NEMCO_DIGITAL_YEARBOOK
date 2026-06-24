@@ -1,0 +1,11 @@
+{
+  "app": "server",
+  "build": {
+    "command": "npm install --production"
+  },
+  "run": {
+    "command": "node src/server.js"
+  },
+  "port": 5000,
+  "node": "20"
+}
