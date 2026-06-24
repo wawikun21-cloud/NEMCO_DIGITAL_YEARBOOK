@@ -19,7 +19,6 @@ function injectBook3DStyles() {
       bottom: 0;
       width: 12px;
       pointer-events: none;
-      z-index: 2;
     }
     .book-page-edge-left {
       left: -6px;
@@ -62,7 +61,6 @@ function injectBook3DStyles() {
       left: 0;
       width: 28px;
       pointer-events: none;
-      z-index: 3;
       background: linear-gradient(to right, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.06) 50%, transparent 100%);
     }
     .book-spine-shadow-right {
@@ -72,42 +70,12 @@ function injectBook3DStyles() {
       right: 0;
       width: 28px;
       pointer-events: none;
-      z-index: 3;
       background: linear-gradient(to left, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.06) 50%, transparent 100%);
     }
-    .book-page-curve-shading::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.12) 0%, transparent 70%);
-    }
+
     .book-hardcover {
-      box-shadow: inset 0 0 30px rgba(0,0,0,0.3), inset 0 0 2px rgba(255,255,255,0.05);
+      box-shadow: inset 0 0 34px rgba(0,0,0,0.45);
       border: 1px solid rgba(255,255,255,0.06);
-    }
-    .book-hardcover-highlight::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      pointer-events: none;
-      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%);
-      z-index: 1;
-    }
-    .book-hardcover-ridge::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      pointer-events: none;
-      box-shadow: inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15);
-      z-index: 2;
     }
   `
   document.head.appendChild(style)
@@ -305,7 +273,7 @@ const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible, 
   if (!profile || !visible) return <div ref={ref} className="flex h-full w-full bg-[#fafafa]" />
   const pr = profile
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-[#fafafa] p-5 text-center relative book-page-curve-shading">
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-[#fafafa] p-5 sm:p-6 text-center relative book-page-curve-shading">
       <div className="book-page-edge book-page-edge-left" />
       {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
       <div className="h-10 w-10 rounded-full bg-[var(--bg-primary)]/5 flex items-center justify-center mb-3 relative z-[4]"><GraduationCap size={20} className="text-[var(--bg-primary)]/30" /></div>
@@ -316,11 +284,13 @@ const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible, 
 
 const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative book-hardcover book-hardcover-highlight book-hardcover-ridge" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
-      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-5 sm:p-6 text-center relative book-hardcover" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
-      <div className="relative z-10">
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15)" }} />
+      <div className="flex flex-col items-center justify-center flex-1 min-h-0 relative z-10">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10"><GraduationCap size={36} className="text-[var(--accent-gold)]" /></div>
         <h1 className="text-2xl font-extrabold text-white sm:text-3xl tracking-tight leading-tight">{title || "NEMCO Digital Yearbook"}</h1>
         {subtitle && <p className="mt-2 text-sm text-white/60 font-light">{subtitle}</p>}
@@ -331,17 +301,19 @@ const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, re
 
 const BackCover = forwardRef(function BackCover({ title }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-6 text-center relative book-hardcover book-hardcover-highlight book-hardcover-ridge">
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-5 sm:p-6 text-center relative book-hardcover">
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 40%)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15)" }} />
       <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
-      <p className="text-lg font-bold text-white/80">{title || "NEMCO"}</p>
-      <p className="mt-1 text-xs text-white/40">Digital Yearbook</p>
+      <p className="text-lg font-bold text-white/80 relative z-10">{title || "NEMCO"}</p>
+      <p className="mt-1 text-xs text-white/40 relative z-10">Digital Yearbook</p>
     </div>
   )
 })
 
 const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-6 relative book-page-curve-shading">
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-5 sm:p-6 relative book-page-curve-shading">
       <div className="book-page-edge book-page-edge-right" />
       {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
       <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4 relative z-[4]" />
@@ -355,7 +327,7 @@ const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
 
 const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pageNum, isLoading, isLeftPage }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col bg-white relative book-page-curve-shading">
+    <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
       <div className="book-page-edge book-page-edge-right" />
       {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
       <div className="flex-1 relative flex items-center justify-center z-[4]">
@@ -437,7 +409,6 @@ export default function Yearbook3DPage() {
   const [zoom, setZoom] = useState(1)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [flipSpeed, setFlipSpeed] = useState(0.7)
-  const [coverReady, setCoverReady] = useState(false)
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const [isDragging, setIsDragging] = useState(false)
@@ -471,7 +442,6 @@ export default function Yearbook3DPage() {
       .then((result) => {
         if (!cancelled) {
           setData(result)
-          setCoverReady(true)
         }
       })
       .catch((e) => { if (!cancelled) setError(e.message) })
@@ -480,10 +450,10 @@ export default function Yearbook3DPage() {
   }, [])
 
   useEffect(() => {
-    if (!coverReady || !data) return
+    if (!data) return
     const timer = setTimeout(() => recomputeCenteringRef.current(), 100)
     return () => clearTimeout(timer)
-  }, [coverReady, data])
+  }, [data])
 
   useEffect(() => {
     if (data?.settings?.flip_speed) setFlipSpeed(data.settings.flip_speed)
@@ -577,7 +547,7 @@ export default function Yearbook3DPage() {
 
   const bookPageList = useMemo(() => {
     const sourceType = data?.sourceType || "profiles"
-    const pages = [{ type: "cover" }, { type: "back-cover" }]
+    const pages = [{ type: "cover" }]
     if (sourceType === "profiles") {
       if (sections.length > 0) {
         const sectionMap = new Map(), unsectioned = []
@@ -599,8 +569,10 @@ export default function Yearbook3DPage() {
           pages.push({ type: "student-back", data: fp })
         }
       }
+      pages.push({ type: "back-cover" })
     } else if (sourceType === "pdfs") {
       for (const pdf of pdfPages) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }) }
+      pages.push({ type: "back-cover" })
     } else {
       if (sections.length > 0) {
         const sectionMap = new Map(), unsectioned = []
@@ -629,6 +601,7 @@ export default function Yearbook3DPage() {
         }
         while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }); pi++ }
       }
+      pages.push({ type: "back-cover" })
     }
     return pages
   }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
@@ -671,7 +644,7 @@ export default function Yearbook3DPage() {
     const diffPx = contentCenter - wrapperCenter
     const offsetPct = -(diffPx / wrapperRect.width) * 100
     setBookTranslateX(offsetPct)
-  }, [currentPage, totalPages, windowWidth])
+  }, [windowWidth])
 
   useEffect(() => {
     recomputeCenteringRef.current = recomputeCentering
@@ -680,13 +653,21 @@ export default function Yearbook3DPage() {
   useEffect(() => {
     const wrapper = bookWrapperRef.current
     if (!wrapper) return
+    let debounceTimer = null
     const ro = new ResizeObserver(() => {
-      if (bookState === "read") recomputeCenteringRef.current()
+      if (bookState !== "read") return
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        recomputeCenteringRef.current()
+      }, 100)
     })
     ro.observe(wrapper)
     const innerBook = wrapper.querySelector('.stf__wrapper') || wrapper.querySelector('.stf__parent')
     if (innerBook) ro.observe(innerBook)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      clearTimeout(debounceTimer)
+    }
   }, [bookPageList.length, bookState])
 
   const pdfListStable = pdfPages.length === 0 || !pdfLoading
@@ -732,14 +713,14 @@ export default function Yearbook3DPage() {
     const distance = Math.abs(targetPage - currentIdx)
     if (distance > 5) {
       pf.turnToPage(targetPage)
-      setCurrentPage(targetPage)
-      playFlipSound()
-      const params = new URLSearchParams(window.location.search)
-      params.set("page", targetPage.toString())
-      window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
     } else {
       pf.flip(targetPage, "bottom")
     }
+    setCurrentPage(targetPage)
+    playFlipSound()
+    const params = new URLSearchParams(window.location.search)
+    params.set("page", targetPage.toString())
+    window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
   }, [playFlipSound])
 
   const goNext = useCallback(() => {
@@ -772,23 +753,16 @@ export default function Yearbook3DPage() {
     } else if (e.data === "read" || e.data === "flipping") {
       if (e.data === "read") setIsDragging(false)
     }
-    if (e.data === "read") {
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => recomputeCenteringRef.current())
-        })
-      }, 50)
-    }
   }, [])
 
   const onInit = useCallback(() => {
     if (bookRef.current) {
       const pf = bookRef.current.pageFlip()
-      if (pf && currentPage !== 0) {
-        pf.turnToPage(currentPage)
+      if (pf && initialPage !== null && initialPage !== 0) {
+        pf.turnToPage(initialPage)
       }
     }
-  }, [currentPage])
+  }, [initialPage])
 
   useEffect(() => {
     const handler = (e) => {
@@ -850,14 +824,12 @@ export default function Yearbook3DPage() {
   }, [filteredToBookIndex, jumpToPage])
 
   const handleCoverClick = useCallback(() => {
-    if (currentPage === 0 && bookState === "read" && !isDragging) {
+    if ((currentPage === 0 || currentPage === 1) && bookState === "read" && !isDragging) {
       goNext()
     }
   }, [currentPage, bookState, goNext, isDragging])
 
   
-  const flipTransitionMs = Math.round(flipSpeed * 1000)
-
   const isFlipping = bookState === "flipping"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
@@ -868,7 +840,7 @@ export default function Yearbook3DPage() {
 
   const pageLabel = currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "Back Cover" : `${currentPage} / ${totalPages - 1}`
 
-  if (dataLoading && !coverReady) return (
+  if (dataLoading) return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0d1f33] to-[#132F45]">
       <div className="flex flex-col items-center gap-4">
         <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -962,10 +934,10 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-         <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out`, maxWidth: "100vw", overflow: "visible" }}>
+          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 1.2s cubic-bezier(0.22, 0.61, 0.36, 1)" }}>
            {pdfListStable ? (
-           <HTMLFlipBook
-             key={bookPageList.length}
+            <HTMLFlipBook
+              key={`${bookPageList.length}-${isFullscreen}`}
              ref={bookRef}
              width={bookWidth}
              height={bookHeight}
@@ -974,7 +946,7 @@ export default function Yearbook3DPage() {
              maxWidth={bookMaxWidth}
              minHeight={350}
              maxHeight={bookMaxHeight}
-             showCover={true}
+              showCover={true}
              drawShadow={true}
              maxShadowOpacity={0.5}
              flippingTime={Math.round(flipSpeed * 1000)}
@@ -999,7 +971,7 @@ export default function Yearbook3DPage() {
                const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data.profile?.id)
                const isLeftPage = idx % 2 === 0
 
-               if (page.type === "cover") {
+                if (page.type === "cover") {
                  return (
                    <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} onClick={handleCoverClick} />
                  )
