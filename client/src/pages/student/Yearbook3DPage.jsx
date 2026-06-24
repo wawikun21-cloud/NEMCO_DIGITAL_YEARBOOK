@@ -73,11 +73,35 @@ function injectBook3DStyles() {
       background: linear-gradient(to left, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.06) 50%, transparent 100%);
     }
 
-    .book-hardcover {
-      box-shadow: inset 0 0 34px rgba(0,0,0,0.45);
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-  `
+     .book-hardcover {
+       box-shadow: inset 0 0 34px rgba(0,0,0,0.45);
+       border: 1px solid rgba(255,255,255,0.06);
+     }
+
+     .stf__page {
+       transition: transform var(--flip-duration, 0.7s) cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+       will-change: transform;
+       transform-style: preserve-3d;
+       backface-visibility: hidden;
+       -webkit-backface-visibility: hidden;
+     }
+
+     .stf__page .stf__page {
+       transition: none !important;
+     }
+
+     .stf__parent {
+       will-change: transform;
+     }
+
+     .book-cover-flip {
+       transform-origin: left center;
+       will-change: transform;
+       transform-style: preserve-3d;
+       backface-visibility: hidden;
+       -webkit-backface-visibility: hidden;
+     }
+   `
   document.head.appendChild(style)
 }
 import {
@@ -284,7 +308,7 @@ const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible, 
 
 const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-5 sm:p-6 text-center relative book-hardcover" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-5 sm:p-6 text-center relative book-hardcover book-cover-flip" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
@@ -751,7 +775,14 @@ export default function Yearbook3DPage() {
     if (e.data === "user_fold") {
       setIsDragging(true)
     } else if (e.data === "read" || e.data === "flipping") {
-      if (e.data === "read") setIsDragging(false)
+      if (e.data === "read") {
+        setIsDragging(false)
+        setTimeout(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => recomputeCenteringRef.current())
+          })
+        }, 50)
+      }
     }
   }, [])
 
@@ -934,7 +965,7 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 1.2s cubic-bezier(0.22, 0.61, 0.36, 1)" }}>
+          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 1.2s cubic-bezier(0.22, 0.61, 0.36, 1)", "--flip-duration": `${flipSpeed}s` }}>
            {pdfListStable ? (
             <HTMLFlipBook
               key={`${bookPageList.length}-${isFullscreen}`}
