@@ -1,5 +1,117 @@
 import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react"
 import HTMLFlipBook from "react-pageflip"
+
+const BOOK_3D_STYLES_ID = "book-3d-depth-styles"
+
+function injectBook3DStyles() {
+  if (typeof document === "undefined") return
+  if (document.getElementById(BOOK_3D_STYLES_ID)) return
+  const style = document.createElement("style")
+  style.id = BOOK_3D_STYLES_ID
+  style.textContent = `
+    .stf__block { perspective: 1500px !important; }
+    .book-resting-shadow {
+      filter: drop-shadow(0 24px 48px rgba(0,0,0,0.22)) drop-shadow(0 10px 20px rgba(0,0,0,0.12));
+    }
+    .book-page-edge {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 12px;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .book-page-edge-left {
+      left: -6px;
+      background: linear-gradient(to right,
+        rgba(0,0,0,0.06) 0%,
+        rgba(255,255,255,0.08) 30%,
+        rgba(0,0,0,0.04) 60%,
+        rgba(240,238,235,0.9) 100%
+      );
+    }
+    .book-page-edge-right {
+      right: -6px;
+      background: linear-gradient(to left,
+        rgba(0,0,0,0.06) 0%,
+        rgba(255,255,255,0.08) 30%,
+        rgba(0,0,0,0.04) 60%,
+        rgba(240,238,235,0.9) 100%
+      );
+    }
+    .book-page-edge::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      left: 3px;
+      right: 3px;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.03) 0px,
+        rgba(255,255,255,0.05) 1px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(245,243,240,0.8) 3px
+      );
+      border-radius: 1px;
+    }
+    .book-spine-shadow-left {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 28px;
+      pointer-events: none;
+      z-index: 3;
+      background: linear-gradient(to right, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.06) 50%, transparent 100%);
+    }
+    .book-spine-shadow-right {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 28px;
+      pointer-events: none;
+      z-index: 3;
+      background: linear-gradient(to left, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.06) 50%, transparent 100%);
+    }
+    .book-page-curve-shading::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.12) 0%, transparent 70%);
+    }
+    .book-hardcover {
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.3), inset 0 0 2px rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .book-hardcover-highlight::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%);
+      z-index: 1;
+    }
+    .book-hardcover-ridge::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      box-shadow: inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15);
+      z-index: 2;
+    }
+  `
+  document.head.appendChild(style)
+}
 import {
   BookMarked,
   ChevronLeft,
@@ -157,13 +269,15 @@ function usePdfPageImages(pdfPages) {
   return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy }
 }
 
-const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible }, ref) {
+const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible, isLeftPage }, ref) {
   if (!profile || !visible) return <div ref={ref} className="flex h-full w-full items-center justify-center bg-white" />
   const name = profile.display_name || profile.full_name || "Unknown"
   const initial = name.charAt(0).toUpperCase()
   return (
-    <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6">
-      <div className="flex flex-1 flex-col items-center">
+    <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
+      <div className="book-page-edge book-page-edge-right" />
+      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+      <div className="flex flex-1 flex-col items-center relative z-[4]">
         <div className="w-full h-1 rounded-full bg-gradient-to-r from-transparent via-[var(--bg-primary)]/20 to-transparent mb-4" />
         {profile.avatar_url ? (
           <img src={profile.avatar_url} alt={name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32" />
@@ -182,25 +296,27 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
           {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
         </div>
       </div>
-      <div className="text-center pt-2"><span className="text-[9px] text-[var(--text-muted)]/50">{pageNum} / {totalPages}</span></div>
+      <div className="text-center pt-2 relative z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{pageNum} / {totalPages}</span></div>
     </div>
   )
 })
 
-const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible }, ref) {
+const StudentBackPage = forwardRef(function StudentBackPage({ profile, visible, isLeftPage }, ref) {
   if (!profile || !visible) return <div ref={ref} className="flex h-full w-full bg-[#fafafa]" />
   const pr = profile
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-[#fafafa] p-5 text-center">
-      <div className="h-10 w-10 rounded-full bg-[var(--bg-primary)]/5 flex items-center justify-center mb-3"><GraduationCap size={20} className="text-[var(--bg-primary)]/30" /></div>
-      <p className="text-[10px] text-[var(--text-muted)]/40 italic max-w-[200px]">"{pr.quote || "The future belongs to those who believe in the beauty of their dreams."}"</p>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-[#fafafa] p-5 text-center relative book-page-curve-shading">
+      <div className="book-page-edge book-page-edge-left" />
+      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+      <div className="h-10 w-10 rounded-full bg-[var(--bg-primary)]/5 flex items-center justify-center mb-3 relative z-[4]"><GraduationCap size={20} className="text-[var(--bg-primary)]/30" /></div>
+      <p className="text-[10px] text-[var(--text-muted)]/40 italic max-w-[200px] relative z-[4]">"{pr.quote || "The future belongs to those who believe in the beauty of their dreams."}"</p>
     </div>
   )
 })
 
 const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-6 text-center relative book-hardcover book-hardcover-highlight book-hardcover-ridge" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
@@ -215,7 +331,7 @@ const BookCover = forwardRef(function BookCover({ title, subtitle, onClick }, re
 
 const BackCover = forwardRef(function BackCover({ title }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-6 text-center">
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-6 text-center relative book-hardcover book-hardcover-highlight book-hardcover-ridge">
       <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
       <p className="text-lg font-bold text-white/80">{title || "NEMCO"}</p>
       <p className="mt-1 text-xs text-white/40">Digital Yearbook</p>
@@ -223,22 +339,26 @@ const BackCover = forwardRef(function BackCover({ title }, ref) {
   )
 })
 
-const SectionPage = forwardRef(function SectionPage({ name }, ref) {
+const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-6">
-      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4" />
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-primary)]/8 mb-3"><Sparkles size={20} className="text-[var(--bg-primary)]" /></div>
-      <h3 className="text-lg font-bold text-[var(--text-primary)]">{name}</h3>
-      <div className="mt-2 h-0.5 w-12 rounded-full bg-[var(--accent-gold)]/40" />
-      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mt-4" />
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-6 relative book-page-curve-shading">
+      <div className="book-page-edge book-page-edge-right" />
+      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4 relative z-[4]" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-primary)]/8 mb-3 relative z-[4]"><Sparkles size={20} className="text-[var(--bg-primary)]" /></div>
+      <h3 className="text-lg font-bold text-[var(--text-primary)] relative z-[4]">{name}</h3>
+      <div className="mt-2 h-0.5 w-12 rounded-full bg-[var(--accent-gold)]/40 relative z-[4]" />
+      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mt-4 relative z-[4]" />
     </div>
   )
 })
 
-const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pageNum, isLoading }, ref) {
+const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pageNum, isLoading, isLeftPage }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col bg-white">
-      <div className="flex-1 relative flex items-center justify-center">
+    <div ref={ref} className="flex h-full w-full flex-col bg-white relative book-page-curve-shading">
+      <div className="book-page-edge book-page-edge-right" />
+      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+      <div className="flex-1 relative flex items-center justify-center z-[4]">
         {imageUrl ? (
           <img src={imageUrl} alt={title} className="h-full w-full object-contain" draggable={false} />
         ) : isLoading ? (
@@ -253,7 +373,7 @@ const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pag
           </div>
         )}
       </div>
-      <div className="text-center py-1.5 border-t border-gray-100"><span className="text-[9px] text-[var(--text-muted)]/50">{title} • Page {pageNum}</span></div>
+      <div className="text-center py-1.5 border-t border-gray-100 z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{title} • Page {pageNum}</span></div>
     </div>
   )
 })
@@ -340,6 +460,10 @@ export default function Yearbook3DPage() {
   const audioCtxRef = useRef(null)
   const searchInputRef = useRef(null)
   const prevSearchOpen = useRef(false)
+
+  useEffect(() => {
+    injectBook3DStyles()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -839,83 +963,84 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-        <div ref={bookWrapperRef} style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out`, maxWidth: "100vw", overflow: "visible" }}>
-          {pdfListStable ? (
-          <HTMLFlipBook
-            key={bookPageList.length}
-            ref={bookRef}
-            width={bookWidth}
-            height={bookHeight}
-            size="stretch"
-            minWidth={250}
-            maxWidth={bookMaxWidth}
-            minHeight={350}
-            maxHeight={bookMaxHeight}
-            showCover={true}
-            drawShadow={true}
-            maxShadowOpacity={0.5}
-            flippingTime={Math.round(flipSpeed * 1000)}
-            usePortrait={true}
-            startPage={initialPage !== null ? initialPage : 0}
-            clickEventForward={true}
-            mobileScrollSupport={false}
-            useMouseEvents={true}
-            showPageCorners={true}
-            disableFlipByClick={false}
-            swipeDistance={30}
-            autoSize={true}
-            renderOnlyPageLengthChange={false}
-            onFlip={onFlip}
-            onChangeState={onChangeState}
-            onInit={onInit}
-            className="mx-auto"
-            style={{ maxWidth: "100%" }}
-          >
-            {bookPageList.map((page, idx) => {
-              const isStudent = page.type === "student" || page.type === "student-back"
-              const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data.profile?.id)
+         <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", transition: `transform ${flipTransitionMs}ms ease-in-out`, maxWidth: "100vw", overflow: "visible" }}>
+           {pdfListStable ? (
+           <HTMLFlipBook
+             key={bookPageList.length}
+             ref={bookRef}
+             width={bookWidth}
+             height={bookHeight}
+             size="stretch"
+             minWidth={250}
+             maxWidth={bookMaxWidth}
+             minHeight={350}
+             maxHeight={bookMaxHeight}
+             showCover={true}
+             drawShadow={true}
+             maxShadowOpacity={0.5}
+             flippingTime={Math.round(flipSpeed * 1000)}
+             usePortrait={true}
+             startPage={initialPage !== null ? initialPage : 0}
+             clickEventForward={true}
+             mobileScrollSupport={false}
+             useMouseEvents={true}
+             showPageCorners={true}
+             disableFlipByClick={false}
+             swipeDistance={30}
+             autoSize={true}
+             renderOnlyPageLengthChange={false}
+             onFlip={onFlip}
+             onChangeState={onChangeState}
+             onInit={onInit}
+             className="mx-auto"
+             style={{ maxWidth: "100%" }}
+           >
+             {bookPageList.map((page, idx) => {
+               const isStudent = page.type === "student" || page.type === "student-back"
+               const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data.profile?.id)
+               const isLeftPage = idx % 2 === 0
 
-              if (page.type === "cover") {
-                return (
-                  <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} onClick={handleCoverClick} />
-                )
-              }
-              if (page.type === "back-cover") {
-                return (
-                  <BackCover key="back-cover" title={data?.settings?.title} />
-                )
-              }
-              if (page.type === "section") {
-                return (
-                  <SectionPage key={`section-${page.name}`} name={page.name} />
-                )
-              }
-              if (page.type === "student") {
-                return (
-                  <StudentPage key={`student-${page.data.profile?.id || idx}`} profile={page.data.profile} pageNum={idx} totalPages={totalPages - 2} visible={visible} />
-                )
-              }
-              if (page.type === "student-back") {
-                return (
-                  <StudentBackPage key={`student-back-${page.data.profile?.id || idx}`} profile={page.data.profile} visible={visible} />
-                )
-              }
-              if (page.type === "pdf") {
-                const img = pdfImages[`${page.data.id}-${page.pageNum}`]
-                return (
-                  <PdfPageContent key={`pdf-${page.data.id}-${page.pageNum}`} imageUrl={img} title={page.data.title} pageNum={page.pageNum} isLoading={!img && pdfLoading} />
-                )
-              }
-              return <div key={`page-${idx}`} />
-            })}
-          </HTMLFlipBook>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 size={32} className="animate-spin text-[var(--accent-gold)]" />
-              <p className="text-sm text-[var(--text-muted)] font-light">Preparing pages…</p>
-            </div>
-          )}
-        </div>
+               if (page.type === "cover") {
+                 return (
+                   <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} onClick={handleCoverClick} />
+                 )
+               }
+               if (page.type === "back-cover") {
+                 return (
+                   <BackCover key="back-cover" title={data?.settings?.title} />
+                 )
+               }
+               if (page.type === "section") {
+                 return (
+                   <SectionPage key={`section-${page.name}`} name={page.name} isLeftPage={isLeftPage} />
+                 )
+               }
+               if (page.type === "student") {
+                 return (
+                   <StudentPage key={`student-${page.data.profile?.id || idx}`} profile={page.data.profile} pageNum={idx} totalPages={totalPages - 2} visible={visible} isLeftPage={isLeftPage} />
+                 )
+               }
+               if (page.type === "student-back") {
+                 return (
+                   <StudentBackPage key={`student-back-${page.data.profile?.id || idx}`} profile={page.data.profile} visible={visible} isLeftPage={isLeftPage} />
+                 )
+               }
+               if (page.type === "pdf") {
+                 const img = pdfImages[`${page.data.id}-${page.pageNum}`]
+                 return (
+                   <PdfPageContent key={`pdf-${page.data.id}-${page.pageNum}`} imageUrl={img} title={page.data.title} pageNum={page.pageNum} isLoading={!img && pdfLoading} isLeftPage={isLeftPage} />
+                 )
+               }
+               return <div key={`page-${idx}`} />
+             })}
+           </HTMLFlipBook>
+           ) : (
+             <div className="flex flex-col items-center gap-3">
+               <Loader2 size={32} className="animate-spin text-[var(--accent-gold)]" />
+               <p className="text-sm text-[var(--text-muted)] font-light">Preparing pages…</p>
+             </div>
+           )}
+         </div>
 
         <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : ""}`}>
           <div className="h-1 rounded-full bg-black/10 overflow-hidden">

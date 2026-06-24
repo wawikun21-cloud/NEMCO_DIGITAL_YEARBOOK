@@ -20,18 +20,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  BookOpen,
   ChevronsUpDown,
   FileText,
+  Images,
   LayoutDashboard,
   LogOut,
+  Sparkles,
   User,
   Users,
   ScrollText,
   Upload,
   Settings,
   BookMarked,
-  Sparkles,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useState } from "react"
@@ -39,6 +39,7 @@ import ChangePasswordModal from "@/components/admin/ChangePasswordModal"
 
 const NAV_MAIN = [
   { key: "3d-yearbook", label: "3D Yearbook", icon: Sparkles, href: "/3d-yearbook" },
+  { key: "memories", label: "My Memories", icon: Images, href: "/memories" },
   { key: "profile", label: "Profile", icon: User, href: "/profile" },
   { key: "resume", label: "Resume", icon: FileText, href: "/resume" },
 ]
@@ -48,6 +49,7 @@ const NAV_ADMIN = [
   { key: "admin-users",      label: "Manage Users",        icon: Users,           href: "/admin/users" },
   { key: "admin-resumes",    label: "Resume Management",   icon: FileText,        href: "/admin/resumes" },
   { key: "admin-yearbook",   label: "3D Yearbook",         icon: BookMarked,      href: "/admin/yearbook" },
+  { key: "admin-memories",   label: "Memory Albums",       icon: Images,          href: "/admin/memories" },
   { key: "admin-logs",       label: "Activity Logs",       icon: ScrollText,      href: "/admin/logs" },
   { key: "admin-import",     label: "Bulk Import",         icon: Upload,          href: "/admin/import" },
   { key: "admin-settings",   label: "Settings",            icon: Settings,        href: "/admin/settings" },

@@ -11,6 +11,8 @@ import ResumeManagementPage from "@/pages/admin/ResumeManagementPage"
 import YearbookManagementPage from "@/pages/admin/YearbookManagementPage"
 import PublicProfilePage from "@/pages/student/PublicProfilePage"
 import ResumeBuilderPage from "@/pages/student/ResumeBuilderPage"
+import MyMemoriesPage from "@/pages/student/MyMemoriesPage"
+import MemoriesManagementPage from "@/pages/admin/MemoriesManagementPage"
 
 export default function App() {
   const { user, profile, role, logout } = useAuth()
@@ -51,6 +53,8 @@ export default function App() {
     if (path === "/admin/settings") return "admin-settings"
     if (path === "/profile") return "profile"
     if (path === "/resume") return "resume"
+    if (path === "/memories") return "memories"
+    if (path === "/admin/memories") return "admin-memories"
     return "3d-yearbook"
   }
 
@@ -61,6 +65,7 @@ export default function App() {
     if (path === "/admin/logs") return <ActivityLogsPage />
     if (path === "/admin/resumes") return <ResumeManagementPage />
     if (path === "/admin/yearbook") return <YearbookManagementPage />
+    if (path === "/admin/memories") return <MemoriesManagementPage />
     return <AdminDashboard />
   }
 
@@ -68,6 +73,7 @@ export default function App() {
     const path = window.location.pathname
     if (path === "/profile") return <ProfilePage />
     if (path === "/resume") return <ResumeBuilderPage />
+    if (path === "/memories") return <MyMemoriesPage />
     return <Yearbook3DPage />
   }
 
