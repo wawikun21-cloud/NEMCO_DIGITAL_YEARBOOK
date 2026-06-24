@@ -300,7 +300,7 @@ const BookCover = forwardRef(function BookCover({ title, subtitle }, ref) {
 
 const BackCover = forwardRef(function BackCover({ title }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-5 sm:p-6 text-center relative book-hardcover">
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-5 sm:p-6 text-center relative">
       <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 40%)" }} />
       <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15)" }} />
       <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
@@ -926,7 +926,7 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}>
+          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}>
            {pdfListStable ? (
             <HTMLFlipBook
               key={`${bookPageList.length}-${isFullscreen}`}
@@ -938,7 +938,7 @@ export default function Yearbook3DPage() {
              maxWidth={bookMaxWidth}
              minHeight={350}
              maxHeight={bookMaxHeight}
-               showCover={false}
+                showCover={windowWidth >= 640}
              drawShadow={true}
              maxShadowOpacity={0.5}
              flippingTime={Math.round(flipSpeed * 1000)}
