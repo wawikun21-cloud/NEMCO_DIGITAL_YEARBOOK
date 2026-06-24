@@ -1,5 +1,5 @@
 import { QRCodeCanvas } from "qrcode.react"
-import { Landmark, Home, Phone, Mail, Globe, QrCode, ExternalLink, Download } from "lucide-react"
+import { Landmark, Home, Phone, Mail, Globe, QrCode, ExternalLink } from "lucide-react"
 
 function FacebookIcon(props) {
   return (
@@ -110,13 +110,13 @@ function CornerBracket({ corner }) {
   return <span className={`${base} ${variants[corner]}`} />
 }
 
-export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef, onDownloadQrCode }) {
+export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef }) {
   const socialLinks = [profile?.social_link1, profile?.social_link2, profile?.social_link3]
     .map(normalizeSocialLink)
     .filter(Boolean)
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl bg-white">
+    <div className="relative flex h-full w-full flex-col rounded-3xl bg-white" style={{ clipPath: "inset(0 round 1.5rem)" }}>
       {/* decorative bottom-right blob background */}
       <img
         src="/assets/blob-bottom-bg.png"
@@ -125,10 +125,10 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef, 
         className="pointer-events-none absolute inset-x-0 bottom-0 w-full select-none"
       />
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-4 px-[8%] pt-[10%]">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-5 px-[2%] pt-[10%]">
         <div
           ref={canvasWrapperRef}
-          className="relative flex items-center justify-center p-5"
+          className="relative flex items-center justify-center p-2"
         >
           <CornerBracket corner="top-left" />
           <CornerBracket corner="top-right" />
@@ -152,21 +152,7 @@ export function ProfileCardBack({ profile, qrData, hasQrCode, canvasWrapperRef, 
           )}
         </div>
 
-        {hasQrCode && (
-          <button
-            type="button"
-            onClick={(e) => {
-              // Prevent this click from bubbling up to the card's flip
-              // handler — same pattern as the social links below.
-              e.stopPropagation()
-              onDownloadQrCode?.()
-            }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[clamp(0.65rem,2.4vw,0.75rem)] font-medium text-neutral-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#1d4ed8]/30 hover:text-[#1d4ed8]"
-          >
-            <Download size={13} />
-            Download QR Code
-          </button>
-        )}
+
 
         {/* Social links now live right below the QR code instead of on the front face */}
         {socialLinks.length > 0 && (

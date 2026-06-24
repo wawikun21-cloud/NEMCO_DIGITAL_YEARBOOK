@@ -9,6 +9,7 @@ import { uploadImport } from "@/services/importService.js"
 import * as XLSX from "xlsx"
 
 const VALID_IMPORT_ROLES = ["admin", "user"]
+const MAX_IMPORT_ROWS = 100
 
 const normalizeText = (value) => {
   if (value == null) return ""
@@ -40,6 +41,9 @@ export default function ImportUsersPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [importStatus, setImportStatus] = useState(null)
   const [error, setError] = useState(null)
+  const [sheetNames, setSheetNames] = useState([])
+  const [selectedSheet, setSelectedSheet] = useState("")
+  const [fileBuffer, setFileBuffer] = useState(null)
 
   const handleReset = () => {
     setSelectedFile(null)
@@ -48,11 +52,14 @@ export default function ImportUsersPage() {
     setPreviewOpen(false)
     setImportStatus(null)
     setError(null)
+    setSheetNames([])
+    setSelectedSheet("")
+    setFileBuffer(null)
     const input = document.getElementById("import-file")
     if (input) input.value = ""
   }
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -66,14 +73,19 @@ export default function ImportUsersPage() {
     setError(null)
     setImportStatus(null)
     setSelectedFile(file)
-    parseAndValidate(file)
+    const buffer = await file.arrayBuffer()
+    setFileBuffer(buffer)
+    const workbook = XLSX.read(buffer, { type: "array" })
+    const names = workbook.SheetNames
+    setSheetNames(names)
+    const firstSheet = names[0] || ""
+    setSelectedSheet(firstSheet)
+    parseAndValidate(buffer, firstSheet)
   }
 
-  const parseAndValidate = async (file) => {
+  const parseAndValidate = async (buffer, sheetName) => {
     try {
-      const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: "array" })
-      const sheetName = workbook.SheetNames[0]
       const sheet = workbook.Sheets[sheetName]
 
       /*
@@ -88,6 +100,14 @@ export default function ImportUsersPage() {
         preview the admin sees is identical to what the backend will process.
       */
       const data = XLSX.utils.sheet_to_json(sheet, { raw: false })
+
+      if (data.length > MAX_IMPORT_ROWS) {
+        setError(`The sheet "${sheetName}" contains ${data.length} rows, which exceeds the maximum of ${MAX_IMPORT_ROWS} rows per import. Please split your file into smaller batches and try again.`)
+        setValidRows([])
+        setInvalidRows([])
+        setPreviewOpen(false)
+        return
+      }
 
       const valid = []
       const invalid = []
@@ -152,8 +172,22 @@ export default function ImportUsersPage() {
     setError(null)
     setImportStatus({ progress: 0, status: "processing" })
 
+    // Simulate incremental progress while the request is in-flight.
+    // The backend is a single synchronous POST with no SSE / WebSocket,
+    // so we ramp smoothly to ~90% and snap to 100% on completion.
+    let currentProgress = 0
+    const progressInterval = setInterval(() => {
+      currentProgress += Math.random() * 12 + 3
+      if (currentProgress >= 90) {
+        currentProgress = 90
+        clearInterval(progressInterval)
+      }
+      setImportStatus(prev => prev ? { ...prev, progress: Math.round(currentProgress) } : prev)
+    }, 400)
+
     try {
-      const results = await uploadImport(selectedFile)
+      const results = await uploadImport(selectedFile, selectedSheet)
+      clearInterval(progressInterval)
       const status = results.errorCount > 0 ? "completed_with_errors" : "completed"
 
       setImportStatus({
@@ -165,8 +199,16 @@ export default function ImportUsersPage() {
         errorCount: results.errorCount,
       })
     } catch (err) {
+      clearInterval(progressInterval)
       setError(err.message || "An unexpected error occurred during import.")
       setImportStatus({ progress: 100, status: "failed" })
+    }
+  }
+
+  const handleSheetChange = (newSheet) => {
+    setSelectedSheet(newSheet)
+    if (fileBuffer) {
+      parseAndValidate(fileBuffer, newSheet)
     }
   }
 
@@ -226,7 +268,7 @@ export default function ImportUsersPage() {
             <span className="text-sm text-[var(--text-muted)]"> or drag and drop</span>
           </div>
 
-          <p className="text-xs text-[var(--text-muted)]">.xlsx or .xls — max 5 MB</p>
+          <p className="text-xs text-[var(--text-muted)]">.xlsx or .xls — max 5 MB — up to {MAX_IMPORT_ROWS} rows per import</p>
 
           <Input
             id="import-file"
@@ -265,6 +307,9 @@ export default function ImportUsersPage() {
         invalidRows={invalidRows}
         onConfirm={handleImport}
         onCancel={() => setPreviewOpen(false)}
+        sheetNames={sheetNames}
+        selectedSheet={selectedSheet}
+        onSheetChange={handleSheetChange}
       />
     </div>
   )

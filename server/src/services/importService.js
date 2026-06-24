@@ -23,10 +23,13 @@ const normalizeRoleValue = (value) => {
   return String(value).trim().toLowerCase()
 }
 
-export async function parseExcelFile(buffer) {
+export async function parseExcelFile(buffer, sheetName) {
   const workbook = XLSX.read(buffer, { type: "buffer" })
-  const sheetName = workbook.SheetNames[0]
-  const sheet = workbook.Sheets[sheetName]
+  const resolvedSheetName = sheetName || workbook.SheetNames[0]
+  if (!workbook.SheetNames.includes(resolvedSheetName)) {
+    throw new Error(`Sheet "${resolvedSheetName}" not found. Available sheets: ${workbook.SheetNames.join(", ")}`)
+  }
+  const sheet = workbook.Sheets[resolvedSheetName]
 
   /*
     KEY FIX: { raw: false } tells SheetJS to return every cell value as the
@@ -225,6 +228,9 @@ export async function recordError(batchId, rowNumber, errorMessage, email, stude
 
 const getErrorMessage = (errors) => errors?.[0]?.message || "Unknown validation error"
 
+// ─── Delay helper for rate-limit avoidance ───
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export async function processImportRows(rows, batchId) {
   let successCount = 0
   let errorCount = 0
@@ -244,18 +250,36 @@ export async function processImportRows(rows, batchId) {
       continue
     }
 
-    try {
-      await createUserFromRow(validation.data)
-      successCount++
-    } catch (error) {
-      errorCount++
-      await recordError(
-        batchId,
-        rowNumber,
-        error.message,
-        validation.data.email,
-        validation.data.student_number
-      )
+    // Retry logic: Supabase Auth API can rate-limit or fail transiently.
+    // Try up to 3 times with exponential backoff.
+    const maxRetries = 3
+    let succeeded = false
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await createUserFromRow(validation.data)
+        successCount++
+        succeeded = true
+        break
+      } catch (error) {
+        if (attempt === maxRetries) {
+          errorCount++
+          await recordError(
+            batchId,
+            rowNumber,
+            error.message,
+            validation.data.email,
+            validation.data.student_number
+          )
+        } else {
+          // Exponential backoff: 500ms, 1000ms, 2000ms
+          await sleep(500 * Math.pow(2, attempt - 1))
+        }
+      }
+    }
+
+    // Small delay between rows to avoid hitting Supabase rate limits
+    if (!succeeded || successCount % 5 === 0) {
+      await sleep(200)
     }
   }
 

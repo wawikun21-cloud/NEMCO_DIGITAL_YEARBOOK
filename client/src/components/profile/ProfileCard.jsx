@@ -1,13 +1,11 @@
 import { RotateCw } from "lucide-react"
 import { useFlipCard } from "@/hooks/useFlipCard"
-import { useQRCode } from "@/hooks/useQRCode"
 import { ProfileCardFront } from "@/components/profile/ProfileCardFront"
 import { ProfileCardBack } from "@/components/profile/ProfileCardBack"
 import { cn } from "@/lib/utils"
 
-export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onAvatarSelect }) {
+export function ProfileCard({ profile, avatarPreview, isEditing, onAvatarSelect, canvasWrapperRef, qrData, hasQrCode }) {
   const { isFlipped, flip } = useFlipCard()
-  const { qrData, hasQrCode, canvasWrapperRef, downloadQrCode } = useQRCode(profile, setProfile)
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
@@ -22,21 +20,13 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
         className={cn(
           // Fluid sizing: scales smoothly from phone -> tablet -> desktop
           // instead of jumping between fixed breakpoint pixel values.
-          "group [perspective:1600px] w-full",
+          "card-flip-container w-full",
           "max-w-[clamp(260px,80vw,360px)] aspect-[3/5]",
           isEditing ? "cursor-default" : "cursor-pointer"
         )}
       >
-        <div
-          className={cn(
-            "relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d]",
-            isFlipped && "[transform:rotateY(180deg)]"
-          )}
-        >
-          <div className={cn(
-            "absolute inset-0 shadow-xl [backface-visibility:hidden]",
-            isFlipped && "pointer-events-none"
-          )}>
+        <div className={cn("card-flip-inner", isFlipped && "is-flipped")}>
+          <div className={cn("card-flip-face shadow-xl", isFlipped && "pointer-events-none")}>
             <ProfileCardFront
               profile={profile}
               avatarPreview={avatarPreview}
@@ -45,16 +35,12 @@ export function ProfileCard({ profile, setProfile, avatarPreview, isEditing, onA
             />
           </div>
 
-          <div className={cn(
-            "absolute inset-0 shadow-xl [backface-visibility:hidden] [transform:rotateY(180deg)]",
-            !isFlipped && "pointer-events-none"
-          )}>
+          <div className={cn("card-flip-face card-flip-face--back shadow-xl", !isFlipped && "pointer-events-none")}>
             <ProfileCardBack
               profile={profile}
               qrData={qrData}
               hasQrCode={hasQrCode}
               canvasWrapperRef={canvasWrapperRef}
-              onDownloadQrCode={downloadQrCode}
             />
           </div>
         </div>

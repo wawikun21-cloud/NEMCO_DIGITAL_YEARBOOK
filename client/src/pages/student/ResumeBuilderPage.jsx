@@ -15,6 +15,8 @@ import {
   Save,
   X,
   Sparkles,
+  Download,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +34,7 @@ import {
 import { cn } from "@/lib/utils"
 import { ResumeSectionRenderer } from "@/components/resume/ResumeSectionRenderer"
 import { ResumePrintView } from "@/components/resume/ResumePrintView"
+import { usePdfExport } from "@/hooks/usePdfExport"
 import {
   getMyResumes,
   getMyResumeDetail,
@@ -348,20 +351,22 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
    const [showMobilePreview, setShowMobilePreview] = useState(false)
    const [confirmExit, setConfirmExit] = useState(false)
    const previewContainerRef = useRef(null)
+   const printViewRef = useRef(null)
+   const { exportToPdf, exporting } = usePdfExport()
 
-   useEffect(() => {
-    const el = previewContainerRef.current
-    if (!el) return
-    const calcScale = (w) => Math.max(0.2, Math.min(1, (w - 64) / 794))
-    setPreviewScale(calcScale(el.getBoundingClientRect().width))
-    const obs = new ResizeObserver(([entry]) => {
-      setPreviewScale(calcScale(entry.contentRect.width))
-    })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
+    useEffect(() => {
+     const el = previewContainerRef.current
+     if (!el) return
+     const calcScale = (w) => Math.max(0.2, Math.min(1, (w - 64) / 794))
+     setPreviewScale(calcScale(el.getBoundingClientRect().width))
+     const obs = new ResizeObserver(([entry]) => {
+       setPreviewScale(calcScale(entry.contentRect.width))
+     })
+     obs.observe(el)
+     return () => obs.disconnect()
+   }, [])
 
-  const handlePhotoUpload = async (file) => {
+    const handlePhotoUpload = async (file) => {
     if (!resume?.id) throw new Error("Resume is not ready for photo upload")
     return uploadResumePhoto(resume.id, file)
   }
@@ -466,6 +471,19 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
           </Button>
 
           <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-8"
+            disabled={exporting}
+            onClick={() => exportToPdf({ data, sections, template, resume })}
+          >
+            {exporting
+              ? <><Loader2 size={12} className="animate-spin" /><span className="hidden sm:inline">Generating…</span></>
+              : <><Download size={12} /><span className="hidden sm:inline">Download PDF</span></>
+            }
+          </Button>
+
+          <Button
             size="sm"
             className="gap-1.5 text-xs h-8"
             onClick={handleSave}
@@ -538,6 +556,7 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
                   value={data[section.section_key]}
                   onChange={(value) => updateSection(section.section_key, value)}
                   onPhotoUpload={handlePhotoUpload}
+                  isExporting={exporting}
                 />
               </div>
             ))}
@@ -616,6 +635,7 @@ function ResumeEditor({ resume, template, sections, onBack, onSave, saving, allT
                     sections={sections}
                     template={template}
                     resume={resume}
+                    ref={printViewRef}
                   />
                 </div>
               </div>

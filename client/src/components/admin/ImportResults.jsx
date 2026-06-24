@@ -34,7 +34,21 @@ export default function ImportResults({ results }) {
   }
 
   const downloadErrors = async () => {
-    const errorData = errors || await getBatchErrors(batchId)
+    let errorData
+    try {
+      errorData = Array.isArray(errors) && errors.length > 0
+        ? errors
+        : await getBatchErrors(batchId)
+    } catch (err) {
+      console.error("Failed to fetch errors for download:", err)
+      return
+    }
+
+    if (!Array.isArray(errorData) || errorData.length === 0) {
+      console.warn("No error data available to download")
+      return
+    }
+
     const csv = [
       ["Row Number", "Student #", "Email", "Error Message"],
       ...errorData.map(e => [
@@ -103,7 +117,7 @@ export default function ImportResults({ results }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {errors.map((e, i) => (
+                  {(Array.isArray(errors) ? errors : []).map((e, i) => (
                     <tr key={i} className="border-t border-[var(--border-light)] bg-red-50/40">
                       <td className="px-3 py-2 text-[var(--text-muted)]">{e.row_number}</td>
                       <td className="px-3 py-2 text-[var(--text-primary)]">

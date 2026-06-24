@@ -13,6 +13,7 @@ import auditLogRoutes from "./routes/auditLogRoutes.js"
 import resumeRoutes from "./routes/resumeRoutes.js"
 import resumeTemplateRoutes from "./routes/resumeTemplateRoutes.js"
 import studentResumeRoutes from "./routes/studentResumeRoutes.js"
+import resumePdfRoutes from "./routes/resumePdfRoutes.js"  // ← NEW
 import flipbookRoutes from "./routes/flipbookRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
 import dashboardRoutes from "./routes/dashboardRoutes.js"
@@ -41,6 +42,15 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.use(express.json({ limit: "10mb" }))
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"))
+
+// Set a 5-minute timeout for long-running requests (e.g., bulk imports)
+app.use((req, res, next) => {
+  req.setTimeout(300000, () => {
+    res.status(408).json({ message: "Request timeout" })
+  })
+  res.setTimeout(300000)
+  next()
+})
 
 app.post("/api/test-no-middleware", (req, res) => {
   let total = 0
@@ -96,6 +106,7 @@ app.use("/api/admin", auditLogRoutes)
 app.use("/api/admin", resumeRoutes)
 app.use("/api/admin", resumeTemplateRoutes)
 app.use("/api", studentResumeRoutes)
+app.use("/api", resumePdfRoutes)               // ← NEW  (POST /api/generate-resume-pdf)
 app.use("/api/admin", flipbookRoutes)
 app.use("/api/admin/upload", uploadRoutes)
 app.use("/api/admin", dashboardRoutes)

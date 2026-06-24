@@ -29,7 +29,7 @@ const MAIN_MUTED  = "#555555"
 const SIDEBAR_SECTIONS = ["skills", "references", "languages", "certifications", "contact"]
 
 const sidebarTokens = {
-  bodySize: 11,
+  bodySize: 10,
   textColor: WHITE_DIM,
   mutedColor: WHITE_MUTED,
   accentColor: GOLD,
@@ -39,7 +39,7 @@ const sidebarTokens = {
 }
 
 const mainTokens = {
-  bodySize: 12,
+  bodySize: 11,
   textColor: MAIN_TEXT,
   mutedColor: MAIN_MUTED,
   accentColor: DARK,
@@ -126,36 +126,36 @@ function ModernHeader({ personal }) {
           textTransform: "uppercase",
         }}>
           {personal.name || "YOUR NAME"}
-        </h1>
+</h1>
 
-{personal.title && (
-           <p style={{
-             fontSize: 12,
-             fontWeight: 600,
-             color: GOLD,
-             margin: "0 0 10px",
-             textTransform: "uppercase",
-             letterSpacing: "1.5px",
-           }}>
-             {personal.title}
-           </p>
-         )}
+        {personal.title && (
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: GOLD,
+            margin: "0 0 10px",
+            textTransform: "uppercase",
+            letterSpacing: "1.5px",
+          }}>
+            {personal.title}
+          </p>
+        )}
 
         {/* Contact row */}
         {contacts.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px" }}>
-{contacts.map((item, i) => (
-               <span key={i} style={{
-                 fontSize: 10,
-                 color: WHITE_DIM,
-                 display: "flex",
-                 alignItems: "center",
-                 gap: 3,
-               }}>
-                 <item.Icon size={12} />
-                 {item.value}
-               </span>
-             ))}
+            {contacts.map((item, i) => (
+              <span key={i} style={{
+                fontSize: 9,
+                color: WHITE_DIM,
+                display: "flex",
+                alignItems: "center",
+                gap: 3,
+              }}>
+                <item.Icon size={12} />
+                {item.value}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -180,17 +180,17 @@ function SidebarSection({ label, children }) {
           borderRadius: "50%",
           background: GOLD,
           flexShrink: 0,
-        }} />
-<h3 style={{
-           fontSize: 14,
-           fontWeight: 700,
-           textTransform: "uppercase",
-           letterSpacing: "1.4px",
-           color: GOLD,
-           margin: 0,
-         }}>
-           {label}
-         </h3>
+}} />
+        <h3 style={{
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "1.4px",
+          color: GOLD,
+          margin: 0,
+        }}>
+          {label}
+        </h3>
       </div>
       {/* Gold underline */}
       <div style={{ height: 1, background: `rgba(254,199,11,0.3)`, marginBottom: 8 }} />
@@ -216,17 +216,17 @@ function MainSection({ label, children }) {
           background: GOLD,
           flexShrink: 0,
           borderRadius: 1,
-        }} />
-<h2 style={{
-           fontSize: 15,
-           fontWeight: 700,
-           textTransform: "uppercase",
-           letterSpacing: "1px",
-           color: DARK,
-           margin: 0,
-         }}>
-           {label}
-         </h2>
+}} />
+        <h2 style={{
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "1px",
+          color: DARK,
+          margin: 0,
+        }}>
+          {label}
+        </h2>
         <div style={{ flex: 1, height: 1.5, background: GOLD, opacity: 0.4 }} />
       </div>
       {children}
@@ -295,7 +295,7 @@ export function ModernTemplate({ data, sections, personal }) {
               return (
                 <MainSection key={section.section_key} label={section.label}>
                   <p style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     color: MAIN_MUTED,
                     lineHeight: 1.65,
                     margin: 0,

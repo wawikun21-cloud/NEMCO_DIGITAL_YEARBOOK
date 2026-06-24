@@ -38,7 +38,7 @@ import { useState } from "react"
 import ChangePasswordModal from "@/components/admin/ChangePasswordModal"
 
 const NAV_MAIN = [
-  { key: "3d-yearbook", label: "3D Yearbook", icon: Sparkles, href: "/3d-yearbook" },
+  { key: "3d-yearbook", label: "My Yearbook", icon: Sparkles, href: "/3d-yearbook" },
   { key: "memories", label: "My Memories", icon: Images, href: "/memories" },
   { key: "profile", label: "Profile", icon: User, href: "/profile" },
   { key: "resume", label: "Resume", icon: FileText, href: "/resume" },

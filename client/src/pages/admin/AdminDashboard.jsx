@@ -11,6 +11,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { getDashboard } from "../../services/dashboardService.js"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+
+const DISPLAY_LIMIT = 10
 
 const STAT_CONFIG = [
   {
@@ -81,6 +90,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [recentLogs, setRecentLogs] = useState([])
   const [failedImports, setFailedImports] = useState([])
+  const [activityModalOpen, setActivityModalOpen] = useState(false)
+  const [importsModalOpen, setImportsModalOpen] = useState(false)
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -98,6 +109,10 @@ export default function AdminDashboard() {
     }
     fetchDashboardData()
   }, [])
+
+  const displayedLogs = recentLogs.slice(0, DISPLAY_LIMIT)
+  const displayedFailedImports = failedImports.slice(0, DISPLAY_LIMIT)
+  const hasMoreLogs = recentLogs.length > DISPLAY_LIMIT
 
   const displayStats = stats
     ? [
@@ -139,7 +154,7 @@ export default function AdminDashboard() {
         <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm">
           <div className="border-b border-[var(--border-light)] px-5 py-4">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Recent Activity</h2>
-            <p className="text-xs text-[var(--text-muted)]">Latest 5 audit log entries</p>
+            <p className="text-xs text-[var(--text-muted)]">Latest {DISPLAY_LIMIT} audit log entries</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -152,8 +167,8 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-light)]">
-                {recentLogs.length > 0 ? (
-                  recentLogs.map((log) => (
+                {displayedLogs.length > 0 ? (
+                  displayedLogs.map((log) => (
                     <tr
                       key={log.id}
                       className="transition-colors hover:bg-[var(--bg-subtle)]/50"
@@ -176,17 +191,29 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+          {hasMoreLogs && (
+            <div className="border-t border-[var(--border-light)] px-5 py-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setActivityModalOpen(true)}
+                className="text-xs"
+              >
+                View all
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Failed Imports */}
         <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] shadow-sm">
           <div className="border-b border-[var(--border-light)] px-5 py-4">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Failed Imports</h2>
-            <p className="text-xs text-[var(--text-muted)]">Recent batches with errors</p>
+            <p className="text-xs text-[var(--text-muted)]">Recent batches with errors (showing {DISPLAY_LIMIT})</p>
           </div>
-          {failedImports.length > 0 ? (
+          {displayedFailedImports.length > 0 ? (
             <div className="divide-y divide-[var(--border-light)]">
-              {failedImports.map((item) => (
+              {displayedFailedImports.map((item) => (
                 <div
                   key={item.id}
                   className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-[var(--bg-subtle)]/50"
@@ -210,14 +237,92 @@ export default function AdminDashboard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {}}
+              onClick={() => setImportsModalOpen(true)}
               className="text-xs"
+              disabled={failedImports.length === 0}
             >
-              View all failed imports
+              View all ({failedImports.length})
             </Button>
           </div>
         </div>
       </div>
+
+      {/* All Activity Modal */}
+      <Dialog open={activityModalOpen} onOpenChange={setActivityModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>All Recent Activity</DialogTitle>
+            <DialogDescription>Complete audit log entries ({recentLogs.length} total)</DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-[var(--bg-surface)]">
+                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                  <th className="px-3 py-3">User</th>
+                  <th className="px-3 py-3">Action</th>
+                  <th className="hidden px-3 py-3 sm:table-cell">Entity</th>
+                  <th className="px-3 py-3 text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-light)]">
+                {recentLogs.length > 0 ? (
+                  recentLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="transition-colors hover:bg-[var(--bg-subtle)]/50"
+                    >
+                      <td className="px-3 py-3 font-medium text-[var(--text-primary)]">{log.user}</td>
+                      <td className="px-3 py-3 text-[var(--text-secondary)]">{log.action}</td>
+                      <td className="hidden px-3 py-3 text-[var(--text-muted)] sm:table-cell">{log.entity}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right text-[var(--text-muted)]">
+                        {log.time}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8 text-center text-[var(--text-muted)]">
+                      No recent activity
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Failed Imports Modal */}
+      <Dialog open={importsModalOpen} onOpenChange={setImportsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>All Failed Imports</DialogTitle>
+            <DialogDescription>All batches with errors ({failedImports.length} total)</DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 divide-y divide-[var(--border-light)]">
+            {failedImports.length > 0 ? (
+              failedImports.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-1 px-3 py-4 transition-colors hover:bg-[var(--bg-subtle)]/50"
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {item.fileName}
+                    </span>
+                    <span className="shrink-0 text-xs text-[var(--text-muted)]">{item.timestamp}</span>
+                  </div>
+                  <p className="text-xs text-[var(--status-red)]">{item.reason}</p>
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-8 text-center text-[var(--text-muted)]">
+                No failed imports
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="mt-auto border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">

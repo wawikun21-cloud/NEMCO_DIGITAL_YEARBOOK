@@ -36,7 +36,7 @@ export default function LoginPage() {
         style={{ backgroundImage: "url('/Loginbackground.png')" }}
       />
       <div className="absolute inset-0 bg-navy/3" />
-      <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-md overflow-hidden animate-login animate-delay-200">
+      <div className="relative z-10 w-full max-w-sm rounded-md border border-muted bg-background shadow-xl shadow-navy/45 overflow-hidden animate-login animate-delay-200">
         <div className="flex flex-col items-center gap-4 bg-navy px-6 py-8 animate-fade-in-down animate-delay-300">
           <img
             src="/NEMCO-Logo.png"
@@ -47,7 +47,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-navy-foreground">
               NEMCO Yearbook Portal
             </h1>
-            <p className="text-sm text-navy-foreground/80">
+            <p className="text-sm text-navy-foreground">
               Your Digital Collection of School Memories
             </p>
           </div>

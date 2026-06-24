@@ -271,8 +271,8 @@ async function handleUploadResumePhoto(req, res) {
     const { error: uploadError } = await supabaseAdmin.storage.from("resume-photos").upload(storagePath, validated.data, { contentType: validated.mimeType, upsert: true })
     if (uploadError) return json(res, 500, { message: `Failed to upload photo: ${uploadError.message}` })
 
-    const { data: publicUrlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(storagePath)
-    const photoUrl = publicUrlData?.publicUrl || ""
+     const { data: publicUrlData } = supabaseAdmin.storage.from("resume-photos").getPublicUrl(storagePath)
+     const photoUrl = publicUrlData?.publicUrl ? `${publicUrlData.publicUrl}?v=${Date.now()}` : ""
     const updatedData = {
       ...(resume.data || {}),
       personal: {
@@ -719,7 +719,22 @@ async function handleDashboard(req, res) {
   try {
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const [{ count: totalUsers }, { count: activeUsers }, { count: completedProfiles }, { count: pendingApprovals }, { count: resumesCreated }, { count: newUsersThisMonth }, { count: recentImports }, { count: failedImports }] = await Promise.all([
+
+    // Run all queries concurrently. Each result is kept as the full Supabase
+    // response object { data, error, count } so a failure in one query never
+    // crashes the destructuring step — we safely read .count / .data below.
+    const [
+      totalUsersRes,
+      activeUsersRes,
+      completedProfilesRes,
+      pendingApprovalsRes,
+      resumesCreatedRes,
+      newUsersThisMonthRes,
+      recentImportsRes,
+      failedImportsCountRes,
+      recentLogsRes,
+      failedBatchesRes,
+    ] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("profile_status", "approved"),
@@ -728,13 +743,54 @@ async function handleDashboard(req, res) {
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", firstDayOfMonth),
       supabaseAdmin.from("import_batches").select("id", { count: "exact", head: true }).gte("created_at", firstDayOfMonth),
       supabaseAdmin.from("import_batches").select("id", { count: "exact", head: true }).in("status", ["failed", "completed_with_errors"]).gte("created_at", firstDayOfMonth),
+      supabaseAdmin.from("audit_logs").select("id, user_id, action, entity_type, entity_id, created_at").order("created_at", { ascending: false }).limit(5),
+      supabaseAdmin.from("import_batches").select("id, filename, status, created_at").in("status", ["failed", "completed_with_errors"]).order("created_at", { ascending: false }).limit(10),
     ])
+
+    // Safely extract counts — a query error yields null which we coerce to 0.
+    const totalUsers        = totalUsersRes.count ?? 0
+    const activeUsers       = activeUsersRes.count ?? 0
+    const completedProfiles = completedProfilesRes.count ?? 0
+    const pendingApprovals  = pendingApprovalsRes.count ?? 0
+    const resumesCreated    = resumesCreatedRes.count ?? 0
+    const newUsersThisMonth = newUsersThisMonthRes.count ?? 0
+    const recentImports     = recentImportsRes.count ?? 0
+    const failedImportsCount = failedImportsCountRes.count ?? 0
+
+    // Safely extract data arrays — fall back to [] when the query errored.
+    const recentLogsRaw  = Array.isArray(recentLogsRes.data)  ? recentLogsRes.data  : []
+    const failedBatchesRaw = Array.isArray(failedBatchesRes.data) ? failedBatchesRes.data : []
+
+    if (recentLogsRes.error)   console.error("[DASHBOARD] audit_logs query failed:", recentLogsRes.error.message)
+    if (failedBatchesRes.error) console.error("[DASHBOARD] import_batches query failed:", failedBatchesRes.error.message)
+
+    const logUserIds = [...new Set(recentLogsRaw.map((l) => l.user_id).filter(Boolean))]
+    let userNameMap = {}
+    if (logUserIds.length > 0) {
+      const { data: users } = await supabaseAdmin.from("profiles").select("id, full_name, display_name, student_number").in("id", logUserIds)
+      for (const u of users || []) userNameMap[u.id] = u.display_name || u.full_name || u.student_number || "Unknown"
+    }
+    const recentLogs = recentLogsRaw.map((log) => ({
+      id: log.id,
+      user: userNameMap[log.user_id] || "System",
+      action: log.action,
+      entity: log.entity_type || log.entity_id || "—",
+      time: new Date(log.created_at).toLocaleString(),
+    }))
+
+    const failedImports = failedBatchesRaw.map((batch) => ({
+      id: batch.id,
+      fileName: batch.filename,
+      timestamp: new Date(batch.created_at).toLocaleString(),
+      reason: batch.status === "failed" ? "Import failed" : "Completed with errors",
+    }))
+
     json(res, 200, {
-      stats: { totalUsers: totalUsers || 0, activeUsers: activeUsers || 0, completedProfiles: completedProfiles || 0, pendingApprovals: pendingApprovals || 0, resumesCreated: resumesCreated || 0, newUsersThisMonth: newUsersThisMonth || 0, recentImports: recentImports || 0, failedImports: failedImports || 0 },
-      recentLogs: [],
-      failedImports: [],
+      stats: { totalUsers, activeUsers, completedProfiles, pendingApprovals, resumesCreated, newUsersThisMonth, recentImports, failedImports: failedImportsCount },
+      recentLogs,
+      failedImports,
     })
-  } catch (error) { json(res, 500, { message: error.message }) }
+  } catch (error) { json(res, 500, { message: error.message || "Failed to load dashboard" }) }
 }
 
 async function handleGetTemplates(req, res) {
@@ -1057,6 +1113,7 @@ async function handleImportUsers(req, res) {
     }
     const parts = parseMultipart(body, boundaryMatch[1])
     const file = parts.file
+    const sheetNameParam = parts.sheetName
     if (!file || !file.data) return json(res, 400, { message: "No file uploaded" })
     const buffer = file.data
     const filename = file.filename
@@ -1075,11 +1132,17 @@ async function handleImportUsers(req, res) {
     } catch (parseError) {
       return json(res, 400, { message: `Failed to parse Excel: ${parseError.message}` })
     }
-    const sheetName = workbook.SheetNames[0]
-    const sheet = workbook.Sheets[sheetName]
+    const resolvedSheetName = sheetNameParam || workbook.SheetNames[0]
+    if (!workbook.SheetNames.includes(resolvedSheetName)) {
+      return json(res, 400, { message: `Sheet "${resolvedSheetName}" not found. Available sheets: ${workbook.SheetNames.join(", ")}` })
+    }
+    const sheet = workbook.Sheets[resolvedSheetName]
     const rows = XLSX.utils.sheet_to_json(sheet, { raw: false })
     if (rows.length === 0) {
       return json(res, 400, { message: "Excel file is empty or has no data rows" })
+    }
+     if (rows.length > 100) {
+       return json(res, 400, { message: `The sheet "${resolvedSheetName}" contains ${rows.length} rows, which exceeds the maximum of 100 rows per import. Please split your file into smaller batches and try again.` })
     }
 
     // Validate headers
@@ -1247,7 +1310,7 @@ async function handleGetBatches(req, res) {
   if (!user) return
   const { data, error } = await supabaseAdmin.from("import_batches").select("*").order("created_at", { ascending: false })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { batches: data || [] })
 }
 
 async function handleGetBatch(req, res) {
@@ -1257,7 +1320,7 @@ async function handleGetBatch(req, res) {
   const { data, error } = await supabaseAdmin.from("import_batches").select("*").eq("id", id).maybeSingle()
   if (error) return json(res, 500, { message: error.message })
   if (!data) return json(res, 404, { message: "Batch not found" })
-  json(res, 200, data)
+  json(res, 200, { batch: data })
 }
 
 async function handleGetBatchErrors(req, res) {
@@ -1265,16 +1328,39 @@ async function handleGetBatchErrors(req, res) {
   if (!user) return
   const parts = req.url.split("/")
   const batchId = parts[parts.indexOf("batches") + 1]
-  const { data, error } = await supabaseAdmin.from("import_errors").select("*").eq("batch_id", batchId)
+  const { data, error } = await supabaseAdmin.from("import_errors").select("*").eq("batch_id", batchId).order("row_number", { ascending: true })
   if (error) return json(res, 500, { message: error.message })
-  json(res, 200, data || [])
+  json(res, 200, { errors: data || [] })
+}
+
+// ── Resume PDF generation ────────────────────────────────────────────────────
+// On Vercel, api/generate-resume-pdf.js is declared as its own function in
+// vercel.json and its route is served directly before the catch-all rewrite
+// reaches this file.  This handler exists here as a safety net (e.g. local
+// Vercel Dev, or if the rewrite order ever changes) and keeps the monolith
+// self-contained.  It re-implements the same Puppeteer logic inline so that
+// this file stays dependency-free from the api/ sibling.
+async function handleGenerateResumePdf(req, res) {
+  // Delegate to the shared handler in api/generate-resume-pdf.js.
+  // Dynamic import keeps this file loadable even in environments where
+  // @sparticuz/chromium / puppeteer-core are not installed, since the import
+  // only runs when this route is actually called.
+  try {
+    const { default: pdfHandler } = await import("./generate-resume-pdf.js")
+    await pdfHandler(req, res)
+  } catch (err) {
+    console.error("[handleGenerateResumePdf] Error loading PDF handler:", err)
+    json(res, 500, { error: "PDF generation unavailable", detail: err.message })
+  }
 }
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res)
   if (req.method === "OPTIONS") return res.status(204).end()
-  await ensureAvatarBucket()
-  try {
+   try {
+     await ensureAvatarBucket()
+   } catch (e) { console.error("[ensureAvatarBucket]", e.message) }
+   try {
     const url = new URL(req.url, `http://${req.headers.host}`)
     let pathname = url.pathname.replace(/\/+$/, "") || "/"
     if (!pathname.startsWith("/api")) pathname = "/api" + pathname
@@ -1383,6 +1469,8 @@ export default async function handler(req, res) {
   if (pathname.startsWith("/api/my/resumes/") && req.method === "PATCH") return handleUpdateMyResume(req, res)
   if (pathname.startsWith("/api/my/resumes/") && req.method === "DELETE") return handleDeleteMyResume(req, res)
 
+  if (pathname === "/api/generate-resume-pdf" && req.method === "POST") return handleGenerateResumePdf(req, res)
+
   if (pathname === "/api/profiles/me" && req.method === "GET") return handleGetMyProfile(req, res)
   if (pathname === "/api/profiles/me" && req.method === "PATCH") return handleUpdateMyProfile(req, res)
   if (pathname === "/api/profiles/submit" && req.method === "POST") return handleSubmitProfile(req, res)
@@ -1397,7 +1485,7 @@ export default async function handler(req, res) {
   if (pathname.match(/\/api\/admin\/import\/batches\/[^/]+\/errors$/) && req.method === "GET") return handleGetBatchErrors(req, res)
   if (pathname.startsWith("/api/admin/import/batches/") && req.method === "GET") return handleGetBatch(req, res)
 
-  json(res, 404, { message: "Not found", pathname })
+   json(res, 404, { message: "Not found", pathname })
   } catch (err) {
     json(res, 500, { message: err.message || "Server error" })
   }

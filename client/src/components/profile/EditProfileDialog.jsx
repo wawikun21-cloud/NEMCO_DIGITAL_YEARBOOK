@@ -228,7 +228,7 @@ function SkillsInput({ skills, onChange }) {
 
   const addSkill = () => {
     const trimmed = draft.trim()
-    if (!trimmed || skills.includes(trimmed) || skills.length >= 12) {
+    if (!trimmed || skills.includes(trimmed) || skills.length >= 3) {
       setDraft("")
       return
     }
@@ -279,7 +279,7 @@ function SkillsInput({ skills, onChange }) {
           ))}
         </div>
       )}
-      <span className="text-xs text-muted-foreground">Press Enter or comma to add a skill (max 12)</span>
+      <span className="text-xs text-muted-foreground">Press Enter or comma to add a skill (max 3)</span>
     </div>
   )
 }
@@ -400,10 +400,12 @@ export function EditProfileDialog({
             <textarea
               id="about_me"
               value={editable.about_me ?? ""}
+              maxLength={110}
               onChange={(e) => onFieldChange("about_me", e.target.value)}
               placeholder="Tell us about yourself..."
               className="min-h-[90px] w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
+            <span className="text-xs text-muted-foreground">{(editable.about_me ?? "").length}/110 characters (fits 3 lines on mobile)</span>
           </div>
 
           <SkillsInput
