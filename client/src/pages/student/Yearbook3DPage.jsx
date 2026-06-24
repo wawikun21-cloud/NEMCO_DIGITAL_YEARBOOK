@@ -577,7 +577,7 @@ export default function Yearbook3DPage() {
 
   const bookPageList = useMemo(() => {
     const sourceType = data?.sourceType || "profiles"
-    const pages = [{ type: "cover" }]
+    const pages = [{ type: "cover" }, { type: "back-cover" }]
     if (sourceType === "profiles") {
       if (sections.length > 0) {
         const sectionMap = new Map(), unsectioned = []
@@ -630,7 +630,6 @@ export default function Yearbook3DPage() {
         while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }); pi++ }
       }
     }
-    pages.push({ type: "back-cover" })
     return pages
   }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
 
