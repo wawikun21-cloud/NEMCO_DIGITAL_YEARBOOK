@@ -149,7 +149,6 @@ function buildFlipbookHtml(title, pagesData) {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     user-select: none;
   }
-
   .toolbar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 200;
     display: flex; align-items: center; gap: 10px;
@@ -167,59 +166,32 @@ function buildFlipbookHtml(title, pagesData) {
     cursor: pointer; font-size: 12px; color: rgba(255,255,255,0.8);
     transition: background 0.2s;
   }
-  .toolbar button:hover { background: rgba(255,255,255,0.12); }
-  .toolbar button:disabled { opacity: 0.3; cursor: not-allowed; }
-
+  .toolbar button:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+  .toolbar button:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
   .book-area {
-    position: fixed;
-    top: 52px; bottom: 60px; left: 0; right: 0;
+    position: fixed; top: 52px; bottom: 60px; left: 0; right: 0;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-
-  .scene {
-    perspective: 2000px;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  .book {
-    position: relative;
-    width: ${PAGE_W}px;
-    height: ${PAGE_H}px;
-    transform-style: preserve-3d;
-  }
-
+  .scene { perspective: 2000px; display: flex; align-items: center; justify-content: center; }
+  .book { position: relative; width: ${PAGE_W}px; height: ${PAGE_H}px; transform-style: preserve-3d; }
   .sheet {
-    position: absolute;
-    top: 0; left: 0;
-    width: ${PAGE_W}px;
-    height: ${PAGE_H}px;
-    transform-style: preserve-3d;
-    transform-origin: left center;
+    position: absolute; top: 0; left: 0;
+    width: ${PAGE_W}px; height: ${PAGE_H}px;
+    transform-style: preserve-3d; transform-origin: left center;
     transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
   }
   .sheet.flipped { transform: rotateY(-180deg); }
-
-  .face {
-    position: absolute;
-    inset: 0;
-    backface-visibility: hidden;
-    overflow: hidden;
-  }
-  .face-back {
-    transform: rotateY(180deg);
-  }
-
+  .face { position: absolute; inset: 0; backface-visibility: hidden; overflow: hidden; }
+  .face-back { transform: rotateY(180deg); }
   .page-content { width: 100%; height: 100%; }
-
   .nav-zone {
     position: fixed; top: 52px; bottom: 60px; z-index: 100;
-    cursor: pointer; transition: background 0.2s;
+    cursor: pointer; transition: background 0.2s; pointer-events: auto;
   }
   .nav-zone:hover { background: rgba(255,255,255,0.02); }
-  .nav-left { left: 0; width: 35%; }
-  .nav-right { right: 0; width: 35%; }
-
+  .nav-left { left: 0; width: 15%; }
+  .nav-right { right: 0; width: 15%; }
   .bottom-bar {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
     display: flex; align-items: center; justify-content: center; gap: 14px;
@@ -230,23 +202,19 @@ function buildFlipbookHtml(title, pagesData) {
   .bottom-bar button {
     width: 38px; height: 38px;
     border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 50%;
-    background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.8);
-    cursor: pointer; font-size: 15px;
+    border-radius: 50%; background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.8); cursor: pointer; font-size: 15px;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.2s;
   }
   .bottom-bar button:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
-  .bottom-bar button:disabled { opacity: 0.25; cursor: not-allowed; }
+  .bottom-bar button:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
   .bottom-bar .page-counter {
     font-size: 13px; color: rgba(255,255,255,0.6);
     min-width: 100px; text-align: center;
   }
-
   @media (max-width: 640px) {
-    .book { width: 320px; height: 440px; }
-    .sheet { width: 320px; height: 440px; }
+    .book, .sheet { width: 320px; height: 440px; }
   }
   @media print {
     .toolbar, .bottom-bar, .nav-zone { display: none !important; }
@@ -259,7 +227,6 @@ function buildFlipbookHtml(title, pagesData) {
 </style>
 </head>
 <body>
-
 <div class="toolbar">
   <h1>📖 ${escapeHtml(title)}</h1>
   <span class="sep">|</span>
@@ -269,16 +236,13 @@ function buildFlipbookHtml(title, pagesData) {
   <button id="btnNext" onclick="changePage(1)">Next →</button>
   <button onclick="window.print()">🖨️ Print</button>
 </div>
-
 <div class="book-area">
   <div class="scene">
     <div class="book" id="book"></div>
   </div>
 </div>
-
 <div class="nav-zone nav-left" id="navLeft" onclick="changePage(-1)"></div>
 <div class="nav-zone nav-right" id="navRight" onclick="changePage(1)"></div>
-
 <div class="bottom-bar">
   <button id="btnFirst" onclick="goToPage(0)" aria-label="First">⏮</button>
   <button id="btnBottomPrev" onclick="changePage(-1)" aria-label="Previous">◀</button>
@@ -286,11 +250,15 @@ function buildFlipbookHtml(title, pagesData) {
   <button id="btnBottomNext" onclick="changePage(1)" aria-label="Next">▶</button>
   <button id="btnLast" onclick="goToPage(${totalSheets - 1})" aria-label="Last">⏭</button>
 </div>
-
 <script>
 (function() {
   var pagesData = ${JSON.stringify(pagesData)};
-  var totalSheets = pagesData.length;
+  var totalPages = pagesData.length;
+  if (totalPages % 2 !== 0) {
+    pagesData.push('<div style="width:100%;height:100%;background:#f5f3ef;"></div>');
+    totalPages++;
+  }
+  var totalSheets = Math.ceil(totalPages / 2);
   var book = document.getElementById('book');
   var currentPage = 0;
   var isAnimating = false;
@@ -303,17 +271,17 @@ function buildFlipbookHtml(title, pagesData) {
       sheet.setAttribute('data-index', i);
 
       var front = document.createElement('div');
-      front.className = 'face face-front';
+      front.className = 'face front';
       var frontContent = document.createElement('div');
       frontContent.className = 'page-content';
-      frontContent.innerHTML = pagesData[i];
+      frontContent.innerHTML = pagesData[i * 2] || '<div style="width:100%;height:100%;background:#f5f3ef;"></div>';
       front.appendChild(frontContent);
 
       var back = document.createElement('div');
       back.className = 'face face-back';
       var backContent = document.createElement('div');
       backContent.className = 'page-content';
-      backContent.innerHTML = '<div style="width:100%;height:100%;background:#f5f3ef;"></div>';
+      backContent.innerHTML = pagesData[i * 2 + 1] || '<div style="width:100%;height:100%;background:#f5f3ef;"></div>';
       back.appendChild(backContent);
 
       sheet.appendChild(front);
@@ -333,19 +301,18 @@ function buildFlipbookHtml(title, pagesData) {
         sheets[i].style.zIndex = (totalSheets - i);
       }
     }
-
+    var frontPage = currentPage * 2 + 1;
+    var backPage = currentPage * 2 + 2;
     var label;
     if (currentPage === 0) label = 'Cover';
     else if (currentPage === totalSheets - 1) label = 'Back Cover';
-    else label = 'Page ' + (currentPage + 1) + ' of ' + totalSheets;
-
+    else label = 'Pages ' + frontPage + '–' + backPage + ' of ' + totalPages;
     var indicator = document.getElementById('pageIndicator');
     var counter = document.getElementById('bottomCounter');
     if (indicator) indicator.textContent = label;
-    if (counter) counter.textContent = 'Page ' + (currentPage + 1) + ' of ' + totalSheets;
-
+    if (counter) counter.textContent = 'Pages ' + frontPage + '–' + backPage + ' of ' + totalPages;
     var prevDisabled = currentPage === 0;
-    var nextDisabled = currentPage === totalSheets - 1;
+    var nextDisabled = currentPage >= totalSheets - 1;
     document.getElementById('btnPrev').disabled = prevDisabled;
     document.getElementById('btnNext').disabled = nextDisabled;
     document.getElementById('btnFirst').disabled = prevDisabled;
@@ -354,37 +321,37 @@ function buildFlipbookHtml(title, pagesData) {
     document.getElementById('btnLast').disabled = nextDisabled;
   }
 
-  function changePage(dir) {
+  window.changePage = function(dir) {
     if (isAnimating) return;
     var target = currentPage + dir;
     if (target < 0 || target >= totalSheets) return;
     isAnimating = true;
     currentPage = target;
     updateView();
-    setTimeout(function() { isAnimating = false; }, 500);
-  }
+    setTimeout(function() { isAnimating = false; }, 850);
+  };
 
-  function goToPage(idx) {
+  window.goToPage = function(idx) {
     if (isAnimating) return;
     if (idx < 0 || idx >= totalSheets) return;
     isAnimating = true;
     currentPage = idx;
     updateView();
-    setTimeout(function() { isAnimating = false; }, 500);
-  }
+    setTimeout(function() { isAnimating = false; }, 850);
+  };
 
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); changePage(1); }
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); changePage(-1); }
-    else if (e.key === 'Home') { e.preventDefault(); goToPage(0); }
-    else if (e.key === 'End') { e.preventDefault(); goToPage(-1); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); window.changePage(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); window.changePage(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); window.goToPage(0); }
+    else if (e.key === 'End') { e.preventDefault(); window.goToPage(totalSheets - 1); }
   });
 
   var touchStartX = 0;
   document.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; });
   document.addEventListener('touchend', function(e) {
     var dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 50) { changePage(dx < 0 ? 1 : -1); }
+    if (Math.abs(dx) > 50) { window.changePage(dx < 0 ? 1 : -1); }
   });
 
   renderSheets();
@@ -502,7 +469,7 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
         size="sm"
         onClick={handleDownload}
         disabled={generating}
-        className="gap-2 text-xs border-[var(--border-light)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] dark:border-[var(--border-light)] dark:bg-[var(--bg-surface)] dark:text-[var(--text-primary)] dark:hover:[var(--bg-subtle)] dark:hover:text-[var(--text-primary)]"
+        className="gap-2 text-xs border-[var(--border-light)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] dark:border-white dark:bg-[var(--bg-surface)] dark:text-[var(--text-primary)] dark:hover:white dark:hover:text-black"
       >
         {generating ? (
           <Loader2 size={14} className="animate-spin" />

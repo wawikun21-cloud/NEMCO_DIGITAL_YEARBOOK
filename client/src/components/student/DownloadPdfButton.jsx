@@ -70,7 +70,7 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
       size="sm"
       onClick={handleDownload}
       disabled={generating}
-      className="gap-2 text-xs border-[var(--border-light)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] dark:border-[var(--border-light)] dark:bg-[var(--bg-surface)] dark:text-[var(--text-primary)] dark:hover:[var(--bg-subtle)] dark:hover:text-[var(--text-primary)]"
+        className="gap-2 text-xs border-[var(--border-light)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] dark:border-white dark:bg-[var(--bg-surface)] dark:text-[var(--text-primary)] dark:hover:white dark:hover:text-black"
     >
       {generating ? (
         <Loader2 size={14} className="animate-spin" />
