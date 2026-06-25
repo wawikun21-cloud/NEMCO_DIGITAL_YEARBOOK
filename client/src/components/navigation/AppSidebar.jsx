@@ -30,7 +30,6 @@ import {
   Users,
   ScrollText,
   Upload,
-  Settings,
   BookMarked,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -52,7 +51,6 @@ const NAV_ADMIN = [
   { key: "admin-memories",   label: "Memory Albums",       icon: Images,          href: "/admin/memories" },
   { key: "admin-logs",       label: "Activity Logs",       icon: ScrollText,      href: "/admin/logs" },
   { key: "admin-import",     label: "Bulk Import",         icon: Upload,          href: "/admin/import" },
-  { key: "admin-settings",   label: "Settings",            icon: Settings,        href: "/admin/settings" },
 ]
 
 export default function AppSidebar({ activePage = "library", onNavigate, onLogout }) {
