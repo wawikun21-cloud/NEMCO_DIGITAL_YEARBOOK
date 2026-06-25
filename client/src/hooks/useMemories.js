@@ -4,6 +4,7 @@ import {
   getStudentAlbumDetail,
   getStudentFavorites,
   toggleFavorite as toggleFavoriteApi,
+  toggleAlbumFavorite as toggleAlbumFavoriteApi,
 } from "@/services/memoriesService"
 
 export function useAlbumGrid() {
@@ -92,12 +93,21 @@ export function useAlbumDetail() {
     return result.is_favorite
   }, [album])
 
+  const toggleAlbumFavorite = useCallback(async (albumId) => {
+    const result = await toggleAlbumFavoriteApi(albumId)
+    if (album) {
+      setAlbum((prev) => ({ ...prev, is_favorite: result.is_favorite }))
+    }
+    return result.is_favorite
+  }, [album])
+
   return {
     album,
     isLoading,
     error,
     fetchAlbum,
     toggleItemFavorite,
+    toggleAlbumFavorite,
   }
 }
 

@@ -5,6 +5,7 @@ import {
   getStudentAlbumDetailController,
   getStudentFavoritesController,
   toggleFavoriteController,
+  toggleAlbumFavoriteController,
   getAdminAlbumsController,
   createAlbumController,
   updateAlbumController,
@@ -23,6 +24,7 @@ router.get("/student/albums", authenticate, getStudentAlbumsController)
 router.get("/student/albums/:albumId", authenticate, getStudentAlbumDetailController)
 router.get("/student/favorites", authenticate, getStudentFavoritesController)
 router.post("/student/favorites/:itemId", authenticate, toggleFavoriteController)
+router.post("/student/albums/:albumId/favorite", authenticate, toggleAlbumFavoriteController)
 
 router.get("/admin/albums", authenticate, getAdminAlbumsController)
 router.post("/admin/albums", authenticate, createAlbumController)

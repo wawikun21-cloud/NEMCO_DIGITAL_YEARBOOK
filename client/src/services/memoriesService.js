@@ -73,6 +73,14 @@ export async function toggleFavorite(itemId) {
   return parseResponse(response)
 }
 
+export async function toggleAlbumFavorite(albumId) {
+  const response = await fetch(memoriesUrl(`/student/albums/${albumId}/favorite`), {
+    method: "POST",
+    headers: getAuthHeaders(),
+  })
+  return parseResponse(response)
+}
+
 export async function getAdminAlbums(params = {}) {
   const query = new URLSearchParams()
   if (params.page) query.set("page", params.page)

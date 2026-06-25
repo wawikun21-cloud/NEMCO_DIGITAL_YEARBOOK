@@ -77,82 +77,78 @@ function AlbumCard({ album, onOpen, onToggleFavorite }) {
   const coverThumb = coverUrl ? getDisplayThumbnailUrl(coverUrl, 400) : null ? getDisplayThumbnailUrl(coverUrl, 400) : null
 
   return (
-    <div className="group relative flex flex-col rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] overflow-hidden transition-shadow hover:shadow-md">
+    <div
+      onClick={() => onOpen(album.id)}
+      className="group relative flex cursor-pointer flex-col rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] overflow-hidden transition-shadow hover:shadow-md"
+    >
       <div className="relative aspect-[4/3] overflow-hidden bg-[var(--bg-subtle)]">
-        {!imgError && coverThumb ? (
-          <img
-            src={coverThumb}
-            alt={album.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[var(--bg-subtle)]">
-            <Image size={40} className="text-[var(--text-muted)]/40" />
-          </div>
-        )}
+         {!imgError && coverThumb ? (
+           <img
+             src={coverThumb}
+             alt={album.title}
+             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+             onError={() => setImgError(true)}
+           />
+         ) : (
+           <div className="flex h-full w-full items-center justify-center bg-[var(--bg-subtle)]">
+             <Image size={40} className="text-[var(--text-muted)]/40" />
+           </div>
+         )}
 
-        <div className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
-          {album.category === "video" ? <Film size={12} /> : <Image size={12} />}
-          <span>{album.item_count || 0}</span>
-        </div>
+         <div className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
+           {album.category === "video" ? <Film size={12} /> : <Image size={12} />}
+           <span>{album.item_count || 0}</span>
+         </div>
 
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(album.id) }}
-          className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/60"
-        >
-          <Star size={14} className={album.is_favorite ? "fill-yellow-400 text-yellow-400" : ""} />
-        </button>
+         <button
+           onClick={(e) => { e.stopPropagation(); onToggleFavorite(album.id) }}
+           className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white transition-colors hover:bg-black/60"
+         >
+           <Star size={14} className={album.is_favorite ? "fill-yellow-400 text-yellow-400" : ""} />
+         </button>
+       </div>
 
-        <button
-          onClick={() => onOpen(album.id)}
-          className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[var(--text-primary)] shadow-sm transition-all hover:bg-white opacity-0 group-hover:opacity-100"
-        >
-          <LayoutGrid size={16} />
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-1.5 p-3">
-        <h3 className="truncate text-sm font-semibold text-[var(--text-primary)]">{album.title}</h3>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-            <Calendar size={12} />
-            <span>{formatDate(album.event_date)}</span>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-subtle)]">
-                <MoreHorizontal size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => onToggleFavorite(album.id)} className="gap-2">
-                <Star size={14} />
-                {album.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2">
-                <Share2 size={14} />
-                Share
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2">
-                <Download size={14} />
-                Download album
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-[var(--accent-danger)]">
-                <Flag size={14} />
-                Report issue
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </div>
-  )
+       <div className="flex flex-col gap-1.5 p-3">
+         <h3 className="truncate text-sm font-semibold text-[var(--text-primary)]">{album.title}</h3>
+         <div className="flex items-center justify-between">
+           <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+             <Calendar size={12} />
+             <span>{formatDate(album.event_date)}</span>
+           </div>
+           <DropdownMenu>
+             <DropdownMenuTrigger asChild>
+               <button onClick={(e) => e.stopPropagation()} className="flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-subtle)]">
+                 <MoreHorizontal size={14} />
+               </button>
+             </DropdownMenuTrigger>
+             <DropdownMenuContent align="end" className="w-44">
+               <DropdownMenuItem onClick={() => onToggleFavorite(album.id)} className="gap-2">
+                 <Star size={14} />
+                 {album.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
+               </DropdownMenuItem>
+               <DropdownMenuItem className="gap-2">
+                 <Share2 size={14} />
+                 Share
+               </DropdownMenuItem>
+               <DropdownMenuItem className="gap-2">
+                 <Download size={14} />
+                 Download album
+               </DropdownMenuItem>
+               <DropdownMenuSeparator />
+               <DropdownMenuItem className="gap-2 text-[var(--accent-danger)]">
+                 <Flag size={14} />
+                 Report issue
+               </DropdownMenuItem>
+             </DropdownMenuContent>
+           </DropdownMenu>
+         </div>
+       </div>
+     </div>
+   )
 }
 
 function AlbumDetailView({ albumId, onBack }) {
-  const { album, isLoading, error, toggleItemFavorite, fetchAlbum } = useAlbumDetail()
+  const { album, isLoading, error, toggleItemFavorite, toggleAlbumFavorite, fetchAlbum } = useAlbumDetail()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [filmstripScrollRef, setFilmstripScrollRef] = useState(null)
   const [mainImgError, setMainImgError] = useState(false)
@@ -229,23 +225,9 @@ function AlbumDetailView({ albumId, onBack }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 px-8 pb-8 lg:flex-row">
-        {coverThumb && (
-          <div className="relative shrink-0 overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--bg-subtle)] lg:w-160">
-            <img
-              src={coverThumb}
-              alt={album.title}
-              className="h-72 w-full object-cover lg:h-[420px]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-            <div className="absolute bottom-3 left-3 right-3">
-              <p className="text-sm font-medium text-white/90 line-clamp-2">{album.title}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="relative flex-1">
-          {currentItem && (
+       <div className="flex flex-col gap-4 px-8 pb-8 lg:flex-row">
+         <div className="relative flex-1">
+           {currentItem && (
             <div className="relative overflow-hidden rounded-xl bg-[var(--bg-subtle)]">
               {currentItem.media_type === "video" ? (
                 <video
@@ -294,10 +276,24 @@ function AlbumDetailView({ albumId, onBack }) {
               </div>
             </div>
           )}
-        </div>
+          </div>
 
-         <div className="flex w-full flex-col gap-4 lg:w-80">
-           <div className="flex flex-col gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
+          {coverThumb && (
+            <div className="relative shrink-0 overflow-hidden rounded-xl border border-[var(--border-light)] bg-[var(--bg-subtle)] lg:w-170">
+              <img
+                src={coverThumb}
+                alt={album.title}
+                className="h-72 w-full object-cover lg:h-[420px]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+              <div className="absolute bottom-3 left- right-3">
+                <p className="text-sm font-medium text-white/90 line-clamp-2">{album.title}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex w-full flex-col gap-4 lg:w-80">
+            <div className="flex flex-col gap-3 rounded-xl border border-[var(--border-light)] bg-[var(--bg-surface)] p-4">
              <Badge variant="default" className="w-fit gap-1 text-xs">
                {album.category === "video" ? <Film size={12} /> : <Image size={12} />}
                {album.title}
@@ -377,32 +373,43 @@ function AlbumDetailView({ albumId, onBack }) {
                  </a>
                )}
 
-               <div className="flex gap-2">
-                 <Button
-                   variant="outline"
-                   size="sm"
-                   className="flex-1 gap-2"
-                   onClick={() => currentItem && toggleItemFavorite(currentItem.id)}
-                 >
-                   <Heart size={14} className={currentItem?.is_favorite ? "fill-red-500 text-red-500" : ""} />
-                   {currentItem?.is_favorite ? "Favorited" : "Favorite"}
-                 </Button>
-                 <Button
-                   variant="outline"
-                   size="sm"
-                   className="flex-1 gap-2"
-                   onClick={() => currentItem && window.open(currentItem.cloud_url, "_blank")}
-                 >
-                   <Download size={14} />
-                   Download
-                 </Button>
-               </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={async () => {
+                      if (!currentItem) return
+                      const wasFav = currentItem.is_favorite
+                      const result = await toggleItemFavorite(currentItem.id)
+                      toast.success(result ? "Added to Favorites" : "Removed from Favorites")
+                    }}
+                  >
+                    <Heart size={14} className={currentItem?.is_favorite ? "fill-red-500 text-red-500" : ""} />
+                    {currentItem?.is_favorite ? "Favorited" : "Favorite"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={() => {
+                      if (album?.album_link) {
+                        window.open(album.album_link, "_blank")
+                      } else {
+                        toast.error("No download link available for this album")
+                      }
+                    }}
+                  >
+                    <Download size={14} />
+                    Download
+                  </Button>
+                </div>
              </div>
            </div>
          </div>
-      </div>
+       </div>
 
-      {items.length > 0 && (
+       {items.length > 0 && (
         <div className="relative border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-3">
           <button
             onClick={() => scrollFilmstrip(-1)}
@@ -478,7 +485,7 @@ function AlbumDetailView({ albumId, onBack }) {
 }
 
 export default function MyMemoriesPage() {
-  const { albums, total, isLoading, error, filters, updateFilters, goToPage } = useAlbumGrid()
+  const { albums, total, isLoading, error, filters, updateFilters, goToPage, refetch } = useAlbumGrid()
   const [selectedAlbumId, setSelectedAlbumId] = useState(null)
   const [viewMode, setViewMode] = useState("grid")
   const [showSortDropdown, setShowSortDropdown] = useState(false)
@@ -486,7 +493,14 @@ export default function MyMemoriesPage() {
   const totalPages = Math.ceil(total / filters.perPage)
 
   const handleToggleFavorite = async (albumId) => {
-    toast.success("Favorite updated")
+    try {
+      const { toggleAlbumFavorite: toggleAlbumFav } = await import("@/services/memoriesService")
+      const result = await toggleAlbumFav(albumId)
+      toast.success(result ? "Added to Favorites" : "Removed from Favorites")
+      refetch()
+    } catch {
+      toast.error("Failed to update favorite")
+    }
   }
 
   if (selectedAlbumId) {

@@ -3,6 +3,7 @@ import {
   getAlbumById,
   getFavoriteItemsForStudent,
   toggleFavorite,
+  toggleAlbumFavorite,
   createAlbum,
   updateAlbum,
   deleteAlbum,
@@ -59,6 +60,15 @@ export async function getStudentFavoritesController(req, res, next) {
 export async function toggleFavoriteController(req, res, next) {
   try {
     const isFavorite = await toggleFavorite(req.user.id, req.params.itemId)
+    res.json({ is_favorite: isFavorite })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function toggleAlbumFavoriteController(req, res, next) {
+  try {
+    const isFavorite = await toggleAlbumFavorite(req.user.id, req.params.albumId)
     res.json({ is_favorite: isFavorite })
   } catch (error) {
     next(error)

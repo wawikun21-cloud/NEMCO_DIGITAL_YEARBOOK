@@ -149,7 +149,28 @@ export async function toggleFavorite(studentId, memoryItemId) {
   }
 }
 
-export async function createAlbum(data) {
+export async function toggleAlbumFavorite(studentId, albumId) {
+  const { data: existing } = await supabaseAdmin
+    .from("student_favorites")
+    .select("student_id")
+    .eq("student_id", studentId)
+    .eq("memory_album_id", albumId)
+    .maybeSingle()
+
+  if (existing) {
+    await supabaseAdmin
+      .from("student_favorites")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("memory_album_id", albumId)
+    return false
+  } else {
+    await supabaseAdmin
+      .from("student_favorites")
+      .insert({ student_id: studentId, memory_album_id: albumId })
+    return true
+  }
+}
   const { data: album, error } = await supabaseAdmin
     .from("memory_albums")
     .insert({
