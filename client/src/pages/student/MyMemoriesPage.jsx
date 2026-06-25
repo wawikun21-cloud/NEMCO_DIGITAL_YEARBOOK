@@ -74,7 +74,7 @@ function formatTime(timeStr) {
 function AlbumCard({ album, onOpen, onToggleFavorite }) {
   const [imgError, setImgError] = useState(false)
   const coverUrl = resolveCoverUrl(album)
-  const coverThumb = coverUrl ? getDisplayThumbnailUrl(coverUrl, 400) : null ? getDisplayThumbnailUrl(coverUrl, 400) : null
+  const coverThumb = coverUrl ? getDisplayThumbnailUrl(coverUrl, 400) : null
 
   return (
     <div
@@ -147,7 +147,7 @@ function AlbumCard({ album, onOpen, onToggleFavorite }) {
    )
 }
 
-function AlbumDetailView({ albumId, onBack }) {
+function AlbumDetailView({ albumId, onBack, onSyncAlbumFavorite }) {
   const { album, isLoading, error, toggleItemFavorite, toggleAlbumFavorite, fetchAlbum } = useAlbumDetail()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [filmstripScrollRef, setFilmstripScrollRef] = useState(null)
@@ -299,7 +299,7 @@ function AlbumDetailView({ albumId, onBack }) {
                {album.title}
              </Badge>
 
-             <h2 className="text-lg font-bold text-[var(--text-primary)]">{album.title}</h2>
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">{album.title}</h2>
 
              <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
                {album.event_date && (
@@ -374,20 +374,20 @@ function AlbumDetailView({ albumId, onBack }) {
                )}
 
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-2"
-                    onClick={async () => {
-                      if (!currentItem) return
-                      const wasFav = currentItem.is_favorite
-                      const result = await toggleItemFavorite(currentItem.id)
-                      toast.success(result ? "Added to Favorites" : "Removed from Favorites")
-                    }}
-                  >
-                    <Heart size={14} className={currentItem?.is_favorite ? "fill-red-500 text-red-500" : ""} />
-                    {currentItem?.is_favorite ? "Favorited" : "Favorite"}
-                  </Button>
+                     
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       className={`flex-1 gap-2 ${album.is_favorite ? "border-yellow-300 bg-yellow-50 text-yellow-600 hover:bg-yellow-100" : ""}`}
+                       onClick={async () => {
+                         const isFav = await toggleAlbumFavorite(album.id)
+                         toast.success(isFav ? "Added to Favorites" : "Removed from Favorites")
+                         onSyncFavorite?.(album.id, isFav)
+                       }}
+                     >
+                       <Heart size={14} className={album.is_favorite ? "fill-red-500 text-red-500" : ""} />
+                       {album.is_favorite ? "Favorited" : "Favorite"}
+                     </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -485,7 +485,7 @@ function AlbumDetailView({ albumId, onBack }) {
 }
 
 export default function MyMemoriesPage() {
-  const { albums, total, isLoading, error, filters, updateFilters, goToPage, refetch } = useAlbumGrid()
+  const { albums, setAlbums, total, isLoading, error, filters, updateFilters, goToPage, refetch } = useAlbumGrid()
   const [selectedAlbumId, setSelectedAlbumId] = useState(null)
   const [viewMode, setViewMode] = useState("grid")
   const [showSortDropdown, setShowSortDropdown] = useState(false)
@@ -493,24 +493,40 @@ export default function MyMemoriesPage() {
   const totalPages = Math.ceil(total / filters.perPage)
 
   const handleToggleFavorite = async (albumId) => {
-    try {
-      const { toggleAlbumFavorite: toggleAlbumFav } = await import("@/services/memoriesService")
-      const result = await toggleAlbumFav(albumId)
-      const isFav = result.is_favorite ?? result
-      toast.success(isFav ? "Added to Favorites" : "Removed from Favorites")
-      refetch()
-    } catch {
-      toast.error("Failed to update favorite")
-    }
-  }
+     try {
+       const { toggleAlbumFavorite: toggleAlbumFav } = await import("@/services/memoriesService")
+       const result = await toggleAlbumFav(albumId)
+       const isFav = typeof result === "object" ? result.is_favorite : result
+       toast.success(isFav ? "Added to Favorites" : "Removed from Favorites")
+       setAlbums((prev) => {
+         const inFavoritesTab = filters.category === "favorites"
+         if (inFavoritesTab && !isFav) {
+           return prev.filter((a) => a.id !== albumId)
+         }
+         return prev.map((a) => (a.id === albumId ? { ...a, is_favorite: isFav } : a))
+       })
+     } catch {
+       toast.error("Failed to update favorite")
+     }
+   }
+
+  const syncAlbumFavorite = (albumId, isFav) => {
+     setAlbums((prev) => {
+       const inFavoritesTab = filters.category === "favorites"
+       if (inFavoritesTab && !isFav) {
+         return prev.filter((a) => a.id !== albumId)
+       }
+       return prev.map((a) => (a.id === albumId ? { ...a, is_favorite: isFav } : a))
+     })
+   }
 
   if (selectedAlbumId) {
-    return (
-      <main className="mx-auto flex w-full max-w-6xl flex-col">
-        <AlbumDetailView albumId={selectedAlbumId} onBack={() => setSelectedAlbumId(null)} />
-      </main>
-    )
-  }
+     return (
+       <main className="mx-auto flex w-full max-w-6xl flex-col">
+         <AlbumDetailView albumId={selectedAlbumId} onBack={() => setSelectedAlbumId(null)} onSyncAlbumFavorite={syncAlbumFavorite} />
+       </main>
+     )
+   }
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">

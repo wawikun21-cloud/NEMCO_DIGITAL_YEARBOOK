@@ -21,22 +21,23 @@ export function useAlbumGrid() {
   })
 
   const fetchAlbums = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const params = { ...filters }
-      if (params.category === "favorites") {
-        params.favorites = true
-      }
-      const result = await getStudentAlbums(params)
-      setAlbums(result.albums || [])
-      setTotal(result.total || 0)
-    } catch (err) {
-      setError(err.message || "Failed to load albums")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filters])
+     setIsLoading(true)
+     setError(null)
+     try {
+       const params = { ...filters }
+       if (params.category === "favorites") {
+         params.favorites = true
+         params.category = "all"
+       }
+       const result = await getStudentAlbums(params)
+       setAlbums(result.albums || [])
+       setTotal(result.total || 0)
+     } catch (err) {
+       setError(err.message || "Failed to load albums")
+     } finally {
+       setIsLoading(false)
+     }
+   }, [filters])
 
   useEffect(() => {
     fetchAlbums()
@@ -51,15 +52,16 @@ export function useAlbumGrid() {
   }, [])
 
   return {
-    albums,
-    total,
-    isLoading,
-    error,
-    filters,
-    updateFilters,
-    goToPage,
-    refetch: fetchAlbums,
-  }
+     albums,
+     setAlbums,
+     total,
+     isLoading,
+     error,
+     filters,
+     updateFilters,
+     goToPage,
+     refetch: fetchAlbums,
+   }
 }
 
 export function useAlbumDetail() {

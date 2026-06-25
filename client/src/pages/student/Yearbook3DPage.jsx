@@ -106,9 +106,11 @@ import {
   Loader2,
   Volume2,
   VolumeX,
+  List,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useTheme } from "@/hooks/useTheme"
 import { getPublicFlipbook } from "@/services/flipbookService"
 import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
@@ -241,7 +243,7 @@ function usePdfPageImages(pdfPages) {
     return () => { cancelled = true }
   }, [pdfPages])
 
-  return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy }
+   return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: dimsRef.current }
 }
 
 const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible, isLeftPage }, ref) {
@@ -404,6 +406,8 @@ function PageStrip({ pages, currentPage, onSelect, disabled }) {
 }
 
 export default function Yearbook3DPage() {
+  const { theme } = useTheme()
+  const headerDark = theme === "dark"
   const [initialPage] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const pageParam = params.get("page")
@@ -427,10 +431,12 @@ export default function Yearbook3DPage() {
   const [flipSpeed, setFlipSpeed] = useState(0.7)
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
-  const [isDragging, setIsDragging] = useState(false)
-  const [bookState, setBookState] = useState("read")
-  const [bookTranslateX, setBookTranslateX] = useState(0)
-  const bookWrapperRef = useRef(null)
+   const [isDragging, setIsDragging] = useState(false)
+   const [bookState, setBookState] = useState("read")
+   const [bookTranslateX, setBookTranslateX] = useState(0)
+     const [showToc, setShowToc] = useState(false)
+     const tocRef = useRef(null)
+   const bookWrapperRef = useRef(null)
   const recomputeCenteringRef = useRef(() => {})
 
   useEffect(() => {
@@ -533,15 +539,26 @@ export default function Yearbook3DPage() {
     return () => document.removeEventListener("fullscreenchange", handler)
   }, [])
 
-  useEffect(() => {
-    if (searchOpen && !prevSearchOpen.current && searchInputRef.current) {
-      searchInputRef.current.focus()
-    }
-    prevSearchOpen.current = searchOpen
-  }, [searchOpen])
+   useEffect(() => {
+     if (searchOpen && !prevSearchOpen.current && searchInputRef.current) {
+       searchInputRef.current.focus()
+     }
+     prevSearchOpen.current = searchOpen
+   }, [searchOpen])
+
+   useEffect(() => {
+     if (!showToc) return
+     const handler = (e) => {
+       if (tocRef.current && !tocRef.current.contains(e.target)) {
+         setShowToc(false)
+       }
+     }
+     document.addEventListener("mousedown", handler)
+     return () => document.removeEventListener("mousedown", handler)
+   }, [showToc])
 
   const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
-  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, renderEager, enqueueLazy } = usePdfPageImages(pdfPages)
+   const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
   const sections = (data?.sections || [])
@@ -697,9 +714,14 @@ export default function Yearbook3DPage() {
     bookPageList.forEach((pg, idx) => {
       if (pg.type === "pdf") pdfIndices.push({ idx, pdfId: pg.data.id, pageNum: pg.pageNum })
     })
+    const coverPage = bookPageList.find((pg) => pg.type === "cover")
+    if (coverPage?._designPage?.type === "pdf") {
+      const dp = coverPage._designPage
+      pdfIndices.push({ idx: 0, pdfId: dp.data.id, pageNum: dp.pageNum, isCover: true })
+    }
     for (const { idx, pdfId, pageNum } of pdfIndices) {
       const dist = Math.abs(idx - currentPage)
-      if (dist <= 2) {
+      if (dist <= 2 || pdfIndices.length === 1) {
         renderEager(pdfId, pageNum)
       } else {
         enqueueLazy(pdfId, pageNum)
@@ -889,43 +911,82 @@ export default function Yearbook3DPage() {
 
       <div aria-live="polite" className="sr-only">{pageLabel}</div>
 
-      <header className={`relative z-10 border-b border-black/5 bg-white/70 backdrop-blur-md ${isFullscreen ? "hidden" : ""}`}>
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-lg shadow-[var(--bg-primary)]/20">
-              <BookMarked size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-[var(--text-primary)] leading-tight">{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
-              {data?.settings?.subtitle && <p className="text-[10px] text-[var(--text-muted)] leading-tight">{data.settings.subtitle}</p>}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {searchOpen ? (
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-44 pl-9 pr-8 text-xs" />
-                <button onClick={() => { setSearchOpen(false); setSearch("") }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Close search"><X size={14} /></button>
+       <header className={`relative z-20 border-b ${headerDark ? "border-white/[0.08] bg-[#0f1a2e] shadow-xl shadow-black/30" : "border-black/[0.06] bg-[#fdfbf7] shadow-lg shadow-black/[0.04]"} ${isFullscreen ? "hidden" : ""}`}>
+          <div className={`absolute inset-0 pointer-events-none ${headerDark ? "bg-gradient-to-b from-white/[0.03] to-transparent" : "bg-gradient-to-b from-amber-500/[0.02] to-transparent"}`} />
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 relative">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-lg ring-1 ${headerDark ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-[var(--bg-primary)]/30 ring-white/10" : "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/80 shadow-[var(--bg-primary)]/20 ring-black/10"}`}>
+                <BookMarked size={20} className="text-white" />
               </div>
-            ) : (
-              <Button variant="ghost" size="icon-sm" className="h-8 w-8 text-[var(--text-muted)]" onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
-            )}
-            <Button variant="ghost" size="icon-sm" className="h-8 w-8 text-[var(--text-muted)]" onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
-            <Button variant="ghost" size="icon-sm" className="h-8 w-8 text-[var(--text-muted)]" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </Button>
-            <Button variant="ghost" size="icon-sm" className="h-8 w-8 text-[var(--text-muted)]" onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
-              {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-            </Button>
-            {pdfPages.length > 0 && (
-              <span className="rounded-md bg-[var(--bg-primary)]/10 px-2 py-1 text-[10px] font-medium text-[var(--bg-primary)]">PDF</span>
-            )}
+              <div>
+                <h1 className={`text-base font-bold leading-tight tracking-tight ${headerDark ? "text-[#f0e6d3]" : "text-[#1a2a3a]"}`}>{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
+                {data?.settings?.subtitle && <p className={`text-[11px] leading-tight ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {searchOpen ? (
+                <div className="relative">
+                  <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40" : "text-[#1a2a3a]/40"}`} />
+                  <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className={`h-8 w-44 pl-9 pr-8 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3] placeholder:text-[#f0e6d3]/30 focus:bg-white/[0.12]" : "bg-white border-black/10 text-[#1a2a3a] placeholder:text-[#1a2a3a]/30 focus:bg-amber-50/50"}`} />
+                  <button onClick={() => { setSearchOpen(false); setSearch("") }} className={`absolute right-2 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40 hover:text-[#f0e6d3]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a]"}`} aria-label="Close search"><X size={14} /></button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
+              )}
+              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
+              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </Button>
+              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
+                {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              </Button>
+              <div className="relative" ref={tocRef}>
+                <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? `text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08] ${showToc ? "bg-white/[0.1] text-[#f0e6d3]" : ""}` : `text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04] ${showToc ? "bg-black/[0.06] text-[#1a2a3a]" : ""}`}`} onClick={() => setShowToc(!showToc)} aria-label="Table of contents">
+                  <List size={15} />
+                </Button>
+                {showToc && (
+                  <div className={`absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-xl backdrop-blur-xl shadow-2xl z-[100] styled-scroll ${headerDark ? "border border-white/[0.08] bg-[#0f1a2e]/95 shadow-black/50" : "border border-black/[0.08] bg-[#fdfbf7]/95 shadow-black/10"}`}>
+                    <div className={`p-3 border-b ${headerDark ? "border-white/[0.08]" : "border-black/[0.06]"}`}>
+                      <p className={`text-[11px] font-semibold uppercase tracking-wider ${headerDark ? "text-[#f0e6d3]/80" : "text-[#1a2a3a]/70"}`}>Table of Contents</p>
+                    </div>
+                    <div className="p-1.5">
+                      {displayPageList.map((pg, idx) => {
+                        const bookIdx = filteredToBookIndex ? filteredToBookIndex.get(idx) : idx
+                        const isActive = bookIdx === currentPage
+                        const label = pg.type === "cover" ? "Cover" :
+                          pg.type === "back-cover" ? "Back Cover" :
+                          pg.type === "inside-cover" ? "Inside Cover" :
+                          pg.type === "section" ? pg.name :
+                          pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} — Page ${pg.pageNum}` :
+                          pg.type === "student" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"}` :
+                          pg.type === "student-back" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"} (back)` :
+                          `Page ${idx}`
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => { handleStripSelect(idx); setShowToc(false) }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${headerDark ? (isActive ? "bg-white/[0.12] text-[#f0e6d3] font-medium" : "text-[#f0e6d3]/60 hover:bg-white/[0.06] hover:text-[#f0e6d3]") : (isActive ? "bg-amber-100/80 text-[#1a2a3a] font-medium" : "text-[#1a2a3a]/55 hover:bg-black/[0.04] hover:text-[#1a2a3a]")}`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`w-5 text-right text-[10px] ${isActive ? "text-[var(--accent-gold)]" : (headerDark ? "text-[#f0e6d3]/30" : "text-[#1a2a3a]/30")}`}>{idx + 1}</span>
+                              <span className="truncate flex-1">{label}</span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {pdfPages.length > 0 && (
+                <span className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className={`relative z-10 mx-auto w-full max-w-2xl px-8 ${isFullscreen ? "hidden" : ""}`}>
-        <div className="h-0.5 rounded-full bg-black/10 overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
+          <div className={`h-0.5 rounded-full overflow-hidden ${headerDark ? "bg-white/[0.08]" : "bg-black/[0.06]"}`}>
           <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)]/80 to-[var(--accent-gold)] transition-all duration-500 ease-out"
             style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
         </div>
@@ -1151,7 +1212,7 @@ export default function Yearbook3DPage() {
         <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
 
         <div className={`mt-4 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
-          <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
+          <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} pdfImageDimensions={pdfImageDimensions} />
           <DownloadFlipbookButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
         </div>
       </div>

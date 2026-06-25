@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js"
 const ALBUM_COLUMNS = "id,title,event_date,event_time,location,description,category,cover_image_url,album_link,image_url_2,image_url_3,image_url_4,item_count,created_by,created_at,updated_at,is_shared,visible_to,visible_to_section,visible_to_batch,visible_to_student_ids"
 const ITEM_COLUMNS = "id,album_id,cloud_url,thumbnail_url,media_type,caption,tagged_student_ids,order_index,created_at,updated_at"
 
-export async function getAlbumsForStudent(studentId, { category, search, sharedOnly, sortBy = "newest", page = 1, perPage = 12 } = {}) {
+export async function getAlbumsForStudent(studentId, { category, search, sharedOnly, favorites, sortBy = "newest", page = 1, perPage = 12 } = {}) {
   const { data: studentProfile } = await supabaseAdmin
     .from("profiles")
     .select("section, year_level")
@@ -45,11 +45,33 @@ export async function getAlbumsForStudent(studentId, { category, search, sharedO
     return false
   })
 
+  const albumIds = filtered.map((a) => a.id)
+  const favoriteAlbumIds = new Set()
+  if (albumIds.length > 0) {
+    const { data: favAlbums } = await supabaseAdmin
+      .from("student_favorites")
+      .select("memory_album_id")
+      .eq("student_id", studentId)
+      .in("memory_album_id", albumIds)
+    for (const fav of favAlbums || []) {
+      favoriteAlbumIds.add(fav.memory_album_id)
+    }
+  }
+
+  const finalAlbums = favorites
+    ? filtered.filter((album) => favoriteAlbumIds.has(album.id))
+    : filtered
+
+  const enriched = finalAlbums.map((album) => ({
+    ...album,
+    is_favorite: favoriteAlbumIds.has(album.id),
+  }))
+
   const { count } = await supabaseAdmin
     .from("memory_albums")
     .select("id", { count: "exact", head: true })
 
-  return { albums: filtered, total: count || 0 }
+  return { albums: enriched, total: count || 0 }
 }
 
 export async function getAlbumById(albumId, studentId) {
@@ -73,12 +95,14 @@ export async function getAlbumById(albumId, studentId) {
     .order("order_index", { ascending: true })
 
   let favoriteItemIds = []
+  let isAlbumFavorite = false
   if (studentId) {
     const { data: favs } = await supabaseAdmin
       .from("student_favorites")
-      .select("memory_item_id")
+      .select("memory_item_id,memory_album_id")
       .eq("student_id", studentId)
-    favoriteItemIds = (favs || []).map((f) => f.memory_item_id)
+    favoriteItemIds = (favs || []).filter((f) => f.memory_item_id).map((f) => f.memory_item_id)
+    isAlbumFavorite = (favs || []).some((f) => f.memory_album_id === albumId)
   }
 
   const { data: creatorProfile } = album.created_by
@@ -86,16 +110,17 @@ export async function getAlbumById(albumId, studentId) {
     : { data: null }
 
   return {
-    ...album,
-    items: (items || []).map((item) => ({
-      ...item,
-      is_favorite: favoriteItemIds.includes(item.id),
-    })),
-    creator: creatorProfile ? {
-      name: creatorProfile.display_name || creatorProfile.full_name || "Unknown",
-      avatar_url: creatorProfile.avatar_url,
-    } : null,
-  }
+     ...album,
+     is_favorite: isAlbumFavorite,
+     items: (items || []).map((item) => ({
+       ...item,
+       is_favorite: favoriteItemIds.includes(item.id),
+     })),
+     creator: creatorProfile ? {
+       name: creatorProfile.display_name || creatorProfile.full_name || "Unknown",
+       avatar_url: creatorProfile.avatar_url,
+     } : null,
+   }
 }
 
 export async function getFavoriteItemsForStudent(studentId, { sortBy = "newest", page = 1, perPage = 12 } = {}) {

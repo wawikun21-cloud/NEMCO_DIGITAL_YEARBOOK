@@ -33,6 +33,7 @@ export async function getStudentAlbums(params = {}) {
   if (params.category && params.category !== "all") query.set("category", params.category)
   if (params.search) query.set("search", params.search)
   if (params.shared) query.set("shared", "true")
+  if (params.favorites) query.set("favorites", "true")
   if (params.sortBy) query.set("sortBy", params.sortBy)
   if (params.page) query.set("page", params.page)
   if (params.perPage) query.set("perPage", params.perPage)

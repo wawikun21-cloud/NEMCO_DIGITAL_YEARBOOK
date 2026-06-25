@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+
+let currentTheme = localStorage.getItem('theme') || 'light'
+const listeners = new Set()
+
+function notify() {
+  listeners.forEach((fn) => fn(currentTheme))
+}
 
 export function useTheme() {
-  const [theme, setThemeState] = useState(() => localStorage.getItem('theme') || 'light')
+  const [theme, setTheme] = useState(currentTheme)
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
+    listeners.add(setTheme)
+    return () => { listeners.delete(setTheme) }
+  }, [])
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setThemeState(newTheme)
-    localStorage.setItem('theme', newTheme)
-  }
+  const toggleTheme = useCallback(() => {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light'
+    localStorage.setItem('theme', currentTheme)
+    document.documentElement.classList.toggle('dark', currentTheme === 'dark')
+    notify()
+  }, [])
 
   return { theme, toggleTheme }
 }

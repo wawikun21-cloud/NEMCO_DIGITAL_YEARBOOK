@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { jsPDF } from "jspdf"
 
-export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelSize, pageAspectRatios }) {
+export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelSize, pageAspectRatios, pdfImageDimensions }) {
   const [generating, setGenerating] = useState(false)
 
   const pageSize = useMemo(() => {
@@ -18,7 +18,7 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
       const w = Math.round(h * avg)
       return { w, h }
     }
-    return { w: 800, h: 566 }
+    return { w: 600, h: 800 }
   }, [pdfPixelSize, pageAspectRatios])
 
   const handleDownload = async () => {
@@ -44,13 +44,13 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
               drawStudentPage(pdf, dp, w, h)
             } else if (dp?.type === "student-back") {
               drawStudentBackPage(pdf, dp, w, h)
-            } else if (dp?.type === "pdf") {
-              const imgKey = `${dp.data.id}-${dp.pageNum}`
-              const imgData = pdfImages[imgKey]
-              if (imgData) {
-                pdf.addImage(imgData, "JPEG", 0, 0, w, h)
-              }
-            } else {
+              } else if (dp?.type === "pdf") {
+                const imgKey = `${dp.data.id}-${dp.pageNum}`
+                const imgData = pdfImages[imgKey]
+                if (imgData) {
+                  addImageFit(pdf, imgData, w, h, pdfImageDimensions?.[imgKey])
+                }
+              } else {
               drawCoverPage(pdf, data, w, h)
             }
          } else if (page.type === "inside-cover") {
@@ -62,13 +62,13 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
           drawSectionPage(pdf, page, w, h)
         } else if (page.type === "student") {
           drawStudentPage(pdf, page, w, h)
-        } else if (page.type === "pdf") {
-          const imgKey = `${page.data.id}-${page.pageNum}`
-          const imgData = pdfImages[imgKey]
-          if (imgData) {
-            pdf.addImage(imgData, "JPEG", 0, 0, w, h)
+          } else if (page.type === "pdf") {
+            const imgKey = `${page.data.id}-${page.pageNum}`
+            const imgData = pdfImages[imgKey]
+            if (imgData) {
+              addImageFit(pdf, imgData, w, h, pdfImageDimensions?.[imgKey])
+            }
           }
-        }
       }
 
       const fileName = `${(data?.settings?.title || "yearbook").replace(/\s+/g, "_")}.pdf`
@@ -98,6 +98,41 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
       {generating ? "Generating…" : "Download PDF"}
     </Button>
   )
+}
+
+function addImageFit(pdf, imgData, pageW, pageH, imgDimensions, margin = 0) {
+  const availW = pageW - margin * 2
+  const availH = pageH - margin * 2
+  let imgW, imgH
+  if (imgDimensions) {
+    imgW = imgDimensions.width
+    imgH = imgDimensions.height
+  } else if (typeof imgData === "string") {
+    const dims = getImageDimensions(imgData)
+    imgW = dims.width
+    imgH = dims.height
+  } else {
+    imgW = imgData.naturalWidth || imgData.width
+    imgH = imgData.naturalHeight || imgData.height
+  }
+  if (!imgW || !imgH) return
+  const scale = Math.min(availW / imgW, availH / imgH)
+  const drawW = Math.round(imgW * scale)
+  const drawH = Math.round(imgH * scale)
+  const x = Math.round((pageW - drawW) / 2)
+  const y = Math.round((pageH - drawH) / 2)
+  pdf.addImage(imgData, "JPEG", x, y, drawW, drawH)
+}
+
+const dimensionsCache = new Map()
+
+function getImageDimensions(dataUrl) {
+  if (dimensionsCache.has(dataUrl)) return dimensionsCache.get(dataUrl)
+  const img = new Image()
+  img.src = dataUrl
+  const dims = { width: img.naturalWidth || 600, height: img.naturalHeight || 800 }
+  dimensionsCache.set(dataUrl, dims)
+  return dims
 }
 
 function drawCoverPage(pdf, data, w, h) {
@@ -182,8 +217,14 @@ function drawStudentPage(pdf, page, w, h) {
 
   if (profile.avatar_url) {
     try {
-      const x = (w - avatarSize) / 2
-      pdf.addImage(profile.avatar_url, "JPEG", x, avatarY, avatarSize, avatarSize)
+      const imgW = profile.avatar_url.naturalWidth || profile.avatar_url.width || avatarSize
+      const imgH = profile.avatar_url.naturalHeight || profile.avatar_url.height || avatarSize
+      const scale = Math.min(avatarSize / imgW, avatarSize / imgH)
+      const drawW = Math.round(imgW * scale)
+      const drawH = Math.round(imgH * scale)
+      const x = Math.round((w - drawW) / 2)
+      const y = avatarY + Math.round((avatarSize - drawH) / 2)
+      pdf.addImage(profile.avatar_url, "JPEG", x, y, drawW, drawH)
     } catch {
       drawInitialCircle(pdf, w, h, initial, scale)
     }

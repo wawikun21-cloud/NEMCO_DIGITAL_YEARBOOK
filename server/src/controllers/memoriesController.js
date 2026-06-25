@@ -18,16 +18,17 @@ import {
 import { logAudit } from "../services/userService.js"
 
 export async function getStudentAlbumsController(req, res, next) {
-  try {
-    const { category, search, shared, sortBy, page, perPage } = req.query
-    const result = await getAlbumsForStudent(req.user.id, {
-      category,
-      search,
-      sharedOnly: shared === "true",
-      sortBy: sortBy || "newest",
-      page: parseInt(page) || 1,
-      perPage: parseInt(perPage) || 12,
-    })
+   try {
+     const { category, search, shared, sortBy, page, perPage, favorites } = req.query
+     const result = await getAlbumsForStudent(req.user.id, {
+       category,
+       search,
+       sharedOnly: shared === "true",
+       favorites: favorites === "true",
+       sortBy: sortBy || "newest",
+       page: parseInt(page) || 1,
+       perPage: parseInt(perPage) || 12,
+     })
     res.json(result)
   } catch (error) {
     next(error)
