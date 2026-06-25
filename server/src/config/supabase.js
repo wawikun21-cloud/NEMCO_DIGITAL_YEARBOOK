@@ -6,6 +6,11 @@ export const supabaseAdmin = createClient(config.supabaseUrl, config.supabaseSer
     autoRefreshToken: false,
     persistSession: false,
   },
+  global: {
+    headers: {
+      Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+    },
+  },
 })
 
 export const supabaseAnon = createClient(config.supabaseUrl, config.supabaseAnonKey, {

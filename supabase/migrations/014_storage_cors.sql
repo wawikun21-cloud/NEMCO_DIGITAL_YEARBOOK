@@ -1,0 +1,59 @@
+-- Storage CORS configuration for Supabase
+-- Run this in the Supabase SQL Editor connected to your project
+--
+-- Supabase Storage uses the `cors` column on storage.buckets (jsonb type).
+-- If the column doesn't exist, you may need to add it first.
+--
+-- Option A: If the cors column exists (newer Supabase versions):
+--
+-- ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS cors jsonb;
+--
+-- UPDATE storage.buckets SET cors = '[
+--   {
+--     "origin": [
+--       "http://localhost:5173",
+--       "http://localhost:3000",
+--       "https://slategrey-bat-765711.hostingersite.com",
+--       "https://lavender-bear-325314.hostingersite.com"
+--     ],
+--     "method": ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+--     "responseHeader": [
+--       "Content-Type",
+--       "Authorization",
+--       "x-client-info",
+--       "apikey",
+--       "Access-Control-Allow-Origin",
+--       "Content-Range",
+--       "Range"
+--     ],
+--     "maxAgeSeconds": 3600
+--   }
+-- ]'::jsonb;
+--
+-- Option B: If the cors column does NOT exist (your case), use the Supabase Management API.
+-- The storage CORS is controlled by the API configuration, not a table column.
+-- Run this via the Supabase API or Dashboard -> Settings -> API -> CORS:
+--
+-- curl -X PATCH "https://api.supabase.com/v1/projects/{project_id}/config/storage" \
+--   -H "Authorization: Bearer {service_role_key}" \
+--   -H "Content-Type: application/json" \
+--   -d '{
+--     "cors": [{
+--       "origin": [
+--         "http://localhost:5173",
+--         "http://localhost:3000",
+--         "https://slategrey-bat-765711.hostingersite.com",
+--         "https://lavender-bear-325314.hostingersite.com"
+--       ],
+--       "method": ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+--       "responseHeader": ["Content-Type", "Authorization", "x-client-info", "apikey", "Access-Control-Allow-Origin", "Content-Range", "Range"],
+--       "maxAgeSeconds": 3600
+--     }]
+--   }'
+--
+-- Since the storage.buckets table doesn't have a cors column in your Supabase version,
+-- the correct approach is to configure CORS at the API level via Dashboard or API.
+-- The config.toml cors_origins field in the [api] section handles this for local dev.
+--
+-- For production, go to: https://supabase.com/dashboard/project/zyncuihltvmbiskmjira/settings/api
+-- and add your domains to the CORS Origins list.
