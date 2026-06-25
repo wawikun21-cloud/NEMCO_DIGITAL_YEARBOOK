@@ -967,17 +967,6 @@ export default function YearbookManagementPage() {
           )}
         </div>
       )}
-
-      <footer className="mt-auto border-t border-[var(--border-light)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 text-xs text-[var(--text-muted)] sm:flex-row">
-          <span>&copy; {new Date().getFullYear()} NEMCO Digital Yearbook. All rights reserved.</span>
-          <nav className="flex gap-4">
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Privacy Policy</a>
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Terms of Use</a>
-            <a href="#" className="transition-colors hover:text-[var(--text-primary)]">Contact Us</a>
-          </nav>
-        </div>
-      </footer>
     </div>
   )
 }
