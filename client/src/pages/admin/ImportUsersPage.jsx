@@ -9,7 +9,7 @@ import { uploadImport } from "@/services/importService.js"
 import * as XLSX from "xlsx"
 
 const VALID_IMPORT_ROLES = ["admin", "user"]
-const MAX_IMPORT_ROWS = 100
+const MAX_IMPORT_ROWS = 500
 
 const normalizeText = (value) => {
   if (value == null) return ""

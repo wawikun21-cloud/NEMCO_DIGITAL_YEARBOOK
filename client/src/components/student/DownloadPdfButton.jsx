@@ -36,9 +36,27 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
         if (!firstPage) pdf.addPage([w, h])
         firstPage = false
 
-        if (page.type === "cover") {
-          drawCoverPage(pdf, data, w, h)
-        } else if (page.type === "back-cover") {
+         if (page.type === "cover") {
+            const dp = page._designPage
+            if (dp?.type === "section") {
+              drawSectionPage(pdf, dp, w, h)
+            } else if (dp?.type === "student") {
+              drawStudentPage(pdf, dp, w, h)
+            } else if (dp?.type === "student-back") {
+              drawStudentBackPage(pdf, dp, w, h)
+            } else if (dp?.type === "pdf") {
+              const imgKey = `${dp.data.id}-${dp.pageNum}`
+              const imgData = pdfImages[imgKey]
+              if (imgData) {
+                pdf.addImage(imgData, "JPEG", 0, 0, w, h)
+              }
+            } else {
+              drawCoverPage(pdf, data, w, h)
+            }
+         } else if (page.type === "inside-cover") {
+           pdf.setFillColor(248, 247, 245)
+           pdf.rect(0, 0, w, h, "F")
+         } else if (page.type === "back-cover") {
           drawBackCoverPage(pdf, data, w, h)
         } else if (page.type === "section") {
           drawSectionPage(pdf, page, w, h)
@@ -210,6 +228,19 @@ function drawStudentPage(pdf, page, w, h) {
     const lines = pdf.splitTextToSize(profile.bio, maxW)
     pdf.text(lines, (w - maxW) / 2, currentY)
   }
+}
+
+function drawStudentBackPage(pdf, page, w, h) {
+  pdf.setFillColor(250, 250, 250)
+  pdf.rect(0, 0, w, h, "F")
+  const pr = page.data?.profile
+  const quote = pr?.quote || "The future belongs to those who believe in the beauty of their dreams."
+  pdf.setFontSize(Math.round(w / 30))
+  pdf.setFont("helvetica", "italic")
+  pdf.setTextColor(150, 150, 160)
+  const maxW = Math.round(w * 0.7)
+  const lines = pdf.splitTextToSize(`"${quote}"`, maxW)
+  pdf.text(lines, (w - maxW) / 2, h / 2)
 }
 
 function drawInitialCircle(pdf, w, h, initial, scale) {

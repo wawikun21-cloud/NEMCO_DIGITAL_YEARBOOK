@@ -76,7 +76,15 @@ function injectBook3DStyles() {
       box-shadow: inset 0 0 34px rgba(0,0,0,0.45);
       border: 1px solid rgba(255,255,255,0.06);
     }
-  `
+
+    .stf__parent._cover .stf__block {
+      backface-visibility: visible !important;
+      transform-style: preserve-3d !important;
+    }
+    .stf__parent._cover .stf__block > * {
+      backface-visibility: visible !important;
+    }
+   `
   document.head.appendChild(style)
 }
 import {
@@ -105,9 +113,11 @@ import { getPublicFlipbook } from "@/services/flipbookService"
 import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
 import * as pdfjsLib from "pdfjs-dist"
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.mjs",
+  import.meta.url
+).toString()
 
 function usePdfPageImages(pdfPages) {
   const [images, setImages] = useState({})
@@ -308,6 +318,15 @@ const BackCover = forwardRef(function BackCover({ title }, ref) {
   )
 })
 
+const InsideCover = forwardRef(function InsideCover({ isLeftPage }, ref) {
+  return (
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-[#f8f7f5] p-5 sm:p-6 relative book-page-curve-shading">
+      <div className="book-page-edge book-page-edge-left" />
+      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+    </div>
+  )
+})
+
 const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
   return (
     <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-5 sm:p-6 relative book-page-curve-shading">
@@ -467,7 +486,7 @@ export default function Yearbook3DPage() {
         return slug === studentParam.toLowerCase() || pr.profile.id === studentParam || pr.id === studentParam
       })
       if (idx >= 0) {
-        let pageIdx = 1
+         let pageIdx = 2
         const sections = data?.sections || []
         if (sections.length > 0) {
           const secMap = new Map()
@@ -543,70 +562,73 @@ export default function Yearbook3DPage() {
   }, [filtered])
 
   const bookPageList = useMemo(() => {
-    const sourceType = data?.sourceType || "profiles"
-    const pages = [{ type: "cover" }]
-    if (sourceType === "profiles") {
-      if (sections.length > 0) {
-        const sectionMap = new Map(), unsectioned = []
-        for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
-        for (const sec of sections) {
-          pages.push({ type: "section", name: sec.name })
-          for (const sp of (sectionMap.get(sec.name) || [])) {
-            pages.push({ type: "student", data: sp })
-            pages.push({ type: "student-back", data: sp })
-          }
-        }
-        for (const up of unsectioned) {
-          pages.push({ type: "student", data: up })
-          pages.push({ type: "student-back", data: up })
-        }
-      } else {
-        for (const fp of profiles) {
-          pages.push({ type: "student", data: fp })
-          pages.push({ type: "student-back", data: fp })
-        }
-      }
-      pages.push({ type: "back-cover" })
-    } else if (sourceType === "pdfs") {
-      for (const pdf of pdfPages) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }) }
-      pages.push({ type: "back-cover" })
-    } else {
-      if (sections.length > 0) {
-        const sectionMap = new Map(), unsectioned = []
-        for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
-        const pdfSectionMap = new Map(), unsectionedPdfs = []
-        for (const pdf of pdfPages) { const sn = pdf.section_name || ""; if (sn) { if (!pdfSectionMap.has(sn)) pdfSectionMap.set(sn, []); pdfSectionMap.get(sn).push(pdf) } else unsectionedPdfs.push(pdf) }
-        for (const sec of sections) {
-          pages.push({ type: "section", name: sec.name })
-          for (const sp of (sectionMap.get(sec.name) || [])) {
-            pages.push({ type: "student", data: sp })
-            pages.push({ type: "student-back", data: sp })
-          }
-          for (const pdf of (pdfSectionMap.get(sec.name) || [])) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }) }
-        }
-        for (const up of unsectioned) {
-          pages.push({ type: "student", data: up })
-          pages.push({ type: "student-back", data: up })
-        }
-        for (const pdf of unsectionedPdfs) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }) }
-      } else {
-        let pi = 0
-        for (let i = 0; i < profiles.length; i++) {
-          pages.push({ type: "student", data: profiles[i] })
-          pages.push({ type: "student-back", data: profiles[i] })
-          if ((i + 1) % 2 === 0 && pi < pdfPages.length) { pages.push({ type: "pdf", data: pdfPages[pi], pageNum: 1 }); pi++ }
-        }
-        while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) pages.push({ type: "pdf", data: pdf, pageNum: i }); pi++ }
-      }
-      pages.push({ type: "back-cover" })
-    }
-    return pages
-  }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
+     const sourceType = data?.sourceType || "profiles"
+     const contentPages = []
+     if (sourceType === "profiles") {
+       if (sections.length > 0) {
+         const sectionMap = new Map(), unsectioned = []
+         for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
+         for (const sec of sections) {
+           contentPages.push({ type: "section", name: sec.name })
+           for (const sp of (sectionMap.get(sec.name) || [])) {
+             contentPages.push({ type: "student", data: sp })
+             contentPages.push({ type: "student-back", data: sp })
+           }
+         }
+         for (const up of unsectioned) {
+           contentPages.push({ type: "student", data: up })
+           contentPages.push({ type: "student-back", data: up })
+         }
+       } else {
+         for (const fp of profiles) {
+           contentPages.push({ type: "student", data: fp })
+           contentPages.push({ type: "student-back", data: fp })
+         }
+       }
+     } else if (sourceType === "pdfs") {
+       for (const pdf of pdfPages) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+     } else {
+       if (sections.length > 0) {
+         const sectionMap = new Map(), unsectioned = []
+         for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
+         const pdfSectionMap = new Map(), unsectionedPdfs = []
+         for (const pdf of pdfPages) { const sn = pdf.section_name || ""; if (sn) { if (!pdfSectionMap.has(sn)) pdfSectionMap.set(sn, []); pdfSectionMap.get(sn).push(pdf) } else unsectionedPdfs.push(pdf) }
+         for (const sec of sections) {
+           contentPages.push({ type: "section", name: sec.name })
+           for (const sp of (sectionMap.get(sec.name) || [])) {
+             contentPages.push({ type: "student", data: sp })
+             contentPages.push({ type: "student-back", data: sp })
+           }
+           for (const pdf of (pdfSectionMap.get(sec.name) || [])) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+         }
+         for (const up of unsectioned) {
+           contentPages.push({ type: "student", data: up })
+           contentPages.push({ type: "student-back", data: up })
+         }
+         for (const pdf of unsectionedPdfs) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+       } else {
+         let pi = 0
+         for (let i = 0; i < profiles.length; i++) {
+           contentPages.push({ type: "student", data: profiles[i] })
+           contentPages.push({ type: "student-back", data: profiles[i] })
+           if ((i + 1) % 2 === 0 && pi < pdfPages.length) { contentPages.push({ type: "pdf", data: pdfPages[pi], pageNum: 1 }); pi++ }
+         }
+         while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }); pi++ }
+       }
+     }
+       const firstPdfPage = pdfPages.length > 0 ? { type: "pdf", data: pdfPages[0], pageNum: 1 } : null
+       if (firstPdfPage) {
+         const firstKey = `${firstPdfPage.data.id}-${firstPdfPage.pageNum}`
+         const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== firstKey)
+         return [{ type: "cover", _designPage: firstPdfPage }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
+       }
+       return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
+   }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
 
   const displayPageList = useMemo(() => {
     if (!filtered) return bookPageList
     return bookPageList.filter((pg) => {
-      if (pg.type === "cover" || pg.type === "back-cover" || pg.type === "section" || pg.type === "pdf") return true
+       if (pg.type === "cover" || pg.type === "inside-cover" || pg.type === "back-cover" || pg.type === "section" || pg.type === "pdf") return true
       if (pg.type === "student" || pg.type === "student-back") return filteredIdSet.has(pg.data.profile?.id)
       return true
     })
@@ -936,7 +958,7 @@ export default function Yearbook3DPage() {
              maxWidth={bookMaxWidth}
              minHeight={350}
              maxHeight={bookMaxHeight}
-                showCover={windowWidth >= 640}
+                showCover={true}
              drawShadow={true}
              maxShadowOpacity={0.5}
              flippingTime={Math.round(flipSpeed * 1000)}
@@ -962,11 +984,91 @@ export default function Yearbook3DPage() {
                const isLeftPage = idx % 2 === 0
 
                 if (page.type === "cover") {
-                 return (
-                    <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
-                 )
-               }
-               if (page.type === "back-cover") {
+                  const dp = page._designPage
+                  if (!dp) {
+                    return <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
+                  }
+                  if (dp.type === "section") {
+                    return (
+                      <div key="cover" className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-5 sm:p-6 relative book-page-curve-shading">
+                        <div className="book-page-edge book-page-edge-right" />
+                        <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4 relative z-[4]" />
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-primary)]/8 mb-3 relative z-[4]"><Sparkles size={20} className="text-[var(--bg-primary)]" /></div>
+                        <h3 className="text-lg font-bold text-[var(--text-primary)] relative z-[4]">{dp.name}</h3>
+                        <div className="mt-2 h-0.5 w-12 rounded-full bg-[var(--accent-gold)]/40 relative z-[4]" />
+                        <div className="h-px w-16 bg-[var(--bg-primary)]/20 mt-4 relative z-[4]" />
+                      </div>
+                    )
+                  }
+                  if (dp.type === "student") {
+                    const pr = dp.data.profile
+                    const name = pr.display_name || pr.full_name || "Unknown"
+                    const initial = name.charAt(0).toUpperCase()
+                    return (
+                      <div key="cover" className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
+                        <div className="book-page-edge book-page-edge-right" />
+                        <div className="flex flex-1 flex-col items-center relative z-[4]">
+                          <div className="w-full h-1 rounded-full bg-gradient-to-r from-transparent via-[var(--bg-primary)]/20 to-transparent mb-4" />
+                          {pr.avatar_url ? (
+                            <img src={pr.avatar_url} alt={name} className="h-24 w-24 rounded-full object-cover ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32" />
+                          ) : (
+                            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[var(--bg-primary)]/10 to-[var(--bg-primary)]/20 text-4xl font-bold text-[var(--bg-primary)] ring-4 ring-[var(--bg-primary)]/10 shadow-lg sm:h-32 sm:w-32 sm:text-5xl">{initial}</div>
+                          )}
+                          <h2 className="mt-4 text-lg font-bold text-[var(--text-primary)] sm:text-xl">{name}</h2>
+                          {pr.student_number && <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">{pr.student_number}</p>}
+                          <div className="mt-2.5 flex flex-wrap gap-1.5 justify-center">
+                            {pr.course_or_strand && <span className="rounded-full bg-[var(--bg-primary)]/8 px-2.5 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">{pr.course_or_strand}</span>}
+                            {pr.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{pr.year_level}</span>}
+                            {pr.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{pr.section}</span>}
+                          </div>
+                          <div className="mt-3 flex-1 overflow-y-auto styled-scroll min-h-0">
+                            {pr.bio && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs px-2">{pr.bio}</p>}
+                            {pr.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{pr.quote}"</blockquote>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (dp.type === "student-back") {
+                    const pr = dp.data.profile
+                    return (
+                      <div key="cover" className="flex h-full w-full flex-col items-center justify-center bg-[#fafafa] p-5 sm:p-6 text-center relative book-page-curve-shading">
+                        <div className="book-page-edge book-page-edge-left" />
+                        <div className="h-10 w-10 rounded-full bg-[var(--bg-primary)]/5 flex items-center justify-center mb-3 relative z-[4]"><GraduationCap size={20} className="text-[var(--bg-primary)]/30" /></div>
+                        <p className="text-[10px] text-[var(--text-muted)]/40 italic max-w-[200px] relative z-[4]">"{pr.quote || "The future belongs to those who believe in the beauty of their dreams."}"</p>
+                      </div>
+                    )
+                  }
+                  if (dp.type === "pdf") {
+                    const img = pdfImages[`${dp.data.id}-${dp.pageNum}`]
+                    return (
+                      <div key="cover" className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
+                        <div className="book-page-edge book-page-edge-right" />
+                        <div className="flex-1 relative flex items-center justify-center z-[4]">
+                          {img ? (
+                            <img src={img} alt={dp.data.title} className="h-full w-full object-contain" draggable={false} />
+                          ) : pdfLoading ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
+                              <span className="text-[10px] text-[var(--text-muted)]/50">Loading page {dp.pageNum}…</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
+                              <span className="text-[10px] text-[var(--text-muted)]/40">{dp.data.title}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-center py-1.5 border-t border-gray-100 z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
+                      </div>
+                    )
+                  }
+                  return <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
+                }
+                if (page.type === "inside-cover") {
+                  return <InsideCover key="inside-cover" isLeftPage={isLeftPage} />
+                }
+                if (page.type === "back-cover") {
                  return (
                    <BackCover key="back-cover" title={data?.settings?.title} />
                  )
@@ -978,7 +1080,7 @@ export default function Yearbook3DPage() {
                }
                if (page.type === "student") {
                  return (
-                   <StudentPage key={`student-${page.data.profile?.id || idx}`} profile={page.data.profile} pageNum={idx} totalPages={totalPages - 2} visible={visible} isLeftPage={isLeftPage} />
+                   <StudentPage key={`student-${page.data.profile?.id || idx}`} profile={page.data.profile} pageNum={idx} totalPages={totalPages - 3} visible={visible} isLeftPage={isLeftPage} />
                  )
                }
                if (page.type === "student-back") {

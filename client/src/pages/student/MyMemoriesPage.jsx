@@ -496,7 +496,8 @@ export default function MyMemoriesPage() {
     try {
       const { toggleAlbumFavorite: toggleAlbumFav } = await import("@/services/memoriesService")
       const result = await toggleAlbumFav(albumId)
-      toast.success(result ? "Added to Favorites" : "Removed from Favorites")
+      const isFav = result.is_favorite ?? result
+      toast.success(isFav ? "Added to Favorites" : "Removed from Favorites")
       refetch()
     } catch {
       toast.error("Failed to update favorite")

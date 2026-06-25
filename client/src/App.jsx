@@ -29,7 +29,6 @@ export default function App() {
 
   const handleLogout = () => {
     logout()
-    window.location.href = "/login"
   }
 
   const handleNavigate = (href) => {

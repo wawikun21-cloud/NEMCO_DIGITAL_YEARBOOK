@@ -29,10 +29,10 @@ export const importRowSchema = z.object({
   role:             roleSchema,
   year_level:       z.coerce.string().trim().min(1, "Year level is required"),
   course_or_strand: z.string().trim().min(1, "Course or strand is required"),
-  section:          z.coerce.string().trim().optional(),
-  display_name:     z.coerce.string().trim().optional(),
-  bio:              z.string().trim().optional(),
-  quote:            z.string().trim().optional(),
+  section:          z.string().trim().nullish().transform((v) => v || ""),
+  display_name:     z.string().trim().nullish().transform((v) => v || ""),
+  bio:              z.string().trim().nullish().transform((v) => v || ""),
+  quote:            z.string().trim().nullish().transform((v) => v || ""),
 })
 
 export const validateFile = (buffer, filename) => {

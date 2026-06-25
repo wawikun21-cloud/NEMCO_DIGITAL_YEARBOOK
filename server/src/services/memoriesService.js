@@ -171,6 +171,8 @@ export async function toggleAlbumFavorite(studentId, albumId) {
     return true
   }
 }
+
+export async function createAlbum(data) {
   const { data: album, error } = await supabaseAdmin
     .from("memory_albums")
     .insert({

@@ -52,6 +52,17 @@ export async function uploadImport(req, res, next) {
   } catch (error) {
     // If a fatal error happens before processing starts, try to mark the batch as failed
     console.error("[IMPORT] Fatal error in uploadImport:", error.message)
+    console.error("[IMPORT] Stack:", error.stack)
+    if (batchId) {
+      try {
+        await updateBatchProgress(batchId, {
+          status: "failed",
+          message: error.message,
+        })
+      } catch (updateErr) {
+        console.error("[IMPORT] Failed to update batch progress:", updateErr.message)
+      }
+    }
     next(error)
   }
 }
