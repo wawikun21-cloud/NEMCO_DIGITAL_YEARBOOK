@@ -15,6 +15,7 @@
   --bg-input: #ffffff;
   --bg-subtle: #f6fafd;
   --bg-cover-overlay: rgba(0, 0, 0, 0.4);
+  --bg-primary: #020F59;
   --border: oklch(0.922 0 0);
   --border-light: #edf3f7;
   --border-sidebar: #1d3f57;
@@ -81,6 +82,7 @@
   --bg-input: #1a2e42;
   --bg-subtle: #0d1b2a;
   --bg-cover-overlay: rgba(0, 0, 0, 0.5);
+  --bg-primary: #1a3a5c;
   --border: oklch(1 0 0 / 10%);
   --border-light: #1a2e42;
   --border-sidebar: #162840;

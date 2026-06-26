@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 
-let currentTheme = localStorage.getItem('theme') || 'light'
+let currentTheme = typeof window !== 'undefined'
+  ? (localStorage.getItem('theme') || 'light')
+  : 'light'
+
+if (typeof document !== 'undefined') {
+  document.documentElement.classList.toggle('dark', currentTheme === 'dark')
+}
+
 const listeners = new Set()
 
 function notify() {
