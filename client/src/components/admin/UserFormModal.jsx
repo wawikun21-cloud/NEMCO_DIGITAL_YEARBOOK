@@ -26,6 +26,7 @@ const PROFILE_STATUS_OPTIONS = [
 
 export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
   const isEdit = !!user
+  const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     student_number: "",
     email: "",
@@ -65,6 +66,7 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
         setErrors({})
         initRef.current = userId
       }
+      setSubmitting(false)
     }
   }, [open, user])
 
@@ -120,15 +122,20 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
       return
     }
 
-    onSubmit({
+    setSubmitting(true)
+    Promise.resolve(onSubmit({
       ...formData,
       id: user?.id,
-    })
+    })).finally(() => setSubmitting(false))
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        className="w-full sm:w-[500px] max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit User" : "Create User"}</DialogTitle>
           <DialogDescription>
@@ -346,11 +353,13 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">{isEdit ? "Save Changes" : "Create User"}</Button>
-          </DialogFooter>
+             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+               Cancel
+             </Button>
+             <Button type="submit" disabled={submitting}>
+               {submitting ? "Saving..." : isEdit ? "Save Changes" : "Create User"}
+             </Button>
+           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

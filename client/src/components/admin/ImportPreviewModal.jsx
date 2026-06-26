@@ -39,7 +39,7 @@ export default function ImportPreviewModal({
   onSheetChange,
 }) {
   const totalRows = validRows.length + invalidRows.length
-  const maxRows = 200
+  const maxRows = 50
   const isOverLimit = totalRows > maxRows
   const visibleColumns = getVisibleColumns(validRows)
 

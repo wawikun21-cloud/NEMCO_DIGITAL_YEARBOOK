@@ -31,13 +31,26 @@ export async function getUsers(filters = {}) {
     query = query.eq("section", filters.section)
   }
 
-  const { data: users, error } = await query
+  const BATCH_SIZE = 1000
+  let allUsers = []
+  let from = 0
+  let hasMore = true
 
-  if (error) {
-    throw new Error("Failed to fetch users")
+  while (hasMore) {
+    const to = from + BATCH_SIZE - 1
+    const { data: users, error } = await query.range(from, to)
+
+    if (error) {
+      throw new Error("Failed to fetch users")
+    }
+
+    const batch = users || []
+    allUsers = allUsers.concat(batch)
+    hasMore = batch.length === BATCH_SIZE
+    from = to + 1
   }
 
-  return users || []
+  return allUsers
 }
 
 export async function getUserById(id) {
