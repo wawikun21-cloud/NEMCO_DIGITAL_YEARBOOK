@@ -308,6 +308,20 @@ async function handleGetAvatarHistory(req, res) {
 
 const loginSchema = z.object({ studentId: z.string().trim().min(1), password: z.string().min(1) })
 
+const createUserSchema = z.object({
+  student_number: z.string().trim().regex(/^\d{7}$/, "Student number must be exactly 7 digits"),
+  email: z.string().trim().email("Invalid email format"),
+  full_name: z.string().trim().min(2, "Full name must be at least 2 characters"),
+  year_level: z.string().trim().optional(),
+  course_or_strand: z.string().trim().optional(),
+  section: z.string().trim().optional(),
+  role: z.enum(["admin", "user"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  profile_status: z.enum(["approved", "submitted", "rejected", "pending"]).optional(),
+  bio: z.string().trim().optional(),
+  quote: z.string().trim().optional(),
+})
+
 async function handleLogin(req, res) {
   try {
     const body = loginSchema.parse(req.body)
@@ -353,7 +367,12 @@ async function handleCreateUser(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
   try {
-    const { student_number, email, full_name, ...profileFields } = req.body
+    const parsed = createUserSchema.safeParse(req.body)
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]
+      return json(res, 400, { message: firstError?.message || "Invalid request body" })
+    }
+    const { student_number, email, full_name, year_level, course_or_strand, section, role, status, profile_status, bio, quote } = parsed.data
     const { data: existingProfile } = await supabaseAdmin.from("profiles").select("id").eq("student_number", student_number).maybeSingle()
     if (existingProfile) return json(res, 409, { message: "Student number already exists" })
     const { data: existingEmail } = await supabaseAdmin.from("profiles").select("id").eq("email", email).maybeSingle()
@@ -364,11 +383,15 @@ async function handleCreateUser(req, res) {
       if (authError.message?.includes("already registered")) return json(res, 409, { message: "Email already registered" })
       return json(res, 400, { message: authError.message || "Failed to create user" })
     }
-    const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").upsert({ id: authUser.user.id, email, student_number, full_name, display_name: full_name.split(" ")[0], ...profileFields }, { onConflict: "id" }).select().maybeSingle()
+    const display_name = full_name?.trim()?.split(" ")[0] || ""
+    const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").upsert({ id: authUser.user.id, email, student_number, full_name, display_name, year_level, course_or_strand, section, role: role || "user", status: status || "active", profile_status: profile_status || "approved", bio, quote }, { onConflict: "id" }).select(PROFILE_COLUMNS_WITH_DATES).maybeSingle()
     if (profileError) { await supabaseAdmin.auth.admin.deleteUser(authUser.user.id); return json(res, 500, { message: "Failed to create user profile" }) }
-    json(res, 201, { user: authUser.user, profile })
+    json(res, 201, { user: profile })
   } catch (error) {
-    json(res, 500, { message: error.message || "Failed to create user" })
+    const status = error.status || 500
+    const message = error.message || "Failed to create user"
+    if (status === 500) console.error("[CREATE_USER]", error)
+    json(res, status, { message })
   }
 }
 
