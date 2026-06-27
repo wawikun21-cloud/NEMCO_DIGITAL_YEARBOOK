@@ -11,88 +11,13 @@ import {
   FileText,
   ZoomIn,
   ZoomOut,
-  BookOpen,
   Grid3X3,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getPublicFlipbook } from "@/services/flipbookService"
 import PdfFlipbookViewer from "@/components/student/PdfFlipbookViewer"
-
-function ProfilePageContent({ profile, layoutTemplate, pageNumber, totalPages }) {
-  if (!profile) return null
-
-  const displayName = profile.display_name || profile.full_name || "Unknown"
-  const initials = displayName.charAt(0).toUpperCase()
-
-  return (
-    <div className={`flex h-full flex-col ${layoutTemplate === "photo-left" ? "flex-row" : "flex-col"}`}>
-      <div
-        className={`${
-          layoutTemplate === "photo-left"
-            ? "w-2/5 h-full"
-            : layoutTemplate === "photo-right"
-            ? "hidden"
-            : "w-full h-1/2"
-        } flex items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/5 to-[var(--bg-primary)]/10 p-6`}
-      >
-        {profile.avatar_url ? (
-          <img
-            src={profile.avatar_url}
-            alt={displayName}
-            className="h-32 w-32 rounded-full object-cover ring-4 ring-white/50 dark:ring-white/10 shadow-lg sm:h-40 sm:w-40"
-          />
-        ) : (
-          <div className="flex h-32 w-32 items-center justify-center rounded-full bg-[var(--bg-primary)]/20 text-4xl font-bold text-[var(--bg-primary)] ring-4 ring-white/50 dark:ring-white/10 shadow-lg sm:h-40 sm:w-40 sm:text-5xl">
-            {initials}
-          </div>
-        )}
-      </div>
-
-      <div className={`flex flex-1 flex-col justify-center p-6 sm:p-8 ${layoutTemplate === "photo-left" ? "w-3/5" : "w-full"}`}>
-        <h2 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{displayName}</h2>
-
-        {profile.student_number && (
-          <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">{profile.student_number}</p>
-        )}
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {profile.course_or_strand && (
-            <span className="rounded-full bg-[var(--bg-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--bg-primary)]">
-              {profile.course_or_strand}
-            </span>
-          )}
-          {profile.year_level && (
-            <span className="rounded-full bg-[var(--bg-subtle)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
-              {profile.year_level}
-            </span>
-          )}
-          {profile.section && (
-            <span className="rounded-full bg-[var(--bg-subtle)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
-              {profile.section}
-            </span>
-          )}
-        </div>
-
-        {profile.bio && (
-          <p className="mt-4 text-sm leading-relaxed text-[var(--text-secondary)] line-clamp-4">{profile.bio}</p>
-        )}
-
-        {profile.quote && (
-          <blockquote className="mt-4 border-l-2 border-[var(--bg-primary)] pl-3 text-sm italic text-[var(--text-muted)]">
-            &ldquo;{profile.quote}&rdquo;
-          </blockquote>
-        )}
-
-        <div className="mt-auto pt-4 text-center">
-          <span className="text-[10px] text-[var(--text-muted)]">
-            {pageNumber} / {totalPages}
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const FlipbookCover = forwardRef(function FlipbookCover({ title, subtitle, onClick }, ref) {
   return (

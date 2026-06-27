@@ -83,6 +83,7 @@ export async function loginWithBackend({ studentId, password }) {
     try {
       await supabase.auth.setSession(data.session)
     } catch {
+      // Session may already be set; ignore errors
     }
   }
 

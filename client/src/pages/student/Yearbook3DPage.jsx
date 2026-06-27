@@ -107,13 +107,24 @@ import {
   Volume2,
   VolumeX,
   List,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/hooks/useTheme"
-import { getPublicFlipbook } from "@/services/flipbookService"
+import { getPublicFlipbook, getYearbookCatalog } from "@/services/flipbookService"
+import { supabase } from "@/lib/supabaseClient"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
+import { useAuth } from "@/contexts/AuthContext"
+import { dedupeBatchLabels, newestBatchLabel, normalizeEditionFilter } from "@/utils/yearbookEditionHelpers"
 import * as pdfjsLib from "pdfjs-dist"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -132,24 +143,40 @@ function usePdfPageImages(pdfPages) {
   const queueRef = useRef([])
   const docsRef = useRef({})
   const loadedRef = useRef(false)
+  const processQueueRef = useRef(null)
+  const aspectRatioRef = useRef(null)
 
   const recomputeAspectRatio = useCallback(() => {
-    const values = Object.values(dimsRef.current)
-    if (values.length === 0) return
-    const avgRatio = values.reduce((sum, d) => sum + d.width / d.height, 0) / values.length
-    setAspectRatio(avgRatio)
+    const dims = Object.values(dimsRef.current)
+    if (dims.length === 0) {
+      if (aspectRatioRef.current !== null) {
+        aspectRatioRef.current = null
+        setAspectRatio(null)
+      }
+      return
+    }
+    const totalWidth = dims.reduce((sum, d) => sum + (d?.width || 0), 0)
+    const totalHeight = dims.reduce((sum, d) => sum + (d?.height || 0), 0)
+    if (totalHeight === 0) return
+    const ratio = totalWidth / totalHeight
+    if (aspectRatioRef.current !== ratio) {
+      aspectRatioRef.current = ratio
+      setAspectRatio(ratio)
+    }
   }, [])
 
-  function processQueue() {
-    while (concurrencyRef.current < 3 && queueRef.current.length > 0) {
-      const task = queueRef.current.shift()
-      concurrencyRef.current++
-      task().finally(() => {
-        concurrencyRef.current--
-        processQueue()
-      })
+  useEffect(() => {
+    processQueueRef.current = () => {
+      while (concurrencyRef.current < 3 && queueRef.current.length > 0) {
+        const task = queueRef.current.shift()
+        concurrencyRef.current++
+        task().finally(() => {
+          concurrencyRef.current--
+          processQueueRef.current()
+        })
+      }
     }
-  }
+  }, [])
 
   const renderPage = useCallback((pdfId, pageNum, scale) => {
     const key = `${pdfId}-${pageNum}`
@@ -181,7 +208,7 @@ function usePdfPageImages(pdfPages) {
     concurrencyRef.current++
     renderPage(pdfId, pageNum, 1.5).finally(() => {
       concurrencyRef.current--
-      processQueue()
+      processQueueRef.current()
     })
   }, [renderPage])
 
@@ -243,9 +270,9 @@ function usePdfPageImages(pdfPages) {
     return () => { cancelled = true }
   }, [pdfPages])
 
-   return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: dimsRef.current }
+  return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: dimsRef }
 }
-
+  
 const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible, isLeftPage }, ref) {
   if (!profile || !visible) return <div ref={ref} className="flex h-full w-full items-center justify-center bg-white" />
   const name = profile.display_name || profile.full_name || "Unknown"
@@ -407,6 +434,8 @@ function PageStrip({ pages, currentPage, onSelect, disabled }) {
 
 export default function Yearbook3DPage() {
   const { theme } = useTheme()
+  const { profile: authProfile, role } = useAuth()
+  const isStudentView = role !== "admin"
   const headerDark = theme === "dark"
   const [initialPage] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -431,12 +460,18 @@ export default function Yearbook3DPage() {
   const [flipSpeed, setFlipSpeed] = useState(0.7)
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
-   const [isDragging, setIsDragging] = useState(false)
-   const [bookState, setBookState] = useState("read")
+    const [bookState, setBookState] = useState("read")
    const [bookTranslateX, setBookTranslateX] = useState(0)
-     const [showToc, setShowToc] = useState(false)
-     const tocRef = useRef(null)
-   const bookWrapperRef = useRef(null)
+  const [showToc, setShowToc] = useState(false)
+  const tocRef = useRef(null)
+  const [studentProfile, setStudentProfile] = useState(null)
+  const [selectedDepartment, setSelectedDepartment] = useState(null)
+  const [selectedBatch, setSelectedBatch] = useState(null)
+   const [filtersReady, setFiltersReady] = useState(false)
+   const [availableDepartments, setAvailableDepartments] = useState([])
+   const [availableBatches, setAvailableBatches] = useState([])
+   const [departmentBatchMatrix, setDepartmentBatchMatrix] = useState({})
+  const bookWrapperRef = useRef(null)
   const recomputeCenteringRef = useRef(() => {})
 
   useEffect(() => {
@@ -460,16 +495,87 @@ export default function Yearbook3DPage() {
 
   useEffect(() => {
     let cancelled = false
-    getPublicFlipbook()
+
+    async function loadProfileAndCatalog() {
+      let courseStrand = null
+
+      if (isStudentView) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          const userId = sessionData?.session?.user?.id
+
+          if (userId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("course_or_strand")
+              .eq("id", userId)
+              .maybeSingle()
+            if (profile) {
+              courseStrand = profile.course_or_strand?.trim() || null
+              if (!cancelled) setStudentProfile(profile)
+            }
+          }
+        } catch {
+          // Fall back to auth profile if Supabase read fails
+        }
+
+        if (!courseStrand && authProfile?.course_or_strand) {
+          courseStrand = authProfile.course_or_strand.trim()
+        }
+      }
+
+      let catalog = null
+      try {
+        catalog = await getYearbookCatalog()
+        if (!cancelled) {
+          setAvailableDepartments(catalog.departments || [])
+          setAvailableBatches(catalog.batches || [])
+          setDepartmentBatchMatrix(catalog.departmentBatchMatrix || {})
+        }
+      } catch {
+        // Catalog load is optional; filters still work without dropdown data
+      }
+
+      if (!cancelled) {
+        if (isStudentView) {
+          setSelectedDepartment(courseStrand)
+        }
+        const initDept = courseStrand || null
+        const matrix = catalog?.departmentBatchMatrix || {}
+        const initBatches = initDept
+          ? (matrix[initDept] || [])
+          : (catalog?.batches || [])
+        setSelectedBatch(newestBatchLabel(initBatches))
+        setFiltersReady(true)
+      }
+    }
+
+    loadProfileAndCatalog()
+  }, [authProfile?.course_or_strand, isStudentView])
+
+   
+  // Loading state is set synchronously before fetch to trigger skeleton UI
+  useEffect(() => {
+    if (!filtersReady) return
+    let cancelled = false
+    setDataLoading(true)
+    getPublicFlipbook(selectedDepartment, selectedBatch)
       .then((result) => {
         if (!cancelled) {
           setData(result)
         }
       })
-      .catch((e) => { if (!cancelled) setError(e.message) })
+      .catch((e) => {
+        if (!cancelled) {
+          if (e.message?.includes("401") || e.message?.includes("Unauthorized")) {
+            try { supabase.auth.signOut() } catch { /* */ }
+          }
+          setError(e.message)
+        }
+      })
       .finally(() => { if (!cancelled) setDataLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [filtersReady, selectedDepartment, selectedBatch])
 
   useEffect(() => {
     if (!data) return
@@ -477,10 +583,14 @@ export default function Yearbook3DPage() {
     return () => clearTimeout(timer)
   }, [data])
 
+   
+  // Sync flip speed from settings — persists to backend on change
   useEffect(() => {
     if (data?.settings?.flip_speed) setFlipSpeed(data.settings.flip_speed)
   }, [data?.settings?.flip_speed])
 
+   
+  // Navigate to student page on URL param — runs once when data loads
   useEffect(() => {
     if (!data) return
     const params = new URLSearchParams(window.location.search)
@@ -558,10 +668,34 @@ export default function Yearbook3DPage() {
    }, [showToc])
 
   const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
-   const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
+  const sections = useMemo(() => (data?.sections || []), [data?.sections])
+  const courseStrandOptions = useMemo(() => {
+    return [...availableDepartments].sort()
+  }, [availableDepartments])
+
+  const batchOptions = useMemo(() => {
+    const normalizedDept = normalizeEditionFilter(selectedDepartment)
+    if (normalizedDept) {
+      const matrixBatches = departmentBatchMatrix[normalizedDept] || []
+      const filtered = availableBatches.filter((b) => matrixBatches.includes(b))
+      return filtered.length > 0 ? filtered : matrixBatches
+    }
+    return availableBatches
+  }, [availableBatches, departmentBatchMatrix, selectedDepartment])
+
+  useEffect(() => {
+    if (!selectedDepartment) return
+    const normalizedDept = normalizeEditionFilter(selectedDepartment)
+    const matrixBatches = departmentBatchMatrix[normalizedDept] || []
+    const validBatches = dedupeBatchLabels(matrixBatches)
+    if (selectedBatch && !validBatches.includes(selectedBatch)) {
+      setSelectedBatch(newestBatchLabel(validBatches))
+    }
+  }, [selectedDepartment, departmentBatchMatrix])
+
+  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
-  const sections = (data?.sections || [])
 
   const filtered = useMemo(() => {
     if (!search) return null
@@ -789,11 +923,6 @@ export default function Yearbook3DPage() {
 
   const onChangeState = useCallback((e) => {
     setBookState(e.data)
-    if (e.data === "user_fold") {
-      setIsDragging(true)
-    } else if (e.data === "read" || e.data === "flipping") {
-      if (e.data === "read") setIsDragging(false)
-    }
   }, [])
 
   const onInit = useCallback(() => {
@@ -874,7 +1003,7 @@ export default function Yearbook3DPage() {
 
   const pageLabel = currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "Back Cover" : `${currentPage} / ${totalPages - 1}`
 
-  if (dataLoading) return (
+  if (dataLoading && !data) return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0d1f33] to-[#132F45]">
       <div className="flex flex-col items-center gap-4">
         <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -901,6 +1030,22 @@ export default function Yearbook3DPage() {
     </div>
   )
 
+  if (data && data?.sourceType === "pdfs" && pdfPages.length === 0 && (selectedDepartment || selectedBatch)) return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
+      <div className="text-center px-4"><BookMarked size={32} className="mx-auto mb-2 text-[var(--text-muted)]" /><p className="text-sm font-medium text-[var(--text-primary)]">No yearbook available</p><p className="text-xs text-[var(--text-muted)] mb-3">
+        {selectedDepartment && selectedBatch
+          ? `No yearbook found for ${selectedDepartment} (${selectedBatch}).`
+          : selectedDepartment
+          ? `No yearbook found for ${selectedDepartment}.`
+          : `No yearbook found for batch ${selectedBatch}.`}
+      </p>
+        {courseStrandOptions.length > 0 && (
+          <p className="text-xs text-[var(--text-muted)]">Try selecting a different course/strand or batch from the filter above.</p>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50" : "min-h-screen"}`}
       style={{ background: isFullscreen ? "linear-gradient(135deg, rgba(30,20,10,0.95) 0%, rgba(15,25,40,0.97) 50%, rgba(10,15,30,0.95) 100%)" : "linear-gradient(135deg, #faf8f5 0%, #f0ede8 30%, #e8e4de 60%, #f0ede8 100%)" }}>
@@ -923,69 +1068,121 @@ export default function Yearbook3DPage() {
                 {data?.settings?.subtitle && <p className={`text-[11px] leading-tight ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              {searchOpen ? (
-                <div className="relative">
-                  <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40" : "text-[#1a2a3a]/40"}`} />
-                  <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className={`h-8 w-44 pl-9 pr-8 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3] placeholder:text-[#f0e6d3]/30 focus:bg-white/[0.12]" : "bg-white border-black/10 text-[#1a2a3a] placeholder:text-[#1a2a3a]/30 focus:bg-amber-50/50"}`} />
-                  <button onClick={() => { setSearchOpen(false); setSearch("") }} className={`absolute right-2 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40 hover:text-[#f0e6d3]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a]"}`} aria-label="Close search"><X size={14} /></button>
-                </div>
-              ) : (
-                <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
-              )}
-              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
+             <div className="flex items-center gap-1.5">
+               {profiles.length > 0 && (
+                 searchOpen ? (
+                   <div className="relative">
+                     <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40" : "text-[#1a2a3a]/40"}`} />
+                     <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className={`h-8 w-44 pl-9 pr-8 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3] placeholder:text-[#f0e6d3]/30 focus:bg-white/[0.12]" : "bg-white border-black/10 text-[#1a2a3a] placeholder:text-[#1a2a3a]/30 focus:bg-amber-50/50"}`} />
+                     <button onClick={() => { setSearchOpen(false); setSearch("") }} className={`absolute right-2 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40 hover:text-[#f0e6d3]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a]"}`} aria-label="Close search"><X size={14} /></button>
+                   </div>
+                 ) : (
+                   <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
+                 )
+               )}
+               <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
               <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </Button>
               <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
                 {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
               </Button>
-              <div className="relative" ref={tocRef}>
-                <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? `text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08] ${showToc ? "bg-white/[0.1] text-[#f0e6d3]" : ""}` : `text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04] ${showToc ? "bg-black/[0.06] text-[#1a2a3a]" : ""}`}`} onClick={() => setShowToc(!showToc)} aria-label="Table of contents">
-                  <List size={15} />
-                </Button>
-                {showToc && (
-                  <div className={`absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-xl backdrop-blur-xl shadow-2xl z-[100] styled-scroll ${headerDark ? "border border-white/[0.08] bg-[#0f1a2e]/95 shadow-black/50" : "border border-black/[0.08] bg-[#fdfbf7]/95 shadow-black/10"}`}>
-                    <div className={`p-3 border-b ${headerDark ? "border-white/[0.08]" : "border-black/[0.06]"}`}>
-                      <p className={`text-[11px] font-semibold uppercase tracking-wider ${headerDark ? "text-[#f0e6d3]/80" : "text-[#1a2a3a]/70"}`}>Table of Contents</p>
-                    </div>
-                    <div className="p-1.5">
-                      {displayPageList.map((pg, idx) => {
-                        const bookIdx = filteredToBookIndex ? filteredToBookIndex.get(idx) : idx
-                        const isActive = bookIdx === currentPage
-                        const label = pg.type === "cover" ? "Cover" :
-                          pg.type === "back-cover" ? "Back Cover" :
-                          pg.type === "inside-cover" ? "Inside Cover" :
-                          pg.type === "section" ? pg.name :
-                          pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} — Page ${pg.pageNum}` :
-                          pg.type === "student" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"}` :
-                          pg.type === "student-back" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"} (back)` :
-                          `Page ${idx}`
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => { handleStripSelect(idx); setShowToc(false) }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${headerDark ? (isActive ? "bg-white/[0.12] text-[#f0e6d3] font-medium" : "text-[#f0e6d3]/60 hover:bg-white/[0.06] hover:text-[#f0e6d3]") : (isActive ? "bg-amber-100/80 text-[#1a2a3a] font-medium" : "text-[#1a2a3a]/55 hover:bg-black/[0.04] hover:text-[#1a2a3a]")}`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`w-5 text-right text-[10px] ${isActive ? "text-[var(--accent-gold)]" : (headerDark ? "text-[#f0e6d3]/30" : "text-[#1a2a3a]/30")}`}>{idx + 1}</span>
-                              <span className="truncate flex-1">{label}</span>
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {pdfPages.length > 0 && (
-                <span className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
-              )}
-            </div>
-          </div>
-        </header>
+               {profiles.length > 0 && (
+                 <div className="relative" ref={tocRef}>
+                   <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? `text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08] ${showToc ? "bg-white/[0.1] text-[#f0e6d3]" : ""}` : `text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04] ${showToc ? "bg-black/[0.06] text-[#1a2a3a]" : ""}`}`} onClick={() => setShowToc(!showToc)} aria-label="Table of contents">
+                     <List size={15} />
+                   </Button>
+                   {showToc && (
+                     <div className={`absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-xl backdrop-blur-xl shadow-2xl z-[100] styled-scroll ${headerDark ? "border border-white/[0.08] bg-[#0f1a2e]/95 shadow-black/50" : "border border-black/[0.08] bg-[#fdfbf7]/95 shadow-black/10"}`}>
+                       <div className={`p-3 border-b ${headerDark ? "border-white/[0.08]" : "border-black/[0.06]"}`}>
+                         <p className={`text-[11px] font-semibold uppercase tracking-wider ${headerDark ? "text-[#f0e6d3]/80" : "text-[#1a2a3a]/70"}`}>Table of Contents</p>
+                       </div>
+                       <div className="p-1.5">
+                         {displayPageList.map((pg, idx) => {
+                           const bookIdx = filteredToBookIndex ? filteredToBookIndex.get(idx) : idx
+                           const isActive = bookIdx === currentPage
+                           const label = pg.type === "cover" ? "Cover" :
+                             pg.type === "back-cover" ? "Back Cover" :
+                             pg.type === "inside-cover" ? "Inside Cover" :
+                             pg.type === "section" ? pg.name :
+                             pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} — Page ${pg.pageNum}` :
+                             pg.type === "student" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"}` :
+                             pg.type === "student-back" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"} (back)` :
+                             `Page ${idx}`
+                           return (
+                             <button
+                               key={idx}
+                               onClick={() => { handleStripSelect(idx); setShowToc(false) }}
+                               className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${headerDark ? (isActive ? "bg-white/[0.12] text-[#f0e6d3] font-medium" : "text-[#f0e6d3]/60 hover:bg-white/[0.06] hover:text-[#f0e6d3]") : (isActive ? "bg-amber-100/80 text-[#1a2a3a] font-medium" : "text-[#1a2a3a]/55 hover:bg-black/[0.04] hover:text-[#1a2a3a]")}`}
+                             >
+                               <span className="flex items-center gap-2">
+                                 <span className={`w-5 text-right text-[10px] ${isActive ? "text-[var(--accent-gold)]" : (headerDark ? "text-[#f0e6d3]/30" : "text-[#1a2a3a]/30")}`}>{idx + 1}</span>
+                                 <span className="truncate flex-1">{label}</span>
+                               </span>
+                             </button>
+                           )
+                         })}
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               )}
+           {pdfPages.length > 0 && (
+                 <span className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
+               )}
 
-        <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
+               {courseStrandOptions.length > 0 && (
+                 <div className="flex items-center gap-1.5 ml-1">
+                   <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                     <SelectTrigger className={`h-7 min-w-[140px] max-w-[200px] text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                       <SelectValue placeholder="Course / Strand" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {courseStrandOptions.map((d) => (
+                         <SelectItem key={d} value={d}>{d}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+
+                    <Select value={selectedBatch} onValueChange={setSelectedBatch}>
+                      <SelectTrigger className={`h-7 w-[120px] text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                        <SelectValue placeholder="Batch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {batchOptions.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {selectedBatch && (
+                      <button
+                        onClick={() => setSelectedBatch(newestBatchLabel(batchOptions))}
+                        className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors ${headerDark ? "text-[#f0e6d3]/50 hover:text-[#f0e6d3] hover:bg-white/[0.06]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`}
+                        aria-label="Reset batch"
+                      >
+                        <XCircle size={13} />
+                      </button>
+                    )}
+
+                     {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
+                       <button
+                         onClick={() => {
+                           setSelectedDepartment(studentProfile.course_or_strand.trim())
+                           setSelectedBatch(newestBatchLabel(availableBatches))
+                         }}
+                         className={`hidden sm:inline-flex items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
+                       >
+                         My Yearbook
+                       </button>
+                     )}
+                 </div>
+               )}
+             </div>
+           </div>
+          </header>
+
+         <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
           <div className={`h-0.5 rounded-full overflow-hidden ${headerDark ? "bg-white/[0.08]" : "bg-black/[0.06]"}`}>
           <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)]/80 to-[var(--accent-gold)] transition-all duration-500 ease-out"
             style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />

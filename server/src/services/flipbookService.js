@@ -12,6 +12,129 @@ const FLIPBOOK_SETTINGS_DEFAULTS = {
   auto_flip_interval: 10,
 }
 
+async function columnsExist() {
+  try {
+    const { error } = await supabaseAdmin
+      .from("flipbook_pdf_pages")
+      .select("department")
+      .limit(1)
+    if (error && error.message.includes("does not exist")) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function normalizeEditionFilter(value) {
+  if (value == null) return null
+  const trimmed = String(value).trim()
+  return trimmed || null
+}
+
+function normalizeBatchLabel(value) {
+  if (value == null) return null
+  const normalized = String(value)
+    .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s+/g, " ")
+  return normalized || null
+}
+
+function dedupeCourseStrands(values) {
+  const seen = new Map()
+  for (const raw of values) {
+    const display = normalizeEditionFilter(raw)
+    if (!display) continue
+    const key = display.toLowerCase()
+    if (!seen.has(key)) seen.set(key, display)
+  }
+  return [...seen.values()].sort()
+}
+
+function dedupeBatchLabels(values) {
+  const seen = new Map()
+  for (const raw of values) {
+    const display = normalizeBatchLabel(raw)
+    if (!display) continue
+    const key = display.toLowerCase()
+    if (!seen.has(key)) seen.set(key, display)
+  }
+  return [...seen.values()].sort()
+}
+
+function batchLabelsMatch(a, b) {
+  const left = normalizeBatchLabel(a)?.toLowerCase()
+  const right = normalizeBatchLabel(b)?.toLowerCase()
+  return Boolean(left && right && left === right)
+}
+
+async function fetchProfileCourseStrandsAndBatches() {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("course_or_strand, year_graduated")
+    .not("course_or_strand", "is", null)
+
+  if (error) {
+    throw new Error(`Failed to fetch profile course/strand catalog: ${error.message}`)
+  }
+
+  const courses = dedupeCourseStrands((data || []).map((p) => p.course_or_strand))
+  const batches = dedupeBatchLabels((data || []).map((p) => p.year_graduated))
+
+  return { courses, batches }
+}
+
+async function resolveCourseOrStrand(value) {
+  const normalized = normalizeEditionFilter(value)
+  if (!normalized) return null
+
+  const { courses } = await fetchProfileCourseStrandsAndBatches()
+  if (courses.includes(normalized)) return normalized
+
+  const caseMatch = courses.find((c) => c.toLowerCase() === normalized.toLowerCase())
+  if (caseMatch) return caseMatch
+
+  throw new Error(
+    `Course/strand "${normalized}" is not in student profiles. Choose a value from the course/strand list.`
+  )
+}
+
+async function fetchActivePdfPages(department = null, batch = null) {
+  const hasCols = await columnsExist()
+  const dept = normalizeEditionFilter(department)
+  const bat = normalizeBatchLabel(batch)
+
+  let query = supabaseAdmin
+    .from("flipbook_pdf_pages")
+    .select(
+      hasCols
+        ? "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active, department, batch"
+        : "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active"
+    )
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+
+  if (dept && hasCols) {
+    query = query.ilike("department", dept)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    throw new Error(`Failed to fetch PDF pages: ${error.message}`)
+  }
+
+  let pages = data || []
+  if (bat && hasCols) {
+    pages = pages.filter((p) => batchLabelsMatch(p.batch, bat))
+  }
+
+  return pages
+}
+
 export async function getFlipbookSettings() {
   const { data, error } = await supabaseAdmin
     .from("flipbook_settings")
@@ -255,77 +378,94 @@ export async function deleteFlipbookSection(id) {
   return true
 }
 
-export async function getPublicFlipbook() {
+export async function getPublicFlipbook(department = null, batch = null) {
   const settings = await getFlipbookSettings()
 
   if (!settings.enabled) {
-    return { settings, profiles: [], sections: [], pdfPages: [], sourceType: "profiles" }
+    return { settings, sourceType: "pdfs", profiles: [], sections: [], pdfPages: [] }
   }
 
-  const sourceType = settings.source_type || "profiles"
+  const dept = normalizeEditionFilter(department)
+  const bat = normalizeEditionFilter(batch)
 
-  let flipbookProfiles = []
-  if (sourceType === "profiles" || sourceType === "combined") {
-    const { data, error: fpError } = await supabaseAdmin
-      .from("flipbook_profiles")
-      .select("id, profile_id, section_name, page_order, layout_template")
-      .eq("is_included", true)
-      .order("page_order", { ascending: true })
+  let pdfPages = await fetchActivePdfPages(dept, bat)
 
-    if (fpError) {
-      throw new Error(`Failed to fetch public flipbook profiles: ${fpError.message}`)
-    }
-    flipbookProfiles = data || []
-  }
-
-  const profileIds = (flipbookProfiles || []).map((p) => p.profile_id).filter(Boolean)
-  let profileMap = {}
-
-  if (profileIds.length > 0) {
-    const { data: profiles } = await supabaseAdmin
-      .from("profiles")
-      .select("id, display_name, full_name, student_number, avatar_url, year_level, course_or_strand, section, bio, quote")
-      .in("id", profileIds)
-      .eq("is_public", true)
-
-    for (const p of profiles || []) {
-      profileMap[p.id] = p
-    }
-  }
-
-  const sections = await getFlipbookSections()
-
-  let pdfPages = []
-  if (sourceType === "pdfs" || sourceType === "combined") {
-    const { data, error: pdfError } = await supabaseAdmin
-      .from("flipbook_pdf_pages")
-      .select("id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-
-    if (pdfError) {
-      throw new Error(`Failed to fetch PDF pages: ${pdfError.message}`)
-    }
-    pdfPages = data || []
+  // Same course/strand, any batch — only when exact dept+batch has no edition
+  if (pdfPages.length === 0 && dept && bat) {
+    pdfPages = await fetchActivePdfPages(dept, null)
   }
 
   return {
     settings,
-    sourceType,
-    profiles: (flipbookProfiles || []).map((p) => ({
-      ...p,
-      profile: profileMap[p.profile_id] || null,
-    })),
-    sections,
+    sourceType: "pdfs",
+    profiles: [],
+    sections: [],
     pdfPages,
   }
 }
 
-export async function getFlipbookPdfPages() {
-  const { data, error } = await supabaseAdmin
+export async function getYearbookCatalog() {
+  const hasCols = await columnsExist()
+
+  const { courses: profileCourses, batches: profileBatches } = await fetchProfileCourseStrandsAndBatches()
+
+  if (hasCols) {
+    const { data: pairData, error: pairError } = await supabaseAdmin
+      .from("flipbook_pdf_pages")
+      .select("department, batch")
+      .eq("is_active", true)
+      .not("department", "is", null)
+
+    if (pairError) {
+      throw new Error(`Failed to fetch catalog data: ${pairError.message}`)
+    }
+
+    const rows = pairData || []
+    const pdfCourses = rows.map((d) => d.department).filter(Boolean)
+    const pdfBatches = rows.map((b) => b.batch).filter(Boolean)
+
+    const departments = dedupeCourseStrands(pdfCourses)
+    const batches = dedupeBatchLabels(pdfBatches)
+
+    const matrixMap = {}
+    for (const row of rows) {
+      const dept = row.department?.trim()
+      const batch = normalizeBatchLabel(row.batch)
+      if (!dept || !batch) continue
+      if (!matrixMap[dept]) matrixMap[dept] = new Set()
+      matrixMap[dept].add(batch)
+    }
+    const departmentBatchMatrix = {}
+    for (const dept of Object.keys(matrixMap).sort()) {
+      departmentBatchMatrix[dept] = [...matrixMap[dept]].sort()
+    }
+
+    return { departments, batches, courseStrands: profileCourses, departmentBatchMatrix }
+  }
+
+  return { departments: profileCourses, batches: profileBatches, courseStrands: profileCourses, departmentBatchMatrix: {} }
+}
+
+export async function getFlipbookPdfPages(department = null, batch = null) {
+  const hasCols = await columnsExist()
+
+  let query = supabaseAdmin
     .from("flipbook_pdf_pages")
-    .select("id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, is_active, created_at, updated_at")
+    .select(
+      hasCols
+        ? "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, is_active, created_at, updated_at, department, batch"
+        : "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, is_active, created_at, updated_at"
+    )
     .order("sort_order", { ascending: true })
+
+  if (department && hasCols) {
+    query = query.eq("department", department)
+  }
+  if (batch && hasCols) {
+    query = query.eq("batch", batch)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw new Error(`Failed to fetch PDF pages: ${error.message}`)
@@ -334,7 +474,7 @@ export async function getFlipbookPdfPages() {
   return data || []
 }
 
-export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, uploadedBy }) {
+export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, uploadedBy, department, batch }) {
   const { data: maxOrder } = await supabaseAdmin
     .from("flipbook_pdf_pages")
     .select("sort_order")
@@ -344,21 +484,29 @@ export async function createFlipbookPdfPage({ title, description, fileUrl, fileN
 
   const nextOrder = maxOrder ? (maxOrder.sort_order || 0) + 1 : 1
 
+  const insertData = {
+    title: title || "Untitled PDF",
+    description: description || null,
+    file_url: fileUrl,
+    file_name: fileName,
+    file_size: fileSize || null,
+    page_count: pageCount || 0,
+    cover_image_url: coverImageUrl || null,
+    file_path: filePath || null,
+    uploaded_by: uploadedBy || null,
+    sort_order: nextOrder,
+    is_active: true,
+  }
+
+  const hasCols = await columnsExist()
+   if (hasCols) {
+      insertData.department = department ? await resolveCourseOrStrand(department) : null
+      insertData.batch = normalizeBatchLabel(batch)
+   }
+
   const { data, error } = await supabaseAdmin
     .from("flipbook_pdf_pages")
-    .insert({
-      title: title || "Untitled PDF",
-      description: description || null,
-      file_url: fileUrl,
-      file_name: fileName,
-      file_size: fileSize || null,
-      page_count: pageCount || 0,
-      cover_image_url: coverImageUrl || null,
-      file_path: filePath || null,
-      uploaded_by: uploadedBy || null,
-      sort_order: nextOrder,
-      is_active: true,
-    })
+    .insert(insertData)
     .select()
     .maybeSingle()
 
@@ -369,12 +517,22 @@ export async function createFlipbookPdfPage({ title, description, fileUrl, fileN
   return data
 }
 
-export async function updateFlipbookPdfPage(id, { title, description, sortOrder, isActive }) {
+export async function updateFlipbookPdfPage(id, { title, description, sortOrder, isActive, department, batch }) {
   const updateData = { updated_at: new Date().toISOString() }
   if (title !== undefined) updateData.title = title
   if (description !== undefined) updateData.description = description
   if (sortOrder !== undefined) updateData.sort_order = sortOrder
   if (isActive !== undefined) updateData.is_active = isActive
+
+  const hasCols = await columnsExist()
+   if (hasCols) {
+     if (department !== undefined) {
+       updateData.department = department ? await resolveCourseOrStrand(department) : null
+     }
+     if (batch !== undefined) {
+       updateData.batch = normalizeBatchLabel(batch)
+     }
+   }
 
   const { data, error } = await supabaseAdmin
     .from("flipbook_pdf_pages")
@@ -411,6 +569,7 @@ export async function deleteFlipbookPdfPage(id) {
         await supabaseAdmin.storage.from("flipbook-pdfs").remove([filePath])
       }
     } catch {
+      // Storage deletion is non-critical; continue even if file is missing
     }
   }
 
@@ -441,4 +600,11 @@ export async function reorderFlipbookPdfPages(orderedIds) {
   }
 
   return true
+}
+
+export async function searchDepartments(query) {
+  const { courses } = await fetchProfileCourseStrandsAndBatches()
+  const q = (query || "").trim().toLowerCase()
+  if (!q) return courses
+  return courses.filter((c) => c.toLowerCase().includes(q))
 }

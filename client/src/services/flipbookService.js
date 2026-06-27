@@ -38,117 +38,12 @@ export async function updateFlipbookSettings(updates) {
   return data
 }
 
-export async function getFlipbookProfiles({ page = 1, perPage = 25, section, search } = {}) {
-  const authHeaders = await getAuthHeaders()
+export async function getPublicFlipbook(department = null, batch = null) {
   const params = new URLSearchParams()
-  params.set("page", page)
-  params.set("perPage", perPage)
-  if (section) params.set("section", section)
-  if (search) params.set("search", search)
+  if (department) params.set("department", department)
+  if (batch) params.set("batch", batch)
 
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/profiles?${params}`, {
-    method: "GET",
-    headers: authHeaders,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to fetch flipbook profiles")
-  return data
-}
-
-export async function getApprovedProfiles() {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/approved-profiles`, {
-    method: "GET",
-    headers: authHeaders,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to fetch approved profiles")
-  return data.profiles
-}
-
-export async function addProfileToFlipbook(profileId, { sectionName, layoutTemplate }) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/profiles`, {
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ profileId, sectionName, layoutTemplate }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to add profile to flipbook")
-  return data.profile
-}
-
-export async function updateFlipbookProfile(id, updates) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/profiles/${id}`, {
-    method: "PATCH",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to update flipbook profile")
-  return data.profile
-}
-
-export async function removeProfileFromFlipbook(id) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/profiles/${id}`, {
-    method: "DELETE",
-    headers: authHeaders,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to remove profile from flipbook")
-  return true
-}
-
-export async function reorderFlipbookProfiles(orderedIds) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/reorder`, {
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ orderedIds }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to reorder flipbook")
-  return true
-}
-
-export async function getFlipbookSections() {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/sections`, {
-    method: "GET",
-    headers: authHeaders,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to fetch sections")
-  return data.sections
-}
-
-export async function addFlipbookSection(name) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/sections`, {
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to add section")
-  return data.section
-}
-
-export async function removeFlipbookSection(id) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/sections/${id}`, {
-    method: "DELETE",
-    headers: authHeaders,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to delete section")
-  return true
-}
-
-export async function getPublicFlipbook() {
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/flipbook`, {
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/flipbook?${params}`, {
     method: "GET",
   })
   const data = await response.json()
@@ -156,9 +51,13 @@ export async function getPublicFlipbook() {
   return data
 }
 
-export async function getPdfPages() {
+export async function getPdfPages(department = null, batch = null) {
   const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
+  const params = new URLSearchParams()
+  if (department) params.set("department", department)
+  if (batch) params.set("batch", batch)
+
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages?${params}`, {
     method: "GET",
     headers: authHeaders,
   })
@@ -167,24 +66,24 @@ export async function getPdfPages() {
   return data.pages
 }
 
-export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath }) {
+export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, batch }) {
   const authHeaders = await getAuthHeaders()
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
     method: "POST",
     headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath }),
+    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, batch }),
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || "Failed to add PDF page")
   return data.page
 }
 
-export async function updatePdfPage(id, { title, description, sortOrder, isActive }) {
+export async function updatePdfPage(id, { title, description, sortOrder, isActive, department, batch }) {
   const authHeaders = await getAuthHeaders()
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
     method: "PATCH",
     headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description, sortOrder, isActive }),
+    body: JSON.stringify({ title, description, sortOrder, isActive, department, batch }),
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || "Failed to update PDF page")
@@ -199,18 +98,6 @@ export async function removePdfPage(id) {
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || "Failed to delete PDF page")
-  return true
-}
-
-export async function reorderPdfPages(orderedIds) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/reorder`, {
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ orderedIds }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to reorder PDF pages")
   return true
 }
 
@@ -270,4 +157,26 @@ export async function uploadPdfFile(file, onProgress) {
     Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value))
     xhr.send(formData)
   })
+}
+
+export async function getYearbookCatalog() {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/catalog`, {
+    method: "GET",
+    headers: authHeaders,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to fetch yearbook catalog")
+  return data
+}
+
+export async function searchDepartments(query) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/departments/search?q=${encodeURIComponent(query)}`, {
+    method: "GET",
+    headers: authHeaders,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to search departments")
+  return data.departments
 }
