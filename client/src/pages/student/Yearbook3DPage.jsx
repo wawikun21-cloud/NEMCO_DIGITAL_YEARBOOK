@@ -996,7 +996,12 @@ export default function Yearbook3DPage() {
   const isFlipping = bookState === "flipping"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
-  const bookWidth = isFullscreen ? 600 : 400
+  // Responsive book sizing: derive from viewport instead of a fixed px value so the
+  // book never overflows on small screens. Horizontal padding budget: 32px normal, 40px fullscreen.
+  const availableBookWidth = windowWidth - (isFullscreen ? 40 : 32)
+  const bookWidth = isFullscreen
+    ? Math.max(240, Math.min(600, availableBookWidth))
+    : Math.max(220, Math.min(400, availableBookWidth))
   const bookHeight = Math.round(bookWidth / bookAspectRatio)
   const bookMaxWidth = isFullscreen ? 900 : 600
   const bookMaxHeight = isFullscreen ? 1200 : 800
@@ -1058,38 +1063,39 @@ export default function Yearbook3DPage() {
 
        <header className={`relative z-20 border-b ${headerDark ? "border-white/[0.08] bg-[#0f1a2e] shadow-xl shadow-black/30" : "border-black/[0.06] bg-[#fdfbf7] shadow-lg shadow-black/[0.04]"} ${isFullscreen ? "hidden" : ""}`}>
           <div className={`absolute inset-0 pointer-events-none ${headerDark ? "bg-gradient-to-b from-white/[0.03] to-transparent" : "bg-gradient-to-b from-amber-500/[0.02] to-transparent"}`} />
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 relative">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-lg ring-1 ${headerDark ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-[var(--bg-primary)]/30 ring-white/10" : "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/80 shadow-[var(--bg-primary)]/20 ring-black/10"}`}>
-                <BookMarked size={20} className="text-white" />
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 sm:px-4 py-2.5 sm:py-3 relative">
+            <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3">
+              <div className={`flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl shadow-lg ring-1 ${headerDark ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-[var(--bg-primary)]/30 ring-white/10" : "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/80 shadow-[var(--bg-primary)]/20 ring-black/10"}`}>
+                <BookMarked size={16} className="text-white sm:hidden" />
+                <BookMarked size={20} className="hidden text-white sm:block" />
               </div>
-              <div>
-                <h1 className={`text-base font-bold leading-tight tracking-tight ${headerDark ? "text-[#f0e6d3]" : "text-[#1a2a3a]"}`}>{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
-                {data?.settings?.subtitle && <p className={`text-[11px] leading-tight ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
+              <div className="min-w-0">
+                <h1 className={`truncate text-sm sm:text-base font-bold leading-tight tracking-tight ${headerDark ? "text-[#f0e6d3]" : "text-[#1a2a3a]"}`}>{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
+                {data?.settings?.subtitle && <p className={`hidden truncate text-[11px] leading-tight sm:block ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
               </div>
             </div>
-             <div className="flex items-center gap-1.5">
+             <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
                {profiles.length > 0 && (
                  searchOpen ? (
                    <div className="relative">
                      <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40" : "text-[#1a2a3a]/40"}`} />
-                     <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className={`h-8 w-44 pl-9 pr-8 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3] placeholder:text-[#f0e6d3]/30 focus:bg-white/[0.12]" : "bg-white border-black/10 text-[#1a2a3a] placeholder:text-[#1a2a3a]/30 focus:bg-amber-50/50"}`} />
+                     <Input ref={searchInputRef} type="text" placeholder="Search students…" value={search} onChange={(e) => setSearch(e.target.value)} className={`h-7 w-32 sm:h-8 sm:w-44 pl-9 pr-8 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3] placeholder:text-[#f0e6d3]/30 focus:bg-white/[0.12]" : "bg-white border-black/10 text-[#1a2a3a] placeholder:text-[#1a2a3a]/30 focus:bg-amber-50/50"}`} />
                      <button onClick={() => { setSearchOpen(false); setSearch("") }} className={`absolute right-2 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40 hover:text-[#f0e6d3]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a]"}`} aria-label="Close search"><X size={14} /></button>
                    </div>
                  ) : (
-                   <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
+                   <Button variant="ghost" size="icon-sm" className={`h-7 w-7 sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSearchOpen(true)} aria-label="Search (Ctrl+K)"><Search size={15} /></Button>
                  )
                )}
-               <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
-              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+               <Button variant="ghost" size="icon-sm" className={`hidden h-7 w-7 sm:flex sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
+              <Button variant="ghost" size="icon-sm" className={`h-7 w-7 sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </Button>
-              <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
+              <Button variant="ghost" size="icon-sm" className={`hidden h-7 w-7 sm:flex sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
                 {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
               </Button>
                {profiles.length > 0 && (
                  <div className="relative" ref={tocRef}>
-                   <Button variant="ghost" size="icon-sm" className={`h-8 w-8 ${headerDark ? `text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08] ${showToc ? "bg-white/[0.1] text-[#f0e6d3]" : ""}` : `text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04] ${showToc ? "bg-black/[0.06] text-[#1a2a3a]" : ""}`}`} onClick={() => setShowToc(!showToc)} aria-label="Table of contents">
+                   <Button variant="ghost" size="icon-sm" className={`h-7 w-7 sm:h-8 sm:w-8 ${headerDark ? `text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08] ${showToc ? "bg-white/[0.1] text-[#f0e6d3]" : ""}` : `text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04] ${showToc ? "bg-black/[0.06] text-[#1a2a3a]" : ""}`}`} onClick={() => setShowToc(!showToc)} aria-label="Table of contents">
                      <List size={15} />
                    </Button>
                    {showToc && (
@@ -1128,58 +1134,62 @@ export default function Yearbook3DPage() {
                  </div>
                )}
            {pdfPages.length > 0 && (
-                 <span className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
-               )}
-
-               {courseStrandOptions.length > 0 && (
-                 <div className="flex items-center gap-1.5 ml-1">
-                   <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
-                     <SelectTrigger className={`h-7 min-w-[140px] max-w-[200px] text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                       <SelectValue placeholder="Course / Strand" />
-                     </SelectTrigger>
-                     <SelectContent>
-                       {courseStrandOptions.map((d) => (
-                         <SelectItem key={d} value={d}>{d}</SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-
-                    <Select value={selectedBatch} onValueChange={setSelectedBatch}>
-                      <SelectTrigger className={`h-7 w-[120px] text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                        <SelectValue placeholder="Batch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {batchOptions.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {selectedBatch && (
-                      <button
-                        onClick={() => setSelectedBatch(newestBatchLabel(batchOptions))}
-                        className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors ${headerDark ? "text-[#f0e6d3]/50 hover:text-[#f0e6d3] hover:bg-white/[0.06]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`}
-                        aria-label="Reset batch"
-                      >
-                        <XCircle size={13} />
-                      </button>
-                    )}
-
-                     {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
-                       <button
-                         onClick={() => {
-                           setSelectedDepartment(studentProfile.course_or_strand.trim())
-                           setSelectedBatch(newestBatchLabel(availableBatches))
-                         }}
-                         className={`hidden sm:inline-flex items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
-                       >
-                         My Yearbook
-                       </button>
-                     )}
-                 </div>
+                 <span className={`hidden rounded-md px-2 py-1 text-[10px] font-medium ring-1 sm:inline ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
                )}
              </div>
            </div>
+
+           {/* Dedicated filter row: separated from the icon toolbar above so it can
+               wrap freely on narrow screens without ever overlapping other controls. */}
+           {courseStrandOptions.length > 0 && (
+             <div className="relative mx-auto max-w-5xl px-3 pb-3 sm:px-4">
+               <div className="flex flex-wrap items-center gap-1.5">
+                 <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                   <SelectTrigger className={`h-7 min-w-[110px] flex-1 text-xs sm:max-w-[200px] sm:min-w-[140px] sm:flex-initial ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                     <SelectValue placeholder="Course / Strand" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {courseStrandOptions.map((d) => (
+                       <SelectItem key={d} value={d}>{d}</SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+
+                  <Select value={selectedBatch} onValueChange={setSelectedBatch}>
+                    <SelectTrigger className={`h-7 min-w-[90px] flex-1 text-xs sm:w-[120px] sm:flex-initial ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                      <SelectValue placeholder="Batch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batchOptions.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {selectedBatch && (
+                    <button
+                      onClick={() => setSelectedBatch(newestBatchLabel(batchOptions))}
+                      className={`inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-md transition-colors ${headerDark ? "text-[#f0e6d3]/50 hover:text-[#f0e6d3] hover:bg-white/[0.06]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`}
+                      aria-label="Reset batch"
+                    >
+                      <XCircle size={13} />
+                    </button>
+                  )}
+
+                   {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
+                     <button
+                       onClick={() => {
+                         setSelectedDepartment(studentProfile.course_or_strand.trim())
+                         setSelectedBatch(newestBatchLabel(availableBatches))
+                       }}
+                       className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
+                     >
+                       My Yearbook
+                     </button>
+                   )}
+               </div>
+             </div>
+           )}
           </header>
 
          <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
@@ -1375,13 +1385,14 @@ export default function Yearbook3DPage() {
           </div>
         </div>
 
-        <div className={`mt-6 flex items-center gap-5 ${isFullscreen ? "hidden" : ""}`}>
+        <div className={`mt-4 sm:mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-5 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="outline" size="icon" onClick={goPrev} disabled={currentPage <= 0 || isFlipping}
-            className="h-11 w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
+            className="h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
             aria-label="Previous page">
-            <ChevronLeft size={22} />
+            <ChevronLeft size={18} className="sm:hidden" />
+            <ChevronLeft size={22} className="hidden sm:block" />
           </Button>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {Array.from({ length: Math.min(totalPages, 11) }, (_, i) => {
               let pn
               if (totalPages <= 11) pn = i
@@ -1389,14 +1400,15 @@ export default function Yearbook3DPage() {
               return (
                 <button key={pn} onClick={() => jumpToPage(pn)} disabled={isFlipping}
                   aria-label={pn === 0 ? "Cover" : `Page ${pn}`}
-                  className={`rounded-full transition-all duration-300 ${pn === currentPage ? "w-7 h-2.5 bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold)]/80 shadow-md shadow-[var(--accent-gold)]/30" : pn === 0 ? "w-2.5 h-2.5 bg-[var(--bg-primary)]/25 hover:bg-[var(--bg-primary)]/50" : "w-2.5 h-2.5 bg-black/10 hover:bg-black/20"}`} />
+                  className={`rounded-full transition-all duration-300 ${pn === currentPage ? "w-6 sm:w-7 h-2 sm:h-2.5 bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold)]/80 shadow-md shadow-[var(--accent-gold)]/30" : pn === 0 ? "w-2 sm:w-2.5 h-2 sm:h-2.5 bg-[var(--bg-primary)]/25 hover:bg-[var(--bg-primary)]/50" : "w-2 sm:w-2.5 h-2 sm:h-2.5 bg-black/10 hover:bg-black/20"}`} />
               )
             })}
           </div>
           <Button variant="outline" size="icon" onClick={goNext} disabled={currentPage >= totalPages - 1 || isFlipping}
-            className="h-11 w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
+            className="h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
             aria-label="Next page">
-            <ChevronRight size={22} />
+            <ChevronRight size={18} className="sm:hidden" />
+            <ChevronRight size={22} className="hidden sm:block" />
           </Button>
         </div>
 
