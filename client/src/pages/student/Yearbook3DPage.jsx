@@ -78,11 +78,28 @@ function injectBook3DStyles() {
     }
 
     .stf__parent._cover .stf__block {
-      backface-visibility: visible !important;
+      backface-visibility: hidden !important;
       transform-style: preserve-3d !important;
     }
     .stf__parent._cover .stf__block > * {
-      backface-visibility: visible !important;
+      backface-visibility: hidden !important;
+    }
+
+    /* Prevent the cover back-face mirror from rendering during flip */
+    .stf__parent .stf__block > div:first-child {
+      backface-visibility: hidden !important;
+      -webkit-backface-visibility: hidden !important;
+    }
+    .stf__parent .stf__block {
+      transform-style: preserve-3d !important;
+    }
+    /* Visual feedback while dragging — subtle lift + intensified shadow */
+    .book-dragging .stf__parent .stf__block .stf__item {
+      filter: brightness(0.97) contrast(1.02);
+      transition: filter 0.15s ease-out;
+    }
+    .book-dragging {
+      filter: drop-shadow(0 32px 56px rgba(0,0,0,0.3)) drop-shadow(0 14px 24px rgba(0,0,0,0.16)) !important;
     }
    `
   document.head.appendChild(style)
@@ -458,6 +475,9 @@ export default function Yearbook3DPage() {
   const [zoom, setZoom] = useState(1)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [flipSpeed, setFlipSpeed] = useState(0.7)
+  // Mobile flip speed: slightly slower so the page-turn animation reads clearly
+  // on small screens where fast motion is harder to follow.
+  const mobileFlipSpeed = 1.0
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
     const [bookState, setBookState] = useState("read")
@@ -473,6 +493,7 @@ export default function Yearbook3DPage() {
    const [departmentBatchMatrix, setDepartmentBatchMatrix] = useState({})
   const bookWrapperRef = useRef(null)
   const recomputeCenteringRef = useRef(() => {})
+  const isFlippingRef = useRef(false)
 
   useEffect(() => {
     const handleResize = () => {
@@ -488,6 +509,7 @@ export default function Yearbook3DPage() {
   const audioCtxRef = useRef(null)
   const searchInputRef = useRef(null)
   const prevSearchOpen = useRef(false)
+  const isMobile = windowWidth < 640
 
   useEffect(() => {
     injectBook3DStyles()
@@ -899,6 +921,7 @@ export default function Yearbook3DPage() {
   }, [playFlipSound])
 
   const goNext = useCallback(() => {
+    if (isFlippingRef.current) return
     if (!bookRef.current) return
     const pf = bookRef.current.pageFlip()
     if (!pf) return
@@ -906,33 +929,132 @@ export default function Yearbook3DPage() {
   }, [])
 
   const goPrev = useCallback(() => {
+    if (isFlippingRef.current) return
     if (!bookRef.current) return
     const pf = bookRef.current.pageFlip()
     if (!pf) return
     pf.flipPrev()
   }, [])
 
-  const onFlip = useCallback((e) => {
-    const newPage = e.data
-    setCurrentPage(newPage)
-    playFlipSound()
-    const params = new URLSearchParams(window.location.search)
-    params.set("page", newPage.toString())
-    window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
-  }, [playFlipSound])
+   const onFlip = useCallback((e) => {
+     const newPage = e.data
+     setCurrentPage(newPage)
+     isFlippingRef.current = false
+     playFlipSound()
+     const params = new URLSearchParams(window.location.search)
+     params.set("page", newPage.toString())
+     window.history.replaceState(null, "", `${window.location.pathname}?${params}`)
+   }, [playFlipSound])
 
   const onChangeState = useCallback((e) => {
     setBookState(e.data)
+    if (e.data === "flipping") {
+      isFlippingRef.current = true
+    } else if (e.data === "read") {
+      isFlippingRef.current = false
+    }
   }, [])
 
-  const onInit = useCallback(() => {
-     if (bookRef.current) {
-        const pf = bookRef.current.pageFlip()
-        if (pf && initialPage !== null && initialPage !== 0) {
-          pf.turnToPage(initialPage)
-        }
-      }
-    }, [initialPage])
+   const onInit = useCallback(() => {
+      if (bookRef.current) {
+         const pf = bookRef.current.pageFlip()
+         if (pf) {
+           // Guard against double-flip: wrap flipNext/flipPrev so that a second
+           // call arriving before the current animation finishes is ignored.
+           // This prevents the cover (and any page) from flipping twice on mobile
+           // where touch + synthetic click can both reach the library.
+           const origFlipNext = pf.flipNext.bind(pf)
+           const origFlipPrev = pf.flipPrev.bind(pf)
+           pf.flipNext = () => {
+             if (isFlippingRef.current) return
+             isFlippingRef.current = true
+             origFlipNext()
+           }
+            pf.flipPrev = () => {
+              if (isFlippingRef.current) return
+              isFlippingRef.current = true
+              origFlipPrev()
+            }
+            // Patch Flip.flip() to prevent double-flip: when the user drags a
+            // page (fold in progress, this.calc !== null), the library's
+            // onTouchEnd triggers flipNext() which calls Flip.flip(), and that
+            // method force-finishes the fold animation (triggering onFlip) AND
+            // starts a new flip animation (triggering onFlip again). We intercept
+            // Flip.flip() so that when a fold calc is already active, it skips
+            // the force-finish and lets the existing fold complete naturally
+            // via userStop → stopMove, producing a single clean page turn.
+            const flipController = pf.getFlipController?.()
+            if (flipController) {
+              const origFlip = flipController.flip.bind(flipController)
+              flipController.flip = (globalPos) => {
+                if (flipController.getCalculation() !== null) {
+                  // A fold is already in progress — skip the flip call so the
+                  // fold completes naturally. userStop → stopMove will handle
+                  // the final page snap. This prevents the double onFlip fire.
+                  return
+                }
+                origFlip(globalPos)
+              }
+            }
+             try { pf.getPage(0).setDensity("soft") } catch { /* */ }
+             try {
+               const pages = pf.getPageCollection?.()?.pages
+               if (pages?.[0]) pages[0].density = "soft"
+             } catch { /* */ }
+              // Eliminate the 250ms setTimeout delay before startUserTouch fires.
+              // On desktop, mousedown → startUserTouch is instant, so dragging
+              // starts immediately. On mobile, the library delays it by swipeTimeout
+              // to distinguish tap from swipe → the page doesn't follow the finger
+              // for the first 250ms. Setting swipeTimeout to 0 makes mobile drag
+              // behave identically to desktop drag.
+              const ui = pf.getUI?.()
+              if (ui) {
+                try { ui["swipeTimeout"] = 0 } catch { /* readonly in some builds */ }
+                // Lower the horizontal-dead-zone in onTouchMove from 10px to 3px
+                // so the page starts following the finger almost immediately.
+                try {
+                  ui.onTouchMove = function (e) {
+                    if (e.changedTouches.length > 0) {
+                      const t = e.changedTouches[0]
+                      const pos = ui["getMousePos"](t.clientX, t.clientY)
+                      if (ui["app"]["getSettings"]()["mobileScrollSupport"]) {
+                        if (ui["touchPoint"] !== null) {
+                          const tp = ui["touchPoint"]
+                          const dx = Math.abs(tp.point.x - pos.x)
+                          if (dx > 3 || ui["app"]["getState"]() !== "read") {
+                            if (e.cancelable) ui["app"]["userMove"](pos, true)
+                          }
+                        }
+                        if (ui["app"]["getState"]() !== "read") {
+                          if (e.cancelable) e.preventDefault()
+                        }
+                      } else {
+                        ui["app"]["userMove"](pos, true)
+                      }
+                    }
+                  }
+                } catch { /* */ }
+              }
+              // Lower the fold-activation distance in userMove from >5px to >2px
+              // so the page curl starts with barely any finger movement.
+              try {
+                pf.userMove = function (pos) {
+                  if (pf["isUserTouch"]) {
+                    const dx = pf["mousePosition"].x - pos.x
+                    const dy = pf["mousePosition"].y - pos.y
+                    if (Math.hypot(dx, dy) > 2) {
+                      pf["isUserMove"] = true
+                      pf["flipController"].fold(pos)
+                    }
+                  }
+                }
+              } catch { /* */ }
+           if (initialPage !== null && initialPage !== 0) {
+             pf.turnToPage(initialPage)
+           }
+         }
+       }
+     }, [initialPage])
 
   useEffect(() => {
     const handler = (e) => {
@@ -994,6 +1116,7 @@ export default function Yearbook3DPage() {
   }, [filteredToBookIndex, jumpToPage])
 
   const isFlipping = bookState === "flipping"
+  const isDragging = bookState === "user_fold"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
   // Responsive book sizing: derive from viewport instead of a fixed px value so the
@@ -1214,10 +1337,14 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-          <div ref={bookWrapperRef} className="book-resting-shadow" style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}>
+          <div
+            ref={bookWrapperRef}
+            className={`book-resting-shadow${isDragging ? " book-dragging" : ""}`}
+            style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
+          >
            {pdfListStable ? (
             <HTMLFlipBook
-              key={`${bookPageList.length}-${isFullscreen}`}
+              key={`${bookPageList.length}-${isFullscreen}-${isMobile}`}
              ref={bookRef}
              width={bookWidth}
              height={bookHeight}
@@ -1226,18 +1353,18 @@ export default function Yearbook3DPage() {
              maxWidth={bookMaxWidth}
              minHeight={350}
              maxHeight={bookMaxHeight}
-                showCover={true}
+                 showCover={true}
              drawShadow={true}
              maxShadowOpacity={0.5}
-             flippingTime={Math.round(flipSpeed * 1000)}
-             usePortrait={true}
+              flippingTime={Math.round((isMobile ? mobileFlipSpeed : flipSpeed) * 1000)}
+               usePortrait={true}
              startPage={initialPage !== null ? initialPage : 0}
              clickEventForward={true}
-             mobileScrollSupport={false}
-             useMouseEvents={true}
+              mobileScrollSupport={true}
+               useMouseEvents={true}
              showPageCorners={true}
-              disableFlipByClick={false}
-              swipeDistance={30}
+                disableFlipByClick={false}
+              swipeDistance={15}
              autoSize={true}
              renderOnlyPageLengthChange={false}
              onFlip={onFlip}
