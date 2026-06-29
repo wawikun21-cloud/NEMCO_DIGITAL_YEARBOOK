@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
 export async function getUsers(filters = {}) {
-  let query = supabaseAdmin
-    .from("profiles")
-    .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at")
-    .order("created_at", { ascending: false })
+   let query = supabaseAdmin
+     .from("profiles")
+     .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,sub_course,section,bio,quote,avatar_url,created_at,updated_at")
+     .order("created_at", { ascending: false })
 
   if (filters.search) {
     const searchTerm = `%${filters.search}%`
@@ -54,11 +54,11 @@ export async function getUsers(filters = {}) {
 }
 
 export async function getUserById(id) {
-  const { data: user, error } = await supabaseAdmin
-    .from("profiles")
-    .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,section,bio,quote,avatar_url,created_at,updated_at")
-    .eq("id", id)
-    .maybeSingle()
+   const { data: user, error } = await supabaseAdmin
+     .from("profiles")
+     .select("id,email,student_number,full_name,display_name,role,status,profile_status,year_level,course_or_strand,sub_course,section,bio,quote,avatar_url,created_at,updated_at")
+     .eq("id", id)
+     .maybeSingle()
 
   if (error) {
     throw new Error("Failed to fetch user")

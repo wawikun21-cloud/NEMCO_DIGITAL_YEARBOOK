@@ -115,19 +115,20 @@ export default function ImportUsersPage() {
       data.forEach((row, index) => {
         const errors = []
 
-        const rawStudentNumber  = row.student_number   ?? row["Student Number"]
-        const rawYearLevel      = row.year_level       ?? row["Year Level"]
-        const rawSection        = row.section          ?? row["Section"]
-        const rawDisplayName    = row.display_name     ?? row["Display Name"]
+         const rawStudentNumber  = row.student_number   ?? row["Student Number"]
+         const rawYearLevel      = row.year_level       ?? row["Year Level"]
+         const rawSection        = row.section          ?? row["Section"]
+         const rawDisplayName    = row.display_name     ?? row["Display Name"]
 
-        // With raw:false everything is already a string — normalizeText is a
-        // trim-only pass-through, but it also safely handles null/undefined.
-        const student_number    = normalizeStudentNumber(rawStudentNumber)
-        const email             = normalizeText(row.email           ?? row["Email"])
-        const full_name         = normalizeText(row.full_name       ?? row["Full Name"])
-        const role              = normalizeRole(row.role            ?? row["Role"])
-        const year_level        = normalizeText(rawYearLevel)
-        const course_or_strand  = normalizeText(row.course_or_strand ?? row["Course or Strand"])
+         // With raw:false everything is already a string — normalizeText is a
+         // trim-only pass-through, but it also safely handles null/undefined.
+         const student_number    = normalizeStudentNumber(rawStudentNumber)
+         const email             = normalizeText(row.email           ?? row["Email"])
+         const full_name         = normalizeText(row.full_name       ?? row["Full Name"])
+         const role              = normalizeRole(row.role            ?? row["Role"])
+         const year_level        = normalizeText(rawYearLevel)
+         const course_or_strand  = normalizeText(row.course_or_strand ?? row["Course or Strand"])
+         const sub_course        = normalizeText(row.sub_course       ?? row["Sub-Course"] ?? row["Sub Course"] ?? row["Major"])
 
         if (!student_number) errors.push("Missing student_number")
         if (!email) errors.push("Missing email")
@@ -138,18 +139,19 @@ export default function ImportUsersPage() {
         if (!year_level) errors.push("Missing year_level")
         if (!course_or_strand) errors.push("Missing course_or_strand")
 
-        const normalized = {
-          student_number,
-          email,
-          full_name,
-          role: role === "student" ? "user" : role,
-          year_level,
-          course_or_strand,
-          section:      normalizeOptionalText(rawSection),
-          display_name: normalizeOptionalText(rawDisplayName),
-          bio:          normalizeOptionalText(row.bio   ?? row["Bio"]),
-          quote:        normalizeOptionalText(row.quote ?? row["Quote"]),
-        }
+         const normalized = {
+           student_number,
+           email,
+           full_name,
+           role: role === "student" ? "user" : role,
+           year_level,
+           course_or_strand,
+           sub_course,
+           section:      normalizeOptionalText(rawSection),
+           display_name: normalizeOptionalText(rawDisplayName),
+           bio:          normalizeOptionalText(row.bio   ?? row["Bio"]),
+           quote:        normalizeOptionalText(row.quote ?? row["Quote"]),
+         }
 
         if (errors.length > 0) {
           invalid.push({ rowNumber: index + 2, error: errors.join(", "), ...normalized })

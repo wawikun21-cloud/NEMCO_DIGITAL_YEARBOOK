@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Hash, Mail, User, Shield } from "lucide-react"
+import { getCourseOptions, getSubOptions } from "@/utils/courseOptions"
 
 const ROLE_OPTIONS = [
   { value: "user", label: "User" },
@@ -34,6 +35,7 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
     display_name: "",
     year_level: "",
     course_or_strand: "",
+    sub_course: "",
     section: "",
     bio: "",
     quote: "",
@@ -44,6 +46,8 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
   const [errors, setErrors] = useState({})
 
   const initRef = useRef(null)
+  const courseOptions = getCourseOptions()
+  const subOptions = getSubOptions(formData.course_or_strand)
 
   useEffect(() => {
     if (open) {
@@ -56,6 +60,7 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
           display_name: user?.display_name || "",
           year_level: user?.year_level || "",
           course_or_strand: user?.course_or_strand || "",
+          sub_course: user?.sub_course || "",
           section: user?.section || "",
           bio: user?.bio || "",
           quote: user?.quote || "",
@@ -77,7 +82,16 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
     "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-[var(--border-light)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] shadow-sm transition-colors outline-none focus:ring-2 focus:ring-ring"
 
   const updateField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value }
+      if (field === "course_or_strand") {
+        const newSubs = getSubOptions(value)
+        if (!newSubs.includes(prev.sub_course)) {
+          next.sub_course = ""
+        }
+      }
+      return next
+    })
     if (errors[field]) {
       setErrors(prev => {
         const next = { ...prev }
@@ -286,36 +300,65 @@ export default function UserFormModal({ open, onOpenChange, user, onSubmit }) {
               </Select>
             </div>
 
-            {/* Year Level & Course/Strand */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label>Year Level</Label>
-                <input
-                  type="text"
-                  value={formData.year_level}
-                  onChange={(e) => updateField("year_level", e.target.value)}
-                  className={inputClass(!!errors.year_level)}
-                  placeholder="e.g. 11 or 12"
-                />
-                {errors.year_level && (
-                  <p className="text-xs text-[var(--status-red)]">{errors.year_level}</p>
-                )}
-              </div>
+             {/* Year Level & Course/Strand */}
+             <div className="grid grid-cols-2 gap-3">
+               <div className="grid gap-2">
+                 <Label>Year Level</Label>
+                 <input
+                   type="text"
+                   value={formData.year_level}
+                   onChange={(e) => updateField("year_level", e.target.value)}
+                   className={inputClass(!!errors.year_level)}
+                   placeholder="e.g. 11 or 12"
+                 />
+                 {errors.year_level && (
+                   <p className="text-xs text-[var(--status-red)]">{errors.year_level}</p>
+                 )}
+               </div>
 
-              <div className="grid gap-2">
-                <Label>Course/Strand</Label>
-                <input
-                  type="text"
-                  value={formData.course_or_strand}
-                  onChange={(e) => updateField("course_or_strand", e.target.value)}
-                  className={inputClass(!!errors.course_or_strand)}
-                  placeholder="e.g. STEM, ABM"
-                />
-                {errors.course_or_strand && (
-                  <p className="text-xs text-[var(--status-red)]">{errors.course_or_strand}</p>
-                )}
-              </div>
-            </div>
+               <div className="grid gap-2">
+                 <Label>Course/Strand</Label>
+                 <Select value={formData.course_or_strand} onValueChange={(val) => updateField("course_or_strand", val)}>
+                   <SelectTrigger className={selectTriggerClass()}>
+                     <SelectValue placeholder="Select course" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {courseOptions.map((c) => (
+                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+                 {errors.course_or_strand && (
+                   <p className="text-xs text-[var(--status-red)]">{errors.course_or_strand}</p>
+                 )}
+               </div>
+             </div>
+
+             {/* Sub-Course */}
+             <div className="grid gap-2">
+               <Label>Sub-Course / Major</Label>
+               {subOptions.length === 0 ? (
+                 <input
+                   type="text"
+                   value={formData.sub_course}
+                   onChange={(e) => updateField("sub_course", e.target.value)}
+                   className={inputClass(false)}
+                   placeholder="N/A for this course"
+                 />
+               ) : (
+                 <Select value={formData.sub_course} onValueChange={(val) => updateField("sub_course", val)}>
+                   <SelectTrigger className={selectTriggerClass()}>
+                     <SelectValue placeholder="Select sub-course" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="">None</SelectItem>
+                     {subOptions.map((s) => (
+                       <SelectItem key={s} value={s}>{s}</SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               )}
+             </div>
 
             {/* Section */}
             <div className="grid gap-2">

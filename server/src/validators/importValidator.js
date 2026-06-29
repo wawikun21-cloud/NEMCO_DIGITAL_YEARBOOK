@@ -23,16 +23,17 @@ const roleSchema = z
   leading zeros are still preserved.
 */
 export const importRowSchema = z.object({
-  student_number:   z.coerce.string().trim().min(1, "Student number is required"),
-  email:            z.string().trim().email("Invalid email format"),
-  full_name:        z.string().trim().min(1, "Full name is required"),
-  role:             roleSchema,
-  year_level:       z.coerce.string().trim().min(1, "Year level is required"),
-  course_or_strand: z.string().trim().min(1, "Course or strand is required"),
-  section:          z.string().trim().nullish().transform((v) => v || ""),
-  display_name:     z.string().trim().nullish().transform((v) => v || ""),
-  bio:              z.string().trim().nullish().transform((v) => v || ""),
-  quote:            z.string().trim().nullish().transform((v) => v || ""),
+   student_number:   z.coerce.string().trim().min(1, "Student number is required"),
+   email:            z.string().trim().email("Invalid email format"),
+   full_name:        z.string().trim().min(1, "Full name is required"),
+   role:             roleSchema,
+   year_level:       z.coerce.string().trim().min(1, "Year level is required"),
+   course_or_strand: z.string().trim().min(1, "Course or strand is required"),
+   sub_course:       z.string().trim().nullish().transform((v) => v || ""),
+   section:          z.string().trim().nullish().transform((v) => v || ""),
+   display_name:     z.string().trim().nullish().transform((v) => v || ""),
+   bio:              z.string().trim().nullish().transform((v) => v || ""),
+   quote:            z.string().trim().nullish().transform((v) => v || ""),
 })
 
 export const validateFile = (buffer, filename) => {

@@ -8,9 +8,10 @@ export const updateProfileSchema = z.object({
   // not a self-service profile update. If you ever need to allow them,
   // add them back here AND remove the `disabled` flag in EditProfileDialog.
 
-  school: z.string().trim().max(120).optional(),
-  course_or_strand: z.string().trim().max(100).optional(),
-  year_graduated: z.string().trim().max(20).optional(),
+   school: z.string().trim().max(120).optional(),
+   course_or_strand: z.string().trim().max(100).optional(),
+   sub_course: z.string().trim().max(100).optional(),
+   year_graduated: z.string().trim().max(20).optional(),
   home_address: z.string().trim().max(300).optional(),
   contact_number: z.string().trim().max(30).optional(),
   website: z.string().trim().max(100).optional(),

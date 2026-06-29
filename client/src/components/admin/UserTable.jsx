@@ -24,7 +24,7 @@ export default function UserTable({ users, onEdit, onToggleRole, onToggleStatus,
               <th className="w-[170px] px-3 py-3 sm:px-5">Full Name</th>
               <th className="hidden w-[90px] px-3 py-3 sm:table-cell sm:px-5">Role</th>
               <th className="hidden w-[90px] px-3 py-3 lg:table-cell lg:px-5">Year</th>
-              <th className="hidden w-[140px] px-3 py-3 lg:table-cell lg:px-5">Course</th>
+                <th className="hidden w-[140px] px-3 py-3 lg:table-cell lg:px-5">Course</th>
               <th className="hidden w-[100px] px-3 py-3 lg:table-cell lg:px-5">Section</th>
               <th className="hidden w-[100px] px-3 py-3 sm:table-cell sm:px-5">Status</th>
               <th className="w-[64px] px-3 py-3 text-right sm:px-5">Actions</th>

@@ -20,12 +20,12 @@ const ROLE_OPTIONS = [
 ]
 
 export default function UserFilters({
-  filters,
-  onFilterChange,
-  onClear,
-  yearLevelOptions,
-  courseOptions,
-  sectionOptions,
+   filters,
+   onFilterChange,
+   onClear,
+   yearLevelOptions,
+   courseOptions,
+   sectionOptions,
 }) {
   const [searchQuery, setSearchQuery] = useState(filters.search || "")
 
@@ -36,29 +36,29 @@ export default function UserFilters({
     return () => clearTimeout(timer)
   }, [searchQuery]) // eslint-disable-line
 
-  const activeFilterCount = [
-    filters.role !== "all",
-    filters.year_level !== "all",
-    filters.course_or_strand !== "all",
-    filters.section !== "all",
-    filters.search,
-  ].filter(Boolean).length
+   const activeFilterCount = [
+     filters.role !== "all",
+     filters.year_level !== "all",
+     filters.course_or_strand !== "all",
+     filters.section !== "all",
+     filters.search,
+   ].filter(Boolean).length
 
-  const handleRoleChange = (value) => {
-    onFilterChange({ ...filters, role: value })
-  }
+   const handleRoleChange = (value) => {
+     onFilterChange({ ...filters, role: value })
+   }
 
-  const handleYearChange = (value) => {
-    onFilterChange({ ...filters, year_level: value })
-  }
+   const handleYearChange = (value) => {
+     onFilterChange({ ...filters, year_level: value })
+   }
 
-  const handleCourseChange = (value) => {
-    onFilterChange({ ...filters, course_or_strand: value })
-  }
+   const handleCourseChange = (value) => {
+     onFilterChange({ ...filters, course_or_strand: value })
+   }
 
-  const handleSectionChange = (value) => {
-    onFilterChange({ ...filters, section: value })
-  }
+   const handleSectionChange = (value) => {
+     onFilterChange({ ...filters, section: value })
+   }
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
@@ -144,35 +144,35 @@ export default function UserFilters({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Course Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              Course/Strand
-              {filters.course_or_strand !== "all" && (
-                <Badge variant="approved" className="text-[10px]">
-                  {courseOptions?.find(c => c.value === filters.course_or_strand)?.label}
-                </Badge>
-              )}
-              <ChevronDown size={14} className="opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel>Filter by Course</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {courseOptions?.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => handleCourseChange(opt.value)}
-                className={filters.course_or_strand === opt.value ? "bg-[var(--bg-subtle)]" : ""}
-              >
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+         {/* Course Filter */}
+         <DropdownMenu>
+           <DropdownMenuTrigger asChild>
+             <Button variant="outline" className="gap-2">
+               Course/Strand
+               {filters.course_or_strand !== "all" && (
+                 <Badge variant="approved" className="text-[10px]">
+                   {courseOptions?.find(c => c.value === filters.course_or_strand)?.label}
+                 </Badge>
+               )}
+               <ChevronDown size={14} className="opacity-50" />
+             </Button>
+           </DropdownMenuTrigger>
+           <DropdownMenuContent align="end" className="w-44">
+             <DropdownMenuLabel>Filter by Course</DropdownMenuLabel>
+             <DropdownMenuSeparator />
+             {courseOptions?.map((opt) => (
+               <DropdownMenuItem
+                 key={opt.value}
+                 onClick={() => handleCourseChange(opt.value)}
+                 className={filters.course_or_strand === opt.value ? "bg-[var(--bg-subtle)]" : ""}
+               >
+                 {opt.label}
+               </DropdownMenuItem>
+             ))}
+           </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* Section Filter */}
+         {/* Section Filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-2">
@@ -263,25 +263,25 @@ export default function UserFilters({
             ))}
             <DropdownMenuSeparator />
 
-            {/* Course */}
-            <DropdownMenuLabel className="text-xs">Course/Strand</DropdownMenuLabel>
-            {courseOptions?.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => handleCourseChange(opt.value)}
-                className={filters.course_or_strand === opt.value ? "bg-[var(--bg-subtle)]" : ""}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={`h-3.5 w-3.5 rounded-sm border ${filters.course_or_strand === opt.value ? "border-[var(--text-primary)] bg-[var(--text-primary)]" : "border-[var(--border-light)]"}`}>
-                    {filters.course_or_strand === opt.value && <div className="h-full w-full" />}
-                  </div>
-                  {opt.label}
-                </div>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
+             {/* Course */}
+             <DropdownMenuLabel className="text-xs">Course/Strand</DropdownMenuLabel>
+             {courseOptions?.map((opt) => (
+               <DropdownMenuItem
+                 key={opt.value}
+                 onClick={() => handleCourseChange(opt.value)}
+                 className={filters.course_or_strand === opt.value ? "bg-[var(--bg-subtle)]" : ""}
+               >
+                 <div className="flex items-center gap-2">
+                   <div className={`h-3.5 w-3.5 rounded-sm border ${filters.course_or_strand === opt.value ? "border-[var(--text-primary)] bg-[var(--text-primary)]" : "border-[var(--border-light)]"}`}>
+                     {filters.course_or_strand === opt.value && <div className="h-full w-full" />}
+                   </div>
+                   {opt.label}
+                 </div>
+               </DropdownMenuItem>
+             ))}
+             <DropdownMenuSeparator />
 
-            {/* Section */}
+             {/* Section */}
             <DropdownMenuLabel className="text-xs">Section</DropdownMenuLabel>
             {sectionOptions?.map((opt) => (
               <DropdownMenuItem

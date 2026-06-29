@@ -29,25 +29,25 @@ export default function ManageUsersPage() {
   }, [])
 
   const filterOptions = useMemo(() => {
-    const yearLevels = [...new Set(users.map(u => u.year_level).filter(Boolean))].sort()
-    const courses = [...new Set(users.map(u => u.course_or_strand).filter(Boolean))].sort()
-    const sections = [...new Set(users.map(u => u.section).filter(Boolean))].sort()
+     const yearLevels = [...new Set(users.map(u => u.year_level).filter(Boolean))].sort()
+     const courses = [...new Set(users.map(u => u.course_or_strand).filter(Boolean))].sort()
+     const sections = [...new Set(users.map(u => u.section).filter(Boolean))].sort()
 
-    return {
-      yearLevelOptions: [
-        { value: "all", label: "All Years" },
-        ...yearLevels.map(y => ({ value: y, label: `Grade ${y}` })),
-      ],
-      courseOptions: [
-        { value: "all", label: "All Courses" },
-        ...courses.map(c => ({ value: c, label: c })),
-      ],
-      sectionOptions: [
-        { value: "all", label: "All Sections" },
-        ...sections.map(s => ({ value: s, label: `Section ${s}` })),
-      ],
-    }
-  }, [users])
+     return {
+       yearLevelOptions: [
+         { value: "all", label: "All Years" },
+         ...yearLevels.map(y => ({ value: y, label: `Grade ${y}` })),
+       ],
+       courseOptions: [
+         { value: "all", label: "All Courses" },
+         ...courses.map(c => ({ value: c, label: c })),
+       ],
+       sectionOptions: [
+         { value: "all", label: "All Sections" },
+         ...sections.map(s => ({ value: s, label: `Section ${s}` })),
+       ],
+     }
+   }, [users])
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -61,8 +61,8 @@ export default function ManageUsersPage() {
       }
       if (filters.role !== "all" && user.role !== filters.role) return false
       if (filters.year_level !== "all" && user.year_level !== filters.year_level) return false
-      if (filters.course_or_strand !== "all" && user.course_or_strand !== filters.course_or_strand) return false
-      if (filters.section !== "all" && user.section !== filters.section) return false
+       if (filters.course_or_strand !== "all" && user.course_or_strand !== filters.course_or_strand) return false
+       if (filters.section !== "all" && user.section !== filters.section) return false
       return true
     })
   }, [users, filters])
@@ -92,16 +92,16 @@ export default function ManageUsersPage() {
     setCurrentPage(1)
   }
 
-  const handleClearFilters = () => {
-    setFilters({
-      search: "",
-      role: "all",
-      year_level: "all",
-      course_or_strand: "all",
-      section: "all",
-    })
-    setCurrentPage(1)
-  }
+   const handleClearFilters = () => {
+     setFilters({
+       search: "",
+       role: "all",
+       year_level: "all",
+       course_or_strand: "all",
+       section: "all",
+     })
+     setCurrentPage(1)
+   }
 
   const handleEdit = (user) => setEditingUser(user)
   const handleCreate = () => setIsCreateModalOpen(true)
@@ -215,14 +215,14 @@ export default function ManageUsersPage() {
         />
       </div>
 
-<UserFilters
-         filters={filters}
-         onFilterChange={handleFilterChange}
-         onClear={handleClearFilters}
-         yearLevelOptions={filterOptions.yearLevelOptions}
-         courseOptions={filterOptions.courseOptions}
-         sectionOptions={filterOptions.sectionOptions}
-       />
+       <UserFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClear={handleClearFilters}
+          yearLevelOptions={filterOptions.yearLevelOptions}
+          courseOptions={filterOptions.courseOptions}
+          sectionOptions={filterOptions.sectionOptions}
+        />
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-[var(--text-muted)]">

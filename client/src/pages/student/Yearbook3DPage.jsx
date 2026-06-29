@@ -142,6 +142,7 @@ import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
 import { useAuth } from "@/contexts/AuthContext"
 import { dedupeBatchLabels, newestBatchLabel, normalizeEditionFilter } from "@/utils/yearbookEditionHelpers"
+import { COURSE_OPTIONS } from "@/utils/courseOptions"
 import * as pdfjsLib from "pdfjs-dist"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -307,11 +308,12 @@ const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPag
         )}
         <h2 className="mt-4 text-lg font-bold text-[var(--text-primary)] sm:text-xl">{name}</h2>
         {profile.student_number && <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">{profile.student_number}</p>}
-        <div className="mt-2.5 flex flex-wrap gap-1.5 justify-center">
-          {profile.course_or_strand && <span className="rounded-full bg-[var(--bg-primary)]/8 px-2.5 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">{profile.course_or_strand}</span>}
-          {profile.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.year_level}</span>}
-          {profile.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.section}</span>}
-        </div>
+         <div className="mt-2.5 flex flex-wrap gap-1.5 justify-center">
+           {profile.course_or_strand && <span className="rounded-full bg-[var(--bg-primary)]/8 px-2.5 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">{profile.course_or_strand}</span>}
+           {profile.sub_course && <span className="rounded-full bg-[var(--accent-gold)]/10 px-2.5 py-0.5 text-[10px] font-medium text-[var(--accent-gold)]">{profile.sub_course}</span>}
+           {profile.year_level && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.year_level}</span>}
+           {profile.section && <span className="rounded-full bg-[var(--bg-subtle)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">{profile.section}</span>}
+         </div>
         <div className="mt-3 flex-1 overflow-y-auto styled-scroll min-h-0">
           {profile.bio && <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] text-center max-w-xs px-2">{profile.bio}</p>}
           {profile.quote && <blockquote className="mt-3 border-l-2 border-[var(--bg-primary)]/40 pl-2.5 text-[11px] italic text-[var(--text-muted)] max-w-xs text-center">"{profile.quote}"</blockquote>}
@@ -488,12 +490,15 @@ export default function Yearbook3DPage() {
   const [selectedDepartment, setSelectedDepartment] = useState(null)
   const [selectedBatch, setSelectedBatch] = useState(null)
    const [filtersReady, setFiltersReady] = useState(false)
-   const [availableDepartments, setAvailableDepartments] = useState([])
-   const [availableBatches, setAvailableBatches] = useState([])
-   const [departmentBatchMatrix, setDepartmentBatchMatrix] = useState({})
+    const [availableDepartments, setAvailableDepartments] = useState([])
+    const [availableBatches, setAvailableBatches] = useState([])
+    const [departmentBatchMatrix, setDepartmentBatchMatrix] = useState({})
   const bookWrapperRef = useRef(null)
   const recomputeCenteringRef = useRef(() => {})
   const isFlippingRef = useRef(false)
+  // True once data + cover assets (images) have actually loaded so the flipbook
+  // doesn't paint blank on first mount before its content is ready.
+  const [bookReady, setBookReady] = useState(false)
 
   useEffect(() => {
     const handleResize = () => {
@@ -520,6 +525,7 @@ export default function Yearbook3DPage() {
 
     async function loadProfileAndCatalog() {
       let courseStrand = null
+      let subCourse = null
 
       if (isStudentView) {
         try {
@@ -529,11 +535,12 @@ export default function Yearbook3DPage() {
           if (userId) {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("course_or_strand")
+              .select("course_or_strand, sub_course")
               .eq("id", userId)
               .maybeSingle()
             if (profile) {
               courseStrand = profile.course_or_strand?.trim() || null
+              subCourse = profile.sub_course?.trim() || null
               if (!cancelled) setStudentProfile(profile)
             }
           }
@@ -548,21 +555,21 @@ export default function Yearbook3DPage() {
 
       let catalog = null
       try {
-        catalog = await getYearbookCatalog()
-        if (!cancelled) {
-          setAvailableDepartments(catalog.departments || [])
-          setAvailableBatches(catalog.batches || [])
-          setDepartmentBatchMatrix(catalog.departmentBatchMatrix || {})
-        }
+         catalog = await getYearbookCatalog()
+          if (!cancelled) {
+           setAvailableDepartments(catalog.departments || [])
+           setAvailableBatches(catalog.batches || [])
+           setDepartmentBatchMatrix(catalog.departmentBatchMatrix || {})
+         }
       } catch {
         // Catalog load is optional; filters still work without dropdown data
       }
 
       if (!cancelled) {
         if (isStudentView) {
-          setSelectedDepartment(courseStrand)
+          setSelectedDepartment(subCourse || courseStrand)
         }
-        const initDept = courseStrand || null
+        const initDept = subCourse || courseStrand || null
         const matrix = catalog?.departmentBatchMatrix || {}
         const initBatches = initDept
           ? (matrix[initDept] || [])
@@ -689,11 +696,15 @@ export default function Yearbook3DPage() {
      return () => document.removeEventListener("mousedown", handler)
    }, [showToc])
 
-  const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
-  const sections = useMemo(() => (data?.sections || []), [data?.sections])
-  const courseStrandOptions = useMemo(() => {
-    return [...availableDepartments].sort()
-  }, [availableDepartments])
+   const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
+   const sections = useMemo(() => (data?.sections || []), [data?.sections])
+     const hierarchicalCourseOptions = useMemo(() => {
+       return COURSE_OPTIONS.map((opt) => ({
+         value: opt.value,
+         label: opt.value,
+         subs: [...opt.subs],
+       }))
+     }, [])
 
   const batchOptions = useMemo(() => {
     const normalizedDept = normalizeEditionFilter(selectedDepartment)
@@ -719,15 +730,16 @@ export default function Yearbook3DPage() {
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
 
-  const filtered = useMemo(() => {
-    if (!search) return null
-    return profiles.filter((p) => {
-      const q = search.toLowerCase(); const pr = p.profile
-      return (pr.display_name || "").toLowerCase().includes(q) || (pr.full_name || "").toLowerCase().includes(q) ||
-        (pr.student_number || "").toLowerCase().includes(q) || (pr.course_or_strand || "").toLowerCase().includes(q) ||
-        (p.section_name || "").toLowerCase().includes(q)
-    })
-  }, [profiles, search])
+   const filtered = useMemo(() => {
+     if (!search) return null
+     return profiles.filter((p) => {
+       const q = search.toLowerCase(); const pr = p.profile
+       return (pr.display_name || "").toLowerCase().includes(q) || (pr.full_name || "").toLowerCase().includes(q) ||
+         (pr.student_number || "").toLowerCase().includes(q) || (pr.course_or_strand || "").toLowerCase().includes(q) ||
+         (pr.sub_course || "").toLowerCase().includes(q) ||
+         (p.section_name || "").toLowerCase().includes(q)
+     })
+   }, [profiles, search])
 
   const filteredIdSet = useMemo(() => {
     if (!filtered) return null
@@ -796,7 +808,50 @@ export default function Yearbook3DPage() {
          return [{ type: "cover", _designPage: firstPdfPage }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
        }
        return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
-   }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
+    }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
+
+  // Collect image URLs that the visible cover page depends on so we can preload
+  // them before revealing the flipbook. This prevents the flash of blank cover
+  // on initial mount.
+  const coverImageUrls = useMemo(() => {
+    const urls = []
+    const coverPage = bookPageList[0]
+    if (!coverPage) return urls
+    const dp = coverPage._designPage
+    if (dp?.type === "student" || dp?.type === "student-back") {
+      const av = dp.data?.profile?.avatar_url
+      if (av) urls.push(av)
+    }
+    return urls
+  }, [bookPageList])
+
+  // Preload cover-derived images. Flip `bookReady` once every asset has either
+  // loaded or failed. Without this gate, the flipbook mounts before its first
+  // page's avatar/PDF image has decoded, so the cover paints blank.
+  useEffect(() => {
+    if (!data) {
+      setBookReady(false)
+      return
+    }
+    if (coverImageUrls.length === 0) {
+      setBookReady(true)
+      return
+    }
+    let cancelled = false
+    let remaining = coverImageUrls.length
+    const done = () => {
+      if (cancelled) return
+      remaining -= 1
+      if (remaining <= 0) setBookReady(true)
+    }
+    for (const url of coverImageUrls) {
+      const img = new Image()
+      img.onload = done
+      img.onerror = done
+      img.src = url
+    }
+    return () => { cancelled = true }
+  }, [data, coverImageUrls])
 
   const displayPageList = useMemo(() => {
     if (!filtered) return bookPageList
@@ -1158,21 +1213,21 @@ export default function Yearbook3DPage() {
     </div>
   )
 
-  if (data && data?.sourceType === "pdfs" && pdfPages.length === 0 && (selectedDepartment || selectedBatch)) return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
-      <div className="text-center px-4"><BookMarked size={32} className="mx-auto mb-2 text-[var(--text-muted)]" /><p className="text-sm font-medium text-[var(--text-primary)]">No yearbook available</p><p className="text-xs text-[var(--text-muted)] mb-3">
-        {selectedDepartment && selectedBatch
-          ? `No yearbook found for ${selectedDepartment} (${selectedBatch}).`
-          : selectedDepartment
-          ? `No yearbook found for ${selectedDepartment}.`
-          : `No yearbook found for batch ${selectedBatch}.`}
-      </p>
-        {courseStrandOptions.length > 0 && (
-          <p className="text-xs text-[var(--text-muted)]">Try selecting a different course/strand or batch from the filter above.</p>
-        )}
-      </div>
-    </div>
-  )
+   if (data && data?.sourceType === "pdfs" && pdfPages.length === 0 && (selectedDepartment || selectedBatch)) return (
+     <div className="flex min-h-screen items-center justify-center bg-[var(--bg-page)]">
+       <div className="text-center px-4"><BookMarked size={32} className="mx-auto mb-2 text-[var(--text-muted)]" /><p className="text-sm font-medium text-[var(--text-primary)]">No yearbook available</p><p className="text-xs text-[var(--text-muted)] mb-3">
+         {selectedDepartment && selectedBatch
+           ? `${selectedDepartment} (${selectedBatch}) doesn't have a flipbook yet.`
+           : selectedDepartment
+           ? `${selectedDepartment} doesn't have a flipbook yet.`
+           : `No yearbook found for batch ${selectedBatch}.`}
+       </p>
+          {hierarchicalCourseOptions.length > 0 && (
+            <p className="text-xs text-[var(--text-muted)]">Try selecting a different course/strand or batch from the filter above.</p>
+          )}
+       </div>
+     </div>
+   )
 
   return (
     <div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50" : "min-h-screen"}`}
@@ -1197,8 +1252,36 @@ export default function Yearbook3DPage() {
                 {data?.settings?.subtitle && <p className={`hidden truncate text-[11px] leading-tight sm:block ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
               </div>
             </div>
-             <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-               {profiles.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                {hierarchicalCourseOptions.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-1.5">
+                    <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                      <SelectTrigger className={`h-7 min-w-[110px] text-xs sm:min-w-[140px] ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                        <SelectValue placeholder="Course / Strand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hierarchicalCourseOptions.flatMap((entry) => [
+                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
+                          ...entry.subs.map((s) => (
+                            <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
+                          )),
+                        ])}
+                      </SelectContent>
+                     </Select>
+                     {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
+                      <button
+                        onClick={() => {
+                          setSelectedDepartment(studentProfile.course_or_strand.trim())
+                          setSelectedBatch(newestBatchLabel(availableBatches))
+                        }}
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
+                      >
+                        My Yearbook
+                      </button>
+                    )}
+                  </div>
+                )}
+                {profiles.length > 0 && (
                  searchOpen ? (
                    <div className="relative">
                      <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${headerDark ? "text-[#f0e6d3]/40" : "text-[#1a2a3a]/40"}`} />
@@ -1259,63 +1342,42 @@ export default function Yearbook3DPage() {
            {pdfPages.length > 0 && (
                  <span className={`hidden rounded-md px-2 py-1 text-[10px] font-medium ring-1 sm:inline ${headerDark ? "bg-white/[0.08] text-[#f0e6d3]/70 ring-white/[0.1]" : "bg-amber-100/60 text-[#1a2a3a]/60 ring-amber-200/50"}`}>PDF</span>
                )}
-             </div>
-           </div>
-
-           {/* Dedicated filter row: separated from the icon toolbar above so it can
-               wrap freely on narrow screens without ever overlapping other controls. */}
-           {courseStrandOptions.length > 0 && (
-             <div className="relative mx-auto max-w-5xl px-3 pb-3 sm:px-4">
-               <div className="flex flex-wrap items-center gap-1.5">
-                 <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
-                   <SelectTrigger className={`h-7 min-w-[110px] flex-1 text-xs sm:max-w-[200px] sm:min-w-[140px] sm:flex-initial ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                     <SelectValue placeholder="Course / Strand" />
-                   </SelectTrigger>
-                   <SelectContent>
-                     {courseStrandOptions.map((d) => (
-                       <SelectItem key={d} value={d}>{d}</SelectItem>
-                     ))}
-                   </SelectContent>
-                 </Select>
-
-                  <Select value={selectedBatch} onValueChange={setSelectedBatch}>
-                    <SelectTrigger className={`h-7 min-w-[90px] flex-1 text-xs sm:w-[120px] sm:flex-initial ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                      <SelectValue placeholder="Batch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {batchOptions.map((b) => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {selectedBatch && (
-                    <button
-                      onClick={() => setSelectedBatch(newestBatchLabel(batchOptions))}
-                      className={`inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-md transition-colors ${headerDark ? "text-[#f0e6d3]/50 hover:text-[#f0e6d3] hover:bg-white/[0.06]" : "text-[#1a2a3a]/40 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`}
-                      aria-label="Reset batch"
-                    >
-                      <XCircle size={13} />
-                    </button>
-                  )}
-
-                   {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
-                     <button
-                       onClick={() => {
-                         setSelectedDepartment(studentProfile.course_or_strand.trim())
-                         setSelectedBatch(newestBatchLabel(availableBatches))
-                       }}
-                       className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
-                     >
-                       My Yearbook
-                     </button>
-                   )}
+              </div>
                </div>
-             </div>
-           )}
-          </header>
 
-         <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
+              {/* Mobile-only filter row: inside header so it inherits the header background */}
+              {hierarchicalCourseOptions.length > 0 && (
+                <div className="sm:hidden mx-auto max-w-5xl px-3 pb-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                      <SelectTrigger className={`h-7 min-w-[110px] flex-1 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
+                        <SelectValue placeholder="Course / Strand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hierarchicalCourseOptions.flatMap((entry) => [
+                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
+                          ...entry.subs.map((s) => (
+                            <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
+                          )),
+                        ])}
+                      </SelectContent>
+                     </Select>
+                     {studentProfile?.course_or_strand && availableDepartments.includes(studentProfile.course_or_strand.trim()) && (
+                       <button
+                         onClick={() => {
+                           setSelectedDepartment(studentProfile.course_or_strand.trim())
+                         }}
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
+                      >
+                        My Yearbook
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+             </header>
+
+          <div className="relative z-10 mx-auto w-full max-w-2xl px-8">
           <div className={`h-0.5 rounded-full overflow-hidden ${headerDark ? "bg-white/[0.08]" : "bg-black/[0.06]"}`}>
           <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)]/80 to-[var(--accent-gold)] transition-all duration-500 ease-out"
             style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
@@ -1337,12 +1399,18 @@ export default function Yearbook3DPage() {
           </div>
         )}
 
-          <div
-            ref={bookWrapperRef}
-            className={`book-resting-shadow${isDragging ? " book-dragging" : ""}`}
-            style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
-          >
-           {pdfListStable ? (
+           <div
+             ref={bookWrapperRef}
+             className={`book-resting-shadow${isDragging ? " book-dragging" : ""}`}
+             style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
+           >
+           {!bookReady ? (
+             <div className="flex flex-col items-center gap-3 py-16">
+               <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
+               <p className="text-sm text-[var(--text-muted)] font-light">Opening your yearbook…</p>
+               <div className="h-1 w-32 rounded-full bg-black/10 overflow-hidden mt-2"><div className="h-full rounded-full bg-[var(--accent-gold)] animate-pulse" style={{ width: "60%" }} /></div>
+             </div>
+           ) : pdfListStable ? (
             <HTMLFlipBook
               key={`${bookPageList.length}-${isFullscreen}-${isMobile}`}
              ref={bookRef}
@@ -1373,10 +1441,19 @@ export default function Yearbook3DPage() {
              className="mx-auto"
              style={{ maxWidth: "100%" }}
            >
-             {bookPageList.map((page, idx) => {
-               const isStudent = page.type === "student" || page.type === "student-back"
-               const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data.profile?.id)
-               const isLeftPage = idx % 2 === 0
+              {bookPageList.map((page, idx) => {
+                // Windowing: only render pages within a window of the current page.
+                // The flipbook remains responsive during navigation while off-screen
+                // pages stay lightweight placeholders, cutting render time on large
+                // yearbooks. The cover (idx 0) is always rendered.
+                const dist = Math.abs(idx - currentPage)
+                const inWindow = idx === 0 || dist <= 7
+                if (!inWindow) {
+                  return <div key={idx === 0 ? "cover" : `page-${idx}`} className="h-full w-full bg-white" />
+                }
+                const isStudent = page.type === "student" || page.type === "student-back"
+                const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data?.profile?.id)
+                const isLeftPage = idx % 2 === 0
 
                 if (page.type === "cover") {
                   const dp = page._designPage
@@ -1491,14 +1568,14 @@ export default function Yearbook3DPage() {
                }
                return <div key={`page-${idx}`} />
              })}
-           </HTMLFlipBook>
-           ) : (
-             <div className="flex flex-col items-center gap-3">
-               <Loader2 size={32} className="animate-spin text-[var(--accent-gold)]" />
-               <p className="text-sm text-[var(--text-muted)] font-light">Preparing pages…</p>
-             </div>
-           )}
-         </div>
+            </HTMLFlipBook>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 size={32} className="animate-spin text-[var(--accent-gold)]" />
+                <p className="text-sm text-[var(--text-muted)] font-light">Preparing pages…</p>
+              </div>
+            )}
+          </div>
 
         <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : ""}`}>
           <div className="h-1 rounded-full bg-black/10 overflow-hidden">

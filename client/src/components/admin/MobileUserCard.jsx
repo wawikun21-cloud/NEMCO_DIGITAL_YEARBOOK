@@ -56,11 +56,11 @@ function MobileUserCard({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
               <span className="text-[var(--text-muted)]">Year Level</span>
               <p className="mt-0.5 font-medium text-[var(--text-primary)]">{user.year_level}</p>
             </div>
-            <div>
-              <span className="text-[var(--text-muted)]">Course/Strand</span>
-              <p className="mt-0.5 font-medium text-[var(--text-primary)]">{user.course_or_strand}</p>
-            </div>
-            <div>
+              <div>
+                <span className="text-[var(--text-muted)]">Course/Strand</span>
+                <p className="mt-0.5 font-medium text-[var(--text-primary)]">{user.course_or_strand}</p>
+              </div>
+             <div>
               <span className="text-[var(--text-muted)]">Section</span>
               <p className="mt-0.5 font-medium text-[var(--text-primary)]">{user.section || "—"}</p>
             </div>

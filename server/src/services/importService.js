@@ -72,18 +72,19 @@ export async function validateRow(row) {
   const rawSection       = row.section        ?? row["Section"]
   const rawDisplayName   = row.display_name   ?? row["Display Name"]
 
-  const normalizedRow = {
-    student_number:   normalizeStudentNumber(rawStudentNumber),
-    email:            normalizeTextValue(row.email            ?? row["Email"]),
-    full_name:        normalizeTextValue(row.full_name        ?? row["Full Name"]),
-    role:             normalizeRoleValue(row.role             ?? row["Role"]),
-    year_level:       normalizeTextValue(rawYearLevel),
-    course_or_strand: normalizeTextValue(row.course_or_strand ?? row["Course or Strand"]),
-    section:          normalizeTextValue(rawSection),
-    display_name:     normalizeTextValue(rawDisplayName),
-    bio:              normalizeTextValue(row.bio              ?? row["Bio"]),
-    quote:            normalizeTextValue(row.quote            ?? row["Quote"]),
-  }
+   const normalizedRow = {
+     student_number:   normalizeStudentNumber(rawStudentNumber),
+     email:            normalizeTextValue(row.email            ?? row["Email"]),
+     full_name:        normalizeTextValue(row.full_name        ?? row["Full Name"]),
+     role:             normalizeRoleValue(row.role             ?? row["Role"]),
+     year_level:       normalizeTextValue(rawYearLevel),
+     course_or_strand: normalizeTextValue(row.course_or_strand ?? row["Course or Strand"]),
+     sub_course:       normalizeTextValue(row.sub_course       ?? row["Sub-Course"] ?? row["Sub Course"] ?? row["Major"]),
+     section:          normalizeTextValue(rawSection),
+     display_name:     normalizeTextValue(rawDisplayName),
+     bio:              normalizeTextValue(row.bio              ?? row["Bio"]),
+     quote:            normalizeTextValue(row.quote            ?? row["Quote"]),
+   }
 
   try {
     return { valid: true, data: importRowSchema.parse(normalizedRow) }
@@ -139,31 +140,32 @@ export async function createUserFromRow(rowData) {
 
   const userId = authData.user.id
 
-  // Create profile record
-  const { error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .upsert(
-      {
-        id: userId,
-        email: rowData.email,
-        student_number: rowData.student_number,
-        full_name: rowData.full_name,
-        display_name: rowData.display_name || rowData.full_name,
-        role: rowData.role,
-        status: "active",
-        profile_status: "approved",
-        year_level: rowData.year_level,
-        course_or_strand: rowData.course_or_strand,
-        section: rowData.section || null,
-        bio: rowData.bio || null,
-        quote: rowData.quote || null,
-        is_public: true,
-        resume_public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    )
+   // Create profile record
+   const { error: profileError } = await supabaseAdmin
+     .from("profiles")
+     .upsert(
+       {
+         id: userId,
+         email: rowData.email,
+         student_number: rowData.student_number,
+         full_name: rowData.full_name,
+         display_name: rowData.display_name || rowData.full_name,
+         role: rowData.role,
+         status: "active",
+         profile_status: "approved",
+         year_level: rowData.year_level,
+         course_or_strand: rowData.course_or_strand,
+         sub_course: rowData.sub_course || null,
+         section: rowData.section || null,
+         bio: rowData.bio || null,
+         quote: rowData.quote || null,
+         is_public: true,
+         resume_public: false,
+         created_at: new Date().toISOString(),
+         updated_at: new Date().toISOString(),
+       },
+       { onConflict: "id" }
+     )
 
   if (profileError) {
     // Roll back auth user if profile insert fails

@@ -8,19 +8,20 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 
 const emptyEditable = {
-  full_name: "",
-  school: "",
-  course_or_strand: "",
-  year_graduated: "",
-  home_address: "",
-  contact_number: "",
-  website: "",
-  social_link1: "",
-  social_link2: "",
-  social_link3: "",
-  about_me: "",
-  quote: "",
-  skills: [],
+   full_name: "",
+   school: "",
+   course_or_strand: "",
+   sub_course: "",
+   year_graduated: "",
+   home_address: "",
+   contact_number: "",
+   website: "",
+   social_link1: "",
+   social_link2: "",
+   social_link3: "",
+   about_me: "",
+   quote: "",
+   skills: [],
 }
 
 export function useProfile() {
@@ -35,23 +36,24 @@ export function useProfile() {
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
 
-  const hydrateEditable = useCallback((p) => {
-    setEditable({
-      full_name: p.full_name || "",
-      school: p.school || "",
-      course_or_strand: p.course_or_strand || "",
-      year_graduated: p.year_graduated || "",
-      home_address: p.home_address || "",
-      contact_number: p.contact_number || "",
-      website: p.website || "",
-      social_link1: p.social_link1 || "",
-      social_link2: p.social_link2 || "",
-      social_link3: p.social_link3 || "",
-      about_me: p.about_me || "",
-      quote: p.quote || "",
-      skills: Array.isArray(p.skills) ? p.skills : [],
-    })
-  }, [])
+   const hydrateEditable = useCallback((p) => {
+     setEditable({
+       full_name: p.full_name || "",
+       school: p.school || "",
+       course_or_strand: p.course_or_strand || "",
+       sub_course: p.sub_course || "",
+       year_graduated: p.year_graduated || "",
+       home_address: p.home_address || "",
+       contact_number: p.contact_number || "",
+       website: p.website || "",
+       social_link1: p.social_link1 || "",
+       social_link2: p.social_link2 || "",
+       social_link3: p.social_link3 || "",
+       about_me: p.about_me || "",
+       quote: p.quote || "",
+       skills: Array.isArray(p.skills) ? p.skills : [],
+     })
+   }, [])
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true)

@@ -66,28 +66,28 @@ export async function getPdfPages(department = null, batch = null) {
   return data.pages
 }
 
-export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, batch }) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, batch }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to add PDF page")
-  return data.page
+export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch }) {
+   const authHeaders = await getAuthHeaders()
+   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
+     method: "POST",
+     headers: { ...authHeaders, "Content-Type": "application/json" },
+     body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch }),
+   })
+   const data = await response.json()
+   if (!response.ok) throw new Error(data.message || "Failed to add PDF page")
+   return data.page
 }
 
-export async function updatePdfPage(id, { title, description, sortOrder, isActive, department, batch }) {
-  const authHeaders = await getAuthHeaders()
-  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
-    method: "PATCH",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, description, sortOrder, isActive, department, batch }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to update PDF page")
-  return data.page
+export async function updatePdfPage(id, { title, description, sortOrder, isActive, department, subDepartment, batch }) {
+   const authHeaders = await getAuthHeaders()
+   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
+     method: "PATCH",
+     headers: { ...authHeaders, "Content-Type": "application/json" },
+     body: JSON.stringify({ title, description, sortOrder, isActive, department, subDepartment, batch }),
+   })
+   const data = await response.json()
+   if (!response.ok) throw new Error(data.message || "Failed to update PDF page")
+   return data.page
 }
 
 export async function removePdfPage(id) {

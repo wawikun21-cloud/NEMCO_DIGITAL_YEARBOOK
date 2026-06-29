@@ -41,15 +41,15 @@ export function UserRow({ user, onEdit, onToggleRole, onToggleStatus, onResetPas
           <TooltipContent>{user.year_level}</TooltipContent>
         </Tooltip>
       </td>
-      <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="block truncate">{user.course_or_strand}</span>
-          </TooltipTrigger>
-          <TooltipContent>{user.course_or_strand}</TooltipContent>
-        </Tooltip>
-      </td>
-      <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
+       <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
+         <Tooltip>
+           <TooltipTrigger asChild>
+             <span className="block truncate">{user.course_or_strand}</span>
+           </TooltipTrigger>
+           <TooltipContent>{user.course_or_strand}</TooltipContent>
+          </Tooltip>
+        </td>
+       <td className="px-3 py-3 text-sm text-[var(--text-secondary)] sm:px-5">
         {user.section ? (
           <Tooltip>
             <TooltipTrigger asChild>

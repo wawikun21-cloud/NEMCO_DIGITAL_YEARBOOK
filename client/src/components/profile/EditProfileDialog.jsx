@@ -9,11 +9,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, X, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { useState, useCallback, useMemo } from "react"
+import { getCourseOptions, getSubOptions } from "@/utils/courseOptions"
 
 const REQUIRED_FIELDS = ["full_name", "school", "course_or_strand", "year_graduated"]
+
+const COURSE_OPTIONS = getCourseOptions()
+
+function getSubOptionsFor(course) {
+  return getSubOptions(course)
+}
 
 function validateField(field, value) {
   if (REQUIRED_FIELDS.includes(field) && (!value || !value.trim())) {
@@ -62,7 +70,8 @@ function validateAvatarFile(file) {
 
 const FIELDS = [
   { name: "full_name", label: "Full Name", placeholder: "Juan Dela Cruz" },
-  { name: "course_or_strand", label: "Course / Strand", placeholder: "e.g. BS Information Technology" },
+  { name: "course_or_strand", label: "Course / Strand", placeholder: "e.g. BSIT", type: "select" },
+  { name: "sub_course", label: "Sub-Course / Major", placeholder: "e.g. ACT", type: "select-optional" },
   { name: "year_graduated", label: "Year Graduated", placeholder: "e.g. 2025-2026" },
   { name: "school", label: "School", placeholder: "Your school name" },
   { name: "home_address", label: "Home Address", placeholder: "Your complete address" },
@@ -297,6 +306,7 @@ export function EditProfileDialog({
   onAvatarSelect,
 }) {
   const [avatarError, setAvatarError] = useState("")
+  const subOptions = getSubOptionsFor(editable.course_or_strand)
 
   const validationErrors = useMemo(() => {
     const errors = {}
@@ -373,13 +383,61 @@ export function EditProfileDialog({
           {FIELDS.map((field) => (
             <div key={field.name} className="grid gap-1.5">
               <Label htmlFor={field.name}>{field.label}</Label>
-              <Input
-                id={field.name}
-                value={editable[field.name] ?? ""}
-                placeholder={field.placeholder}
-                onChange={(e) => onFieldChange(field.name, e.target.value)}
-                className={validationErrors[field] ? "border-red-500" : ""}
-              />
+              {field.type === "select" ? (
+                <Select
+                  value={editable[field.name] ?? ""}
+                  onValueChange={(val) => {
+                    onFieldChange(field.name, val)
+                    if (field.name === "course_or_strand") {
+                      const newSubs = getSubOptionsFor(val)
+                      if (!newSubs.includes(editable.sub_course)) {
+                        onFieldChange("sub_course", "")
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={field.placeholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COURSE_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : field.type === "select-optional" ? (
+                subOptions.length === 0 ? (
+                  <Input
+                    id={field.name}
+                    value={editable[field.name] ?? ""}
+                    placeholder={field.placeholder}
+                    onChange={(e) => onFieldChange(field.name, e.target.value)}
+                  />
+                ) : (
+                  <Select
+                    value={editable[field.name] ?? ""}
+                    onValueChange={(val) => onFieldChange(field.name, val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={field.placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {subOptions.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )
+              ) : (
+                <Input
+                  id={field.name}
+                  value={editable[field.name] ?? ""}
+                  placeholder={field.placeholder}
+                  onChange={(e) => onFieldChange(field.name, e.target.value)}
+                  className={validationErrors[field] ? "border-red-500" : ""}
+                />
+              )}
               {validationErrors[field] && (
                 <p className="text-xs text-red-500">{validationErrors[field]}</p>
               )}

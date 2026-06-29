@@ -45,6 +45,7 @@ import {
 import PdfUploader from "@/components/admin/PdfUploader"
 import Yearbook3DPage from "@/pages/student/Yearbook3DPage"
 import { dedupeBatchLabels } from "@/utils/yearbookEditionHelpers"
+import { COURSE_OPTIONS } from "@/utils/courseOptions"
 
 function SettingsSection({ settings, onUpdate }) {
   const [form, setForm] = useState(settings || {})
@@ -204,20 +205,16 @@ function SettingsSection({ settings, onUpdate }) {
 }
 
 function EditionsList({ editions, onRefresh, catalog }) {
-  const [editingId, setEditingId] = useState(null)
-  const [editDept, setEditDept] = useState("")
-  const [editBatch, setEditBatch] = useState("")
-  const [deletingId, setDeletingId] = useState(null)
-  const batchDatalistId = "edit-batch-suggestions"
+   const [editingId, setEditingId] = useState(null)
+   const [editDept, setEditDept] = useState("")
+   const [editBatch, setEditBatch] = useState("")
+   const [deletingId, setDeletingId] = useState(null)
+   const batchDatalistId = "edit-batch-suggestions"
 
-  const courseStrandOptions = [...new Set([
-    ...(catalog?.courseStrands || catalog?.departments || []),
-    ...(editDept ? [editDept] : []),
-  ])].sort()
-  const batchOptions = dedupeBatchLabels([
-    ...(catalog?.batches || []),
-    ...(editBatch ? [editBatch] : []),
-  ])
+   const batchOptions = dedupeBatchLabels([
+     ...(catalog?.batches || []),
+     ...(editBatch ? [editBatch] : []),
+   ])
 
   const handleToggleActive = async (page) => {
     try {
@@ -241,20 +238,20 @@ function EditionsList({ editions, onRefresh, catalog }) {
   }
 
   const handleEdit = (page) => {
-    setEditingId(page.id)
-    setEditDept(page.department || "")
-    setEditBatch(page.batch || "")
-  }
+     setEditingId(page.id)
+     setEditDept(page.department || "")
+     setEditBatch(page.batch || "")
+   }
 
-  const handleSaveEdit = async (id) => {
-    try {
-      await updatePdfPage(id, { department: editDept || null, batch: editBatch || null })
-      setEditingId(null)
-      onRefresh()
-    } catch (err) {
-      console.error(err)
-    }
-  }
+   const handleSaveEdit = async (id) => {
+     try {
+       await updatePdfPage(id, { department: editDept || null, sub_department: null, batch: editBatch || null })
+       setEditingId(null)
+       onRefresh()
+     } catch (err) {
+       console.error(err)
+     }
+   }
 
   const formatFileSize = (bytes) => {
     if (!bytes) return "Unknown"
@@ -296,35 +293,38 @@ function EditionsList({ editions, onRefresh, catalog }) {
                   : "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
               }`}
             >
-              {editingId === page.id ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={editDept || ""} onValueChange={setEditDept}>
-                    <SelectTrigger className="h-8 min-w-[160px] max-w-[240px]">
-                      <SelectValue placeholder="Course / Strand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courseStrandOptions.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={editBatch}
-                    onChange={(e) => setEditBatch(e.target.value)}
-                    placeholder="Batch"
-                    className="h-8 w-[140px]"
-                    list={batchDatalistId}
-                  />
-                  {batchOptions.length > 0 && (
-                    <datalist id={batchDatalistId}>
-                      {batchOptions.map((b) => (
-                        <option key={b} value={b} />
-                      ))}
-                    </datalist>
-                  )}
-                  <Button size="sm" className="h-8" onClick={() => handleSaveEdit(page.id)} disabled={!editDept}>Save</Button>
-                  <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingId(null)}>Cancel</Button>
-                </div>
+               {editingId === page.id ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select value={editDept || ""} onValueChange={setEditDept}>
+                     <SelectTrigger className="h-8 min-w-[140px] max-w-[200px]">
+                       <SelectValue placeholder="Course / Strand" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {COURSE_OPTIONS.flatMap((entry) => [
+                         <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
+                         ...entry.subs.map((s) => (
+                           <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
+                         )),
+                       ])}
+                     </SelectContent>
+                   </Select>
+                   <Input
+                     value={editBatch}
+                     onChange={(e) => setEditBatch(e.target.value)}
+                     placeholder="Batch"
+                     className="h-8 w-[120px]"
+                     list={batchDatalistId}
+                   />
+                   {batchOptions.length > 0 && (
+                     <datalist id={batchDatalistId}>
+                       {batchOptions.map((b) => (
+                         <option key={b} value={b} />
+                       ))}
+                     </datalist>
+                   )}
+                   <Button size="sm" className="h-8" onClick={() => handleSaveEdit(page.id)} disabled={!editDept}>Save</Button>
+                   <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingId(null)}>Cancel</Button>
+                 </div>
               ) : (
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
@@ -335,9 +335,9 @@ function EditionsList({ editions, onRefresh, catalog }) {
                     <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                       {page.title}
                     </p>
-                    <p className="truncate text-[10px] text-[var(--text-muted)]">
-                      {page.department || "No course/strand"} • {page.batch || "No batch"} • {page.file_name} • {formatFileSize(page.file_size)} • {page.page_count || 1} page{(page.page_count || 1) !== 1 ? "s" : ""}
-                    </p>
+                     <p className="truncate text-[10px] text-[var(--text-muted)]">
+                       {page.department || "No course/strand"} • {page.batch || "No batch"} • {page.file_name} • {formatFileSize(page.file_size)} • {page.page_count || 1} page{(page.page_count || 1) !== 1 ? "s" : ""}
+                     </p>
                   </div>
 
                   <Badge variant={page.is_active ? "default" : "inactive"} className="text-[10px]">
@@ -404,21 +404,18 @@ function EditionsList({ editions, onRefresh, catalog }) {
 export default function YearbookManagementPage() {
   const [settings, setSettings] = useState(null)
   const [editions, setEditions] = useState([])
-  const [catalog, setCatalog] = useState({ departments: [], batches: [], courseStrands: [] })
+   const [catalog, setCatalog] = useState({ departments: [], batches: [], courseStrands: [], subCourses: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [showUploadDialog, setShowUploadDialog] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [selectedDept, setSelectedDept] = useState("")
-  const [selectedBatch, setSelectedBatch] = useState("")
+    const [showUploadDialog, setShowUploadDialog] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const [selectedDept, setSelectedDept] = useState("")
+    const [selectedBatch, setSelectedBatch] = useState("")
 
-  const courseStrandOptions = catalog.courseStrands?.length
-    ? catalog.courseStrands
-    : catalog.departments
-  const batchOptions = dedupeBatchLabels(catalog.batches || [])
-  const batchDatalistId = "batch-suggestions"
+    const batchOptions = dedupeBatchLabels(catalog.batches || [])
+   const batchDatalistId = "batch-suggestions"
 
-  const fetchAll = useCallback(async () => {
+   const fetchAll = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -429,7 +426,7 @@ export default function YearbookManagementPage() {
       ])
       setSettings(settingsRes)
       setEditions(editionsRes || [])
-      setCatalog(catalogRes || { departments: [], batches: [], courseStrands: [] })
+       setCatalog(catalogRes || { departments: [], batches: [], courseStrands: [], subCourses: [] })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -446,37 +443,38 @@ export default function YearbookManagementPage() {
     setSettings(updated)
   }
 
-  const handleUpload = async ({ file, title, description, onProgress }) => {
-    if (!selectedDept) {
-      throw new Error("Select a course/strand before uploading.")
-    }
-    setUploading(true)
-    try {
-      const uploadResult = await uploadPdfFile(file, onProgress)
+    const handleUpload = async ({ file, title, description, onProgress }) => {
+      if (!selectedDept) {
+        throw new Error("Select a course/strand before uploading.")
+      }
+      setUploading(true)
+      try {
+        const uploadResult = await uploadPdfFile(file, onProgress)
 
-      await addPdfPage({
-        title,
-        description,
-        fileUrl: uploadResult.fileUrl,
-        fileName: uploadResult.fileName,
-        fileSize: uploadResult.fileSize,
-        pageCount: uploadResult.pageCount || 1,
-        filePath: uploadResult.filePath,
-        department: selectedDept || null,
-        batch: selectedBatch || null,
-      })
+        await addPdfPage({
+          title,
+          description,
+          fileUrl: uploadResult.fileUrl,
+          fileName: uploadResult.fileName,
+          fileSize: uploadResult.fileSize,
+          pageCount: uploadResult.pageCount || 1,
+          filePath: uploadResult.filePath,
+          department: selectedDept || null,
+          subDepartment: null,
+          batch: selectedBatch || null,
+        })
 
-      setShowUploadDialog(false)
-      setSelectedDept("")
-      setSelectedBatch("")
-      fetchAll()
-    } catch (err) {
-      console.error(err)
-      throw err
-    } finally {
-      setUploading(false)
+        setShowUploadDialog(false)
+        setSelectedDept("")
+        setSelectedBatch("")
+        fetchAll()
+      } catch (err) {
+        console.error(err)
+        throw err
+      } finally {
+        setUploading(false)
+      }
     }
-  }
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -529,51 +527,48 @@ export default function YearbookManagementPage() {
                 size="sm"
                 onClick={() => setShowUploadDialog(true)}
                 className="gap-2"
-                disabled={courseStrandOptions.length === 0 || !selectedDept}
+                disabled={!selectedDept}
               >
                 <Plus size={14} />
                 Upload PDF
               </Button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Course / Strand</label>
-                {courseStrandOptions.length === 0 ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2">
-                    No course/strand values found in student profiles. Add or import students first.
-                  </p>
-                ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Course / Strand</label>
                   <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select course / strand…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {courseStrandOptions.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
+                      {COURSE_OPTIONS.flatMap((entry) => [
+                        <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
+                        ...entry.subs.map((s) => (
+                          <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
+                        )),
+                      ])}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Batch</label>
+                  <Input
+                    value={selectedBatch}
+                    onChange={(e) => setSelectedBatch(e.target.value)}
+                    placeholder="e.g. 2025-2026"
+                    className="h-9"
+                    list={batchDatalistId}
+                  />
+                  {batchOptions.length > 0 && (
+                    <datalist id={batchDatalistId}>
+                      {batchOptions.map((b) => (
+                        <option key={b} value={b} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Batch</label>
-                <Input
-                  value={selectedBatch}
-                  onChange={(e) => setSelectedBatch(e.target.value)}
-                  placeholder="e.g. 2025-2026"
-                  className="h-9"
-                  list={batchDatalistId}
-                />
-                {batchOptions.length > 0 && (
-                  <datalist id={batchDatalistId}>
-                    {batchOptions.map((b) => (
-                      <option key={b} value={b} />
-                    ))}
-                  </datalist>
-                )}
-              </div>
-            </div>
             <p className="text-[10px] text-[var(--text-muted)] mt-2">
               Options are loaded from existing student profiles. Students auto-see the yearbook that matches their course/strand on login.
             </p>
@@ -617,8 +612,8 @@ export default function YearbookManagementPage() {
           <DialogHeader>
             <DialogTitle>Upload PDF Edition</DialogTitle>
             <DialogDescription>
-              Upload a PDF for {selectedDept || "the selected course/strand"}{selectedBatch ? ` (${selectedBatch})` : ""}
-            </DialogDescription>
+               Upload a PDF for {selectedDept || "the selected course/strand"}{selectedBatch ? ` (${selectedBatch})` : ""}
+             </DialogDescription>
           </DialogHeader>
           <PdfUploader
             onUploadSuccess={handleUpload}
