@@ -1,5 +1,12 @@
 import { supabaseAdmin } from "../config/supabase.js"
 
+const COURSE_OPTIONS_CLIENT = [
+  { value: "CCJE", label: "CCJE", subs: ["BSCRIM"] },
+  { value: "CIT", label: "CIT", subs: ["BSIT", "ACT"] },
+  { value: "CBE", label: "CBE", subs: ["BSBA", "MARMA", "FINMA"] },
+  { value: "CEAS", label: "CEAS", subs: ["BSED", "BEED", "AB"] },
+]
+
 const FLIPBOOK_SETTINGS_DEFAULTS = {
   enabled: true,
   title: "NEMCO Digital Yearbook",
@@ -149,57 +156,81 @@ async function resolveCourseOrStrand(value) {
 }
 
 async function fetchActivePdfPages(department = null, batch = null, subDepartment = null, { edition = null } = {}) {
-    const hasCols = await columnsExist()
-    const hasSubDeptCol = await subDepartmentColumnExists()
-    const hasEditionCol = await editionColumnExists()
-    const dept = normalizeEditionFilter(department)
-    const subDept = normalizeEditionFilter(subDepartment)
-    const bat = normalizeBatchLabel(batch)
-    const editionFilter = hasEditionCol ? normalizeEdition(edition) : null
+     const hasCols = await columnsExist()
+     const hasSubDeptCol = await subDepartmentColumnExists()
+     const hasEditionCol = await editionColumnExists()
+     const dept = normalizeEditionFilter(department)
+     const subDept = normalizeEditionFilter(subDepartment)
+     const bat = normalizeBatchLabel(batch)
+     const editionFilter = hasEditionCol ? normalizeEdition(edition) : null
 
-    const selectCols = hasCols
-      ? "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active, department, batch"
-      : "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active"
-    const selectColsWithFlags = [
-      selectCols,
-      hasSubDeptCol ? "sub_department" : null,
-      hasEditionCol ? "edition" : null,
-    ].filter(Boolean).join(", ")
+     const selectCols = hasCols
+       ? "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active, department, batch"
+       : "id, title, description, file_url, file_name, file_size, page_count, cover_image_url, sort_order, section_name, is_active"
+     const selectColsWithFlags = [
+       selectCols,
+       hasSubDeptCol ? "sub_department" : null,
+       hasEditionCol ? "edition" : null,
+     ].filter(Boolean).join(", ")
 
-     let query = supabaseAdmin
-       .from("flipbook_pdf_pages")
-       .select(selectColsWithFlags)
-       .eq("is_active", true)
+      let query = supabaseAdmin
+        .from("flipbook_pdf_pages")
+        .select(selectColsWithFlags)
+        .eq("is_active", true)
 
-     // Main edition is global: it must never be filtered out by the student's
-     // course/strand or batch, so we scope edition lookups precisely.
-     if (hasEditionCol && editionFilter === EDITION_MAIN) {
-       query = query.eq("edition", EDITION_MAIN)
-     } else if (hasEditionCol) {
-       // Course-scoped lookup: only 'course' (or legacy null) pages, optionally
-       // narrowed by department/batch below.
-       query = query.or("edition.is.null,edition.eq.course")
-       if (dept) query = query.ilike("department", dept)
-       if (subDept && hasSubDeptCol) query = query.ilike("sub_department", subDept)
-     } else if (dept && hasCols) {
-       query = query.ilike("department", dept)
-       if (subDept && hasSubDeptCol) query = query.ilike("sub_department", subDept)
+      // Main edition is global: it must never be filtered out by the student's
+      // course/strand or batch, so we scope edition lookups precisely.
+      if (hasEditionCol && editionFilter === EDITION_MAIN) {
+        query = query.eq("edition", EDITION_MAIN)
+      } else if (hasEditionCol) {
+        // Course-scoped lookup: only 'course' (or legacy null) pages, optionally
+        // narrowed by department/batch below.
+        query = query.or("edition.is.null,edition.eq.course")
+        if (dept) {
+          // Match the department exactly OR match any parent course that has this
+          // sub-course. E.g. if dept = "BSIT", also match rows where department
+          // = "CIT" (the parent of BSIT). This ensures students see PDFs uploaded
+          // under their parent course OR their specific sub-course.
+          const parentCourses = getParentCoursesForSub(dept)
+          const deptValues = [dept, ...parentCourses]
+          query = query.in("department", deptValues)
+        }
+        if (subDept && hasSubDeptCol) query = query.ilike("sub_department", subDept)
+      } else if (dept && hasCols) {
+        const parentCourses = getParentCoursesForSub(dept)
+        const deptValues = [dept, ...parentCourses]
+        query = query.in("department", deptValues)
+        if (subDept && hasSubDeptCol) query = query.ilike("sub_department", subDept)
+      }
+
+      query = query.order("sort_order", { ascending: true })
+
+       const { data, error } = await query
+     if (error) {
+       throw new Error(`Failed to fetch PDF pages: ${error.message}`)
      }
 
-     query = query.order("sort_order", { ascending: true })
+     let pages = data || []
+     if (bat && hasCols && editionFilter !== EDITION_MAIN) {
+       pages = pages.filter((p) => batchLabelsMatch(p.batch, bat))
+     }
 
-      const { data, error } = await query
-    if (error) {
-      throw new Error(`Failed to fetch PDF pages: ${error.message}`)
-    }
+     return pages
+   }
 
-    let pages = data || []
-    if (bat && hasCols && editionFilter !== EDITION_MAIN) {
-      pages = pages.filter((p) => batchLabelsMatch(p.batch, bat))
-    }
-
-    return pages
-}
+   // Given a sub-course value (e.g. "BSIT"), return the list of parent course
+   // names (e.g. ["CIT"]) under which PDFs may have been uploaded. This lets a
+   // student see PDFs uploaded under their parent course OR their sub-course.
+   function getParentCoursesForSub(subValue) {
+     if (!subValue) return []
+     const parents = []
+     for (const entry of COURSE_OPTIONS_CLIENT || []) {
+       if (entry.subs && entry.subs.includes(subValue)) {
+         parents.push(entry.value)
+       }
+     }
+     return parents
+   }
 
 export async function getFlipbookSettings() {
   const { data, error } = await supabaseAdmin
