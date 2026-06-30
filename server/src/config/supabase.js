@@ -40,16 +40,6 @@ export async function ensureAvatarBucket() {
   }
 }
 
-export async function ensureFlipbookBucket() {
-  const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
-  if (listError) return
-
-  const exists = buckets?.some((b) => b.name === "flipbook-pdfs")
-  if (!exists) {
-    await supabaseAdmin.storage.createBucket("flipbook-pdfs", { public: true })
-  }
-}
-
 export async function ensureResumePhotoBucket() {
   const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
   if (listError) return

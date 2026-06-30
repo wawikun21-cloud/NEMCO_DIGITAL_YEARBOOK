@@ -1,20 +1,11 @@
-import { supabaseAdmin } from "../config/supabase.js"
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import b2 from "../config/b2Client.js"
+import { config } from "../config/env.js"
 
-const BUCKET_NAME = "flipbook-pdfs"
-const MAX_FILE_SIZE = 50 * 1024 * 1024
-const UPLOAD_TIMEOUT_MS = 55000
-
-function withTimeout(promise, ms) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`Operation timed out after ${ms}ms`))
-    }, ms)
-    promise.then(
-      (val) => { clearTimeout(timer); resolve(val) },
-      (err) => { clearTimeout(timer); reject(err) }
-    )
-  })
-}
+const BUCKET = config.b2.bucket
+const MAX_FILE_SIZE = 500 * 1024 * 1024
+const PRESIGN_EXPIRES = 3600
 
 export async function uploadPdfFile(fileBuffer, fileName, contentType = "application/pdf") {
   if (fileBuffer.length > MAX_FILE_SIZE) {
@@ -22,47 +13,82 @@ export async function uploadPdfFile(fileBuffer, fileName, contentType = "applica
   }
 
   const timestamp = Date.now()
-  const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_")
-  const filePath = `${timestamp}-${sanitizedFileName}`
+  const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, "_")
+  const key = `yearbooks/${timestamp}-${sanitized}`
 
-  const { data, error: uploadError } = await withTimeout(
-    supabaseAdmin.storage.from(BUCKET_NAME).upload(filePath, fileBuffer, {
-      contentType,
-      upsert: false,
-    }),
-    UPLOAD_TIMEOUT_MS
-  )
-
-  if (uploadError) {
-    throw new Error(`Failed to upload file: ${uploadError.message}`)
-  }
-
-  const { data: urlData } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(filePath)
+  await b2.send(new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    Body: fileBuffer,
+    ContentType: contentType,
+  }))
 
   return {
-    filePath,
-    publicUrl: urlData.publicUrl,
+    key,
+    fileUrl: buildPublicUrl(key),
   }
 }
 
-export async function deletePdfFile(filePath) {
-  const { error } = await supabaseAdmin.storage.from(BUCKET_NAME).remove([filePath])
+export async function getUploadUrl(fileName, contentType = "application/pdf") {
+  const timestamp = Date.now()
+  const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, "_")
+  const key = `yearbooks/${timestamp}-${sanitized}`
 
-  if (error) {
-    throw new Error(`Failed to delete file: ${error.message}`)
-  }
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+  })
 
+  const uploadUrl = await getSignedUrl(b2, command, { expiresIn: PRESIGN_EXPIRES })
+
+  return { uploadUrl, key, fileUrl: buildPublicUrl(key) }
+}
+
+export async function getDownloadUrl(key) {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+  })
+  return getSignedUrl(b2, command, { expiresIn: PRESIGN_EXPIRES })
+}
+
+export async function deletePdfFile(key) {
+  await b2.send(new DeleteObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+  }))
   return true
 }
 
-export function extractFilePathFromUrl(publicUrl) {
+export function extractB2KeyFromUrl(publicUrl) {
   try {
+    if (config.b2.publicBaseUrl) {
+      const base = config.b2.publicBaseUrl.replace(/\/$/, "")
+      if (publicUrl.startsWith(base)) {
+        return publicUrl.slice(base.length + 1)
+      }
+    }
     const url = new URL(publicUrl)
     const pathParts = url.pathname.split("/")
-    const bucketIndex = pathParts.indexOf(BUCKET_NAME)
-    if (bucketIndex === -1) return null
-    return pathParts.slice(bucketIndex + 1).join("/")
+    const bucketIndex = pathParts.indexOf(BUCKET)
+    if (bucketIndex !== -1) {
+      return pathParts.slice(bucketIndex + 1).join("/")
+    }
+    if (pathParts.length >= 2) {
+      return pathParts.slice(1).join("/")
+    }
+    return null
   } catch {
     return null
   }
 }
+
+export function buildPublicUrl(key) {
+  if (config.b2.publicBaseUrl) {
+    return `${config.b2.publicBaseUrl.replace(/\/$/, "")}/${key}`
+  }
+  return `${config.b2.endpoint}/${BUCKET}/${key}`
+}
+
+export { MAX_FILE_SIZE }

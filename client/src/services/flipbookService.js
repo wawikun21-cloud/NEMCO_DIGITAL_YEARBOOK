@@ -112,7 +112,7 @@ export async function uploadPdfFile(file, onProgress) {
     const timeoutId = setTimeout(() => {
       xhr.abort()
       reject(new Error("Upload timed out. Please check your connection and try again."))
-    }, 55000)
+    }, 300000)
 
     xhr.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable && onProgress) {
@@ -123,22 +123,18 @@ export async function uploadPdfFile(file, onProgress) {
 
     xhr.addEventListener("load", () => {
       clearTimeout(timeoutId)
-      console.log("[UPLOAD] Response status:", xhr.status, "response:", xhr.responseText)
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const data = JSON.parse(xhr.responseText)
           resolve(data)
         } catch (e) {
-          console.error("[UPLOAD] Parse error:", e)
           reject(new Error("Failed to parse server response"))
         }
       } else {
         try {
           const errorData = JSON.parse(xhr.responseText)
-          console.error("[UPLOAD] Server error:", errorData)
           reject(new Error(errorData.message || `Upload failed with status ${xhr.status}`))
         } catch {
-          console.error("[UPLOAD] Non-JSON error response:", xhr.responseText)
           reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText || "Unknown error"}`))
         }
       }
@@ -158,6 +154,13 @@ export async function uploadPdfFile(file, onProgress) {
     Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value))
     xhr.send(formData)
   })
+}
+
+export async function getDownloadUrl(key) {
+  const response = await fetch(`${API_BASE_URL}/admin/upload/download-url?key=${encodeURIComponent(key)}`)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to get download URL")
+  return data.url
 }
 
 export async function getYearbookCatalog() {

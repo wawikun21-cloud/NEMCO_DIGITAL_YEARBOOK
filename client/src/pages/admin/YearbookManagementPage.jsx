@@ -462,41 +462,41 @@ export default function YearbookManagementPage() {
     setSettings(updated)
   }
 
-    const handleUpload = async ({ file, title, description, onProgress }) => {
-      const isMain = selectedEdition === EDITION_MAIN
-      if (!isMain && !selectedDept) {
-        throw new Error("Select a course/strand before uploading.")
-      }
-      setUploading(true)
-      try {
-        const uploadResult = await uploadPdfFile(file, onProgress)
-
-        await addPdfPage({
-          title,
-          description,
-          fileUrl: uploadResult.fileUrl,
-          fileName: uploadResult.fileName,
-          fileSize: uploadResult.fileSize,
-          pageCount: uploadResult.pageCount || 1,
-          filePath: uploadResult.filePath,
-          department: isMain ? null : selectedDept || null,
-          subDepartment: null,
-          batch: isMain ? null : selectedBatch || null,
-          edition: isMain ? EDITION_MAIN : EDITION_COURSE,
-        })
-
-        setShowUploadDialog(false)
-        setSelectedDept("")
-        setSelectedBatch("")
-        setSelectedEdition(EDITION_COURSE)
-        fetchAll()
-      } catch (err) {
-        console.error(err)
-        throw err
-      } finally {
-        setUploading(false)
-      }
+  const handleUpload = async ({ file, title, description, onProgress, pageCount }) => {
+    const isMain = selectedEdition === EDITION_MAIN
+    if (!isMain && !selectedDept) {
+      throw new Error("Select a course/strand before uploading.")
     }
+    setUploading(true)
+    try {
+      const uploadResult = await uploadPdfFile(file, onProgress)
+
+      await addPdfPage({
+        title,
+        description,
+        fileUrl: uploadResult.fileUrl,
+        fileName: uploadResult.fileName,
+        fileSize: uploadResult.fileSize,
+        pageCount: pageCount || uploadResult.pageCount || 1,
+        filePath: uploadResult.fileKey,
+        department: isMain ? null : selectedDept || null,
+        subDepartment: null,
+        batch: isMain ? null : selectedBatch || null,
+        edition: isMain ? EDITION_MAIN : EDITION_COURSE,
+      })
+
+      setShowUploadDialog(false)
+      setSelectedDept("")
+      setSelectedBatch("")
+      setSelectedEdition(EDITION_COURSE)
+      fetchAll()
+    } catch (err) {
+      console.error(err)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">

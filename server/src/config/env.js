@@ -23,6 +23,14 @@ export const config = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGINS),
   jwtSecret: process.env.JWT_SECRET,
+  b2: {
+    keyId: process.env.B2_KEY_ID,
+    applicationKey: process.env.B2_APPLICATION_KEY,
+    bucket: process.env.B2_BUCKET_NAME || "flipbook-pdfs",
+    endpoint: process.env.B2_ENDPOINT || "",
+    region: process.env.B2_REGION || "",
+    publicBaseUrl: process.env.B2_PUBLIC_BASE_URL || "",
+  },
 }
 
 const requiredEnv = [

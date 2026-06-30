@@ -79,6 +79,7 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
         title: title || file.name.replace(".pdf", ""),
         description,
         onProgress,
+        pageCount,
       })
 
       setProgress(100)
@@ -121,7 +122,7 @@ export default function PdfUploader({ onUploadSuccess, onCancel }) {
             or click to browse files
           </p>
           <p className="mt-2 text-[10px] text-[var(--text-muted)]">
-            Maximum file size: 50MB
+            Maximum file size: 500MB
           </p>
           <input
             ref={fileInputRef}

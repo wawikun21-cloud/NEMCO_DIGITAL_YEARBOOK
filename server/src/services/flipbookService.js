@@ -748,7 +748,7 @@ export async function updateFlipbookPdfPage(id, { title, description, sortOrder,
 export async function deleteFlipbookPdfPage(id) {
   const { data: page, error: fetchError } = await supabaseAdmin
     .from("flipbook_pdf_pages")
-    .select("id, file_url")
+    .select("id, file_url, file_path")
     .eq("id", id)
     .maybeSingle()
 
@@ -756,15 +756,10 @@ export async function deleteFlipbookPdfPage(id) {
     throw new Error(`Failed to fetch PDF page for deletion: ${fetchError.message}`)
   }
 
-  if (page?.file_url) {
+  if (page?.file_path) {
     try {
-      const url = new URL(page.file_url)
-      const pathParts = url.pathname.split("/")
-      const bucketIndex = pathParts.indexOf("flipbook-pdfs")
-      if (bucketIndex !== -1) {
-        const filePath = pathParts.slice(bucketIndex + 1).join("/")
-        await supabaseAdmin.storage.from("flipbook-pdfs").remove([filePath])
-      }
+      const { deletePdfFile } = await import("./fileUploadService.js")
+      await deletePdfFile(page.file_path)
     } catch {
       // Storage deletion is non-critical; continue even if file is missing
     }

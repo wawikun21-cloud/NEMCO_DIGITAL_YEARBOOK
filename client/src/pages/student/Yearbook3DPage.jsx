@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react"
 import HTMLFlipBook from "react-pageflip"
+import { getDownloadUrl } from "@/services/flipbookService"
 
 const BOOK_3D_STYLES_ID = "book-3d-depth-styles"
 
@@ -289,7 +290,10 @@ function usePdfPageImages(pdfPages, isMobile = false) {
       for (const pdf of pdfPages) {
         allDocTasks.push((async () => {
           try {
-            const loadingTask = pdfjsLib.getDocument(pdf.file_url)
+            const fileUrl = pdf.file_path
+              ? await getDownloadUrl(pdf.file_path)
+              : pdf.file_url
+            const loadingTask = pdfjsLib.getDocument(fileUrl)
             const pdfDoc = await loadingTask.promise
             docsRef.current[pdf.id] = pdfDoc
             newPageCounts[pdf.id] = pdfDoc.numPages
