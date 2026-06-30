@@ -1,8 +1,6 @@
 export const COURSE_OPTIONS = [
-  { value: "CIT", label: "CIT", subs: ["BSIT", "ACT"] },
   { value: "CCJE", label: "CCJE", subs: ["BSCRIM"] },
   { value: "CIT", label: "CIT", subs: ["BSIT", "ACT"] },
-  { value: "CCJE", label: "CCJE", subs: ["BSCRIM"] },
   { value: "CBE", label: "CBE", subs: ["BSBA", "MARMA", "FINMA"] },
   { value: "CEAS", label: "CEAS", subs: ["BSED", "BEED", "AB"] },
 ]

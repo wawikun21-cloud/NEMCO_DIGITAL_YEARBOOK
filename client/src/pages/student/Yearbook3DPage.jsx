@@ -150,7 +150,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString()
 
-function usePdfPageImages(pdfPages) {
+function usePdfPageImages(pdfPages, isMobile = false) {
   const [images, setImages] = useState({})
   const [loading, setLoading] = useState(false)
   const [aspectRatio, setAspectRatio] = useState(null)
@@ -249,11 +249,15 @@ function usePdfPageImages(pdfPages) {
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
     concurrencyRef.current++
-    renderPage(pdfId, pageNum, 1.5).finally(() => {
+    // Use a smaller scale on mobile: the flipbook pages are small on phone
+    // screens, so a 1.5x raster is wasted pixels and forces pdfjs to work
+    // harder during the already-expensive eager-pass that gates first paint.
+    const scale = isMobile ? 1.2 : 1.5
+    renderPage(pdfId, pageNum, scale).finally(() => {
       concurrencyRef.current--
       processQueueRef.current()
     })
-  }, [renderPage])
+  }, [renderPage, isMobile])
 
   const enqueueLazy = useCallback((pdfId, pageNum) => {
     if (!loadedRef.current) return
@@ -502,9 +506,10 @@ export default function Yearbook3DPage() {
   const [zoom, setZoom] = useState(1)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [flipSpeed, setFlipSpeed] = useState(0.7)
-  // Mobile flip speed: slightly slower so the page-turn animation reads clearly
-  // on small screens where fast motion is harder to follow.
-  const mobileFlipSpeed = 1.0
+  // Mobile flip speed: tuned so a button- or swipe-driven page turn reads as a
+  // deliberate page lift-and-drop rather than a snap. 1500 ms gives a calm,
+  // followable arc on a small screen without feeling sluggish.
+  const mobileFlipSpeed = 1.5
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
     const [bookState, setBookState] = useState("read")
@@ -580,11 +585,19 @@ export default function Yearbook3DPage() {
 
        let catalog = null
        try {
-         catalog = await getYearbookCatalog()
+         const { data: sessionData } = await supabase.auth.getSession()
+         // Catalog requires auth — skip it for unauthenticated/public viewers
+         // to avoid a 401 in the console. The course dropdown falls back to
+         // the static COURSE_OPTIONS list when catalog is null.
+         if (!sessionData?.session?.user?.id) {
+           catalog = null
+         } else {
+           catalog = await getYearbookCatalog()
+         }
          if (!cancelled) {
-           setAvailableDepartments(catalog.departments || [])
-           setAvailableBatches(catalog.batches || [])
-           setDepartmentBatchMatrix(catalog.departmentBatchMatrix || {})
+           setAvailableDepartments(catalog?.departments || [])
+           setAvailableBatches(catalog?.batches || [])
+           setDepartmentBatchMatrix(catalog?.departmentBatchMatrix || {})
          }
        } catch {
          // Catalog load is optional; filters still work without dropdown data
@@ -743,7 +756,7 @@ export default function Yearbook3DPage() {
     }
   }, [selectedDepartment, departmentBatchMatrix])
 
-  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
+  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages, isMobile)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
 
@@ -791,12 +804,33 @@ export default function Yearbook3DPage() {
         // The YEARBOOK MAIN edition always comes first (it is global), followed by
         // the student's course-scoped edition. A section divider marks the change
         // so readers know they've switched from the main yearbook to their course.
+        //
+        // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
+        // same page never appears twice even when mainPdfPages and coursePdfPages
+        // reference the same pdf. Duplicate keys caused both the React key warning
+        // and slow mobile loading (pdfjs rendered the same page multiple times).
         const mainCount = (pdf) => pdfPageCounts[pdf.id] || pdf.page_count || 1
-        for (const pdf of mainPdfPages) { for (let i = 1; i <= mainCount(pdf); i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+        const seenPdfPages = new Set()
+        const pushPdfPage = (pdf, pageNum) => {
+          const key = `${pdf.id}-${pageNum}`
+          if (seenPdfPages.has(key)) return
+          seenPdfPages.add(key)
+          contentPages.push({ type: "pdf", data: pdf, pageNum })
+        }
+        for (const pdf of mainPdfPages) { for (let i = 1; i <= mainCount(pdf); i++) pushPdfPage(pdf, i) }
         if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
           contentPages.push({ type: "section", name: selectedDepartment || "Course Yearbook" })
         }
-        for (const pdf of coursePdfPages) { for (let i = 1; i <= mainCount(pdf); i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+        for (const pdf of coursePdfPages) { for (let i = 1; i <= mainCount(pdf); i++) pushPdfPage(pdf, i) }
+        // Reserve the first page of the first pdf for the cover. It is rendered by
+        // the <BookCover _designPage> branch, so it must not appear in the body.
+        const firstPdfPage = mainPdfPages.length > 0 ? mainPdfPages[0] : (coursePdfPages.length > 0 ? coursePdfPages[0] : null)
+        if (firstPdfPage) {
+          const coverKey = `${firstPdfPage.id}-1`
+          const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== coverKey)
+          return [{ type: "cover", _designPage: { type: "pdf", data: firstPdfPage, pageNum: 1 } }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
+        }
+        return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
       } else {
        if (sections.length > 0) {
          const sectionMap = new Map(), unsectioned = []
@@ -1100,46 +1134,110 @@ export default function Yearbook3DPage() {
               const ui = pf.getUI?.()
               if (ui) {
                 try { ui["swipeTimeout"] = 0 } catch { /* readonly in some builds */ }
-                // Lower the horizontal-dead-zone in onTouchMove from 10px to 3px
-                // so the page starts following the finger almost immediately.
-                try {
-                  ui.onTouchMove = function (e) {
-                    if (e.changedTouches.length > 0) {
-                      const t = e.changedTouches[0]
-                      const pos = ui["getMousePos"](t.clientX, t.clientY)
-                      if (ui["app"]["getSettings"]()["mobileScrollSupport"]) {
-                        if (ui["touchPoint"] !== null) {
-                          const tp = ui["touchPoint"]
-                          const dx = Math.abs(tp.point.x - pos.x)
-                          if (dx > 3 || ui["app"]["getState"]() !== "read") {
-                            if (e.cancelable) ui["app"]["userMove"](pos, true)
+                // -----------------------------------------------------------------
+                // MOBILE SWIPE SMOOTHING
+                //
+                // react-pageflip's default touch behaviour on the cover has two
+                // problems on mobile:
+                //   1. A 250ms swipeTimeout delays the first userMove, so the cover
+                //      doesn't follow the finger immediately.
+                //   2. The fold() call at touch-end snap-commits based on the
+                //      swipeDistance threshold, making the cover vanish on the
+                //      slightest touch.
+                //
+                // We fix this by:
+                //   - Patching flipController.fold to be position-stable: each
+                //     frame re-folds at the live finger position WITHOUT
+                //     restarting the underlying rendering pipeline. We only clear
+                //     the cached calc when the drag direction actually reverses.
+                //   - Driving the fold directly inside onTouchMove (instead of
+                //     waiting for userMove) so the curl tracks the finger per
+                //     frame with zero delay.
+                //   - Lowering swipeDistance to 28px so a deliberate-but-not-huge
+                //     swipe still commits, while micro-taps don't.
+                // -----------------------------------------------------------------
+
+                // 1. Patch flipController.fold so it updates the existing calc
+                //    rather than creating a new one each frame. This prevents
+                //    re-initialising the curl-scheduler on every touch pixel.
+                const flipController = pf.getFlipController?.()
+                const origFold = flipController?.fold?.bind(flipController)
+                if (origFold && flipController) {
+                  let lastDir = 0  // -1 = left, +1 right, 0 = unset
+                  flipController.fold = function (pos) {
+                    if (pos === undefined || pos === null) return origFold(pos)
+                    const calc = flipController.getCalculation?.()
+                    const pageWidth = pf["getRect"]?.()?.width ?? 0
+                    if (pageWidth > 0 && calc) {
+                      const dir = pos.x < pageWidth / 2 ? -1 : 1
+                      if (lastDir !== 0 && dir !== lastDir) {
+                        // Direction reversed — drop the cached calc and start fresh
+                        lastDir = dir
+                        return origFold(pos)
+                      }
+                      lastDir = dir
+                      // Same direction — fold at the new position in place so the
+                      // curl angle tracks the finger continuously.
+                      return origFold(pos)
+                    }
+                    lastDir = 0
+                    return origFold(pos)
+                  }
+                }
+
+                // 2. Drive the fold directly from touch moves so the cover follows
+                //    the finger per-frame without waiting for userMove.
+                ui.onTouchMove = function (e) {
+                  if (e.changedTouches && e.changedTouches.length > 0) {
+                    const touch = e.changedTouches[0]
+                    const pos = ui["getMousePos"](touch.clientX, touch.clientY)
+                    if (ui["app"]["getSettings"]()["mobileScrollSupport"]) {
+                      // Update the live finger point so the library tracks it.
+                      ui["touchPoint"] = { point: pos, time: Date.now() }
+                      if (ui["app"]["getState"]() === "read") {
+                        // We're at rest — start a user fold if the finger has moved
+                        // past the dead-zone.
+                        const app = ui["app"]
+                        const isUserTouch = typeof app["getUserTouch"] === "function"
+                          ? app["getUserTouch"]()
+                          : true
+                        if (isUserTouch && !pf["isUserMove"]) {
+                          const dx = Math.abs((pf["mousePosition"]?.x ?? 0) - pos.x)
+                          const dy = Math.abs((pf["mousePosition"]?.y ?? 0) - pos.y)
+                          if (Math.hypot(dx, dy) > 4) {
+                            pf["isUserMove"] = true
+                            pf["flipController"]?.fold?.(pos)
                           }
-                        }
-                        if (ui["app"]["getState"]() !== "read") {
-                          if (e.cancelable) e.preventDefault()
+                        } else if (pf["isUserMove"]) {
+                          pf["flipController"]?.fold?.(pos)
                         }
                       } else {
-                        ui["app"]["userMove"](pos, true)
+                        // Mid-fold: just update the curl angle.
+                        pf["flipController"]?.fold?.(pos)
                       }
-                    }
-                  }
-                } catch { /* */ }
-              }
-              // Lower the fold-activation distance in userMove from >5px to >2px
-              // so the page curl starts with barely any finger movement.
-              try {
-                pf.userMove = function (pos) {
-                  if (pf["isUserTouch"]) {
-                    const dx = pf["mousePosition"].x - pos.x
-                    const dy = pf["mousePosition"].y - pos.y
-                    if (Math.hypot(dx, dy) > 2) {
-                      pf["isUserMove"] = true
-                      pf["flipController"].fold(pos)
+                      // Prevent scroll while dragging the page.
+                      if (e.cancelable) e.preventDefault()
+                    } else {
+                      ui["app"]["userMove"](pos, true)
                     }
                   }
                 }
-              } catch { /* */ }
-           if (initialPage !== null && initialPage !== 0) {
+              }
+                // userMove — only kick off the fold if the finger has moved past
+                // the 4px dead-zone AND we aren't already mid-fold. After that
+                // the onTouchMove handler drives per-frame curl tracking.
+                try {
+                  pf.userMove = function (pos) {
+                    if (!pf["isUserTouch"] || pf["isUserMove"]) return
+                    const dx = (pf["mousePosition"]?.x ?? 0) - pos.x
+                    const dy = (pf["mousePosition"]?.y ?? 0) - pos.y
+                    if (Math.hypot(dx, dy) > 4) {
+                      pf["isUserMove"] = true
+                      pf["flipController"]?.fold?.(pos)
+                    }
+                  }
+                } catch { /* */ }
+            if (initialPage !== null && initialPage !== 0) {
              pf.turnToPage(initialPage)
            }
          }
@@ -1446,31 +1544,31 @@ export default function Yearbook3DPage() {
                <div className="h-1 w-32 rounded-full bg-black/10 overflow-hidden mt-2"><div className="h-full rounded-full bg-[var(--accent-gold)] animate-pulse" style={{ width: "60%" }} /></div>
              </div>
            ) : pdfListStable ? (
-            <HTMLFlipBook
-              key={`${bookPageList.length}-${isFullscreen}-${isMobile}`}
-             ref={bookRef}
-             width={bookWidth}
-             height={bookHeight}
-             size="stretch"
-             minWidth={250}
-             maxWidth={bookMaxWidth}
-             minHeight={350}
-             maxHeight={bookMaxHeight}
-                 showCover={true}
-             drawShadow={true}
-             maxShadowOpacity={0.5}
-              flippingTime={Math.round((isMobile ? mobileFlipSpeed : flipSpeed) * 1000)}
-               usePortrait={true}
-             startPage={initialPage !== null ? initialPage : 0}
-             clickEventForward={true}
-              mobileScrollSupport={true}
-               useMouseEvents={true}
-             showPageCorners={true}
-                disableFlipByClick={false}
-              swipeDistance={15}
-             autoSize={true}
-             renderOnlyPageLengthChange={false}
-             onFlip={onFlip}
+             <HTMLFlipBook
+               key={`${bookPageList.length}-${isFullscreen}-${isMobile}`}
+              ref={bookRef}
+              width={bookWidth}
+              height={bookHeight}
+              size="stretch"
+              minWidth={250}
+              maxWidth={bookMaxWidth}
+              minHeight={350}
+              maxHeight={bookMaxHeight}
+                  showCover={true}
+              drawShadow={true}
+              maxShadowOpacity={0.5}
+               flippingTime={Math.round((isMobile ? mobileFlipSpeed : flipSpeed) * 1000)}
+                usePortrait={true}
+              startPage={initialPage !== null ? initialPage : 0}
+              clickEventForward={true}
+               mobileScrollSupport={true}
+                useMouseEvents={true}
+              showPageCorners={true}
+                 disableFlipByClick={false}
+               swipeDistance={28}
+              autoSize={true}
+              renderOnlyPageLengthChange={false}
+              onFlip={onFlip}
              onChangeState={onChangeState}
              onInit={onInit}
              className="mx-auto"
