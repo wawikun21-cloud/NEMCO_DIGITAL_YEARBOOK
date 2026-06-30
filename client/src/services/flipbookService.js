@@ -51,11 +51,12 @@ export async function getPublicFlipbook(department = null, batch = null) {
   return data
 }
 
-export async function getPdfPages(department = null, batch = null) {
+export async function getPdfPages(department = null, batch = null, edition = null) {
   const authHeaders = await getAuthHeaders()
   const params = new URLSearchParams()
   if (department) params.set("department", department)
   if (batch) params.set("batch", batch)
+  if (edition) params.set("edition", edition)
 
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages?${params}`, {
     method: "GET",
@@ -66,24 +67,24 @@ export async function getPdfPages(department = null, batch = null) {
   return data.pages
 }
 
-export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch }) {
+export async function addPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch, edition }) {
    const authHeaders = await getAuthHeaders()
    const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages`, {
      method: "POST",
      headers: { ...authHeaders, "Content-Type": "application/json" },
-     body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch }),
+     body: JSON.stringify({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, department, subDepartment, batch, edition }),
    })
    const data = await response.json()
    if (!response.ok) throw new Error(data.message || "Failed to add PDF page")
    return data.page
 }
 
-export async function updatePdfPage(id, { title, description, sortOrder, isActive, department, subDepartment, batch }) {
+export async function updatePdfPage(id, { title, description, sortOrder, isActive, department, subDepartment, batch, edition }) {
    const authHeaders = await getAuthHeaders()
    const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${id}`, {
      method: "PATCH",
      headers: { ...authHeaders, "Content-Type": "application/json" },
-     body: JSON.stringify({ title, description, sortOrder, isActive, department, subDepartment, batch }),
+     body: JSON.stringify({ title, description, sortOrder, isActive, department, subDepartment, batch, edition }),
    })
    const data = await response.json()
    if (!response.ok) throw new Error(data.message || "Failed to update PDF page")

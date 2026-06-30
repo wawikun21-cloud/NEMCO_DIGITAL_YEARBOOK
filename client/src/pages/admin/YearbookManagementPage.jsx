@@ -13,6 +13,7 @@ import {
   FileText,
   Upload,
   ExternalLink,
+  Crown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +47,15 @@ import PdfUploader from "@/components/admin/PdfUploader"
 import Yearbook3DPage from "@/pages/student/Yearbook3DPage"
 import { dedupeBatchLabels } from "@/utils/yearbookEditionHelpers"
 import { COURSE_OPTIONS } from "@/utils/courseOptions"
+
+const EDITION_MAIN = "main"
+const EDITION_MAIN_LABEL = "YEARBOOK MAIN"
+const EDITION_COURSE = "course"
+
+const EDITIONS = [
+  { value: EDITION_MAIN, label: EDITION_MAIN_LABEL, description: "Always opens first in the flipbook for every student" },
+  { value: EDITION_COURSE, label: "Course / Strand", description: "Shown after the main yearbook, scoped to a course/strand + batch" },
+]
 
 function SettingsSection({ settings, onUpdate }) {
   const [form, setForm] = useState(settings || {})
@@ -245,7 +255,7 @@ function EditionsList({ editions, onRefresh, catalog }) {
 
    const handleSaveEdit = async (id) => {
      try {
-       await updatePdfPage(id, { department: editDept || null, sub_department: null, batch: editBatch || null })
+       await updatePdfPage(id, { department: editDept || null, sub_department: null, batch: editBatch || null, edition: (editDept ? EDITION_COURSE : EDITION_MAIN) })
        setEditingId(null)
        onRefresh()
      } catch (err) {
@@ -343,6 +353,14 @@ function EditionsList({ editions, onRefresh, catalog }) {
                   <Badge variant={page.is_active ? "default" : "inactive"} className="text-[10px]">
                     {page.is_active ? "Active" : "Inactive"}
                   </Badge>
+                  {(page.edition || EDITION_COURSE) === EDITION_MAIN ? (
+                    <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">
+                      <Crown size={10} />
+                      {EDITION_MAIN_LABEL}
+                    </Badge>
+                  ) : (
+                    <span className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">Course</span>
+                  )}
 
                   <div className="flex items-center gap-1">
                     <Button
@@ -411,6 +429,7 @@ export default function YearbookManagementPage() {
     const [uploading, setUploading] = useState(false)
     const [selectedDept, setSelectedDept] = useState("")
     const [selectedBatch, setSelectedBatch] = useState("")
+    const [selectedEdition, setSelectedEdition] = useState(EDITION_COURSE)
 
     const batchOptions = dedupeBatchLabels(catalog.batches || [])
    const batchDatalistId = "batch-suggestions"
@@ -444,7 +463,8 @@ export default function YearbookManagementPage() {
   }
 
     const handleUpload = async ({ file, title, description, onProgress }) => {
-      if (!selectedDept) {
+      const isMain = selectedEdition === EDITION_MAIN
+      if (!isMain && !selectedDept) {
         throw new Error("Select a course/strand before uploading.")
       }
       setUploading(true)
@@ -459,14 +479,16 @@ export default function YearbookManagementPage() {
           fileSize: uploadResult.fileSize,
           pageCount: uploadResult.pageCount || 1,
           filePath: uploadResult.filePath,
-          department: selectedDept || null,
+          department: isMain ? null : selectedDept || null,
           subDepartment: null,
-          batch: selectedBatch || null,
+          batch: isMain ? null : selectedBatch || null,
+          edition: isMain ? EDITION_MAIN : EDITION_COURSE,
         })
 
         setShowUploadDialog(false)
         setSelectedDept("")
         setSelectedBatch("")
+        setSelectedEdition(EDITION_COURSE)
         fetchAll()
       } catch (err) {
         console.error(err)
@@ -527,51 +549,72 @@ export default function YearbookManagementPage() {
                 size="sm"
                 onClick={() => setShowUploadDialog(true)}
                 className="gap-2"
-                disabled={!selectedDept}
+                disabled={selectedEdition !== EDITION_MAIN && !selectedDept}
               >
                 <Plus size={14} />
                 Upload PDF
               </Button>
             </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Course / Strand</label>
-                  <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select course / strand…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COURSE_OPTIONS.flatMap((entry) => [
-                        <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
-                        ...entry.subs.map((s) => (
-                          <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
-                        )),
-                      ])}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Batch</label>
-                  <Input
-                    value={selectedBatch}
-                    onChange={(e) => setSelectedBatch(e.target.value)}
-                    placeholder="e.g. 2025-2026"
-                    className="h-9"
-                    list={batchDatalistId}
-                  />
-                  {batchOptions.length > 0 && (
-                    <datalist id={batchDatalistId}>
-                      {batchOptions.map((b) => (
-                        <option key={b} value={b} />
-                      ))}
-                    </datalist>
-                  )}
-                </div>
-              </div>
-            <p className="text-[10px] text-[var(--text-muted)] mt-2">
-              Options are loaded from existing student profiles. Students auto-see the yearbook that matches their course/strand on login.
-            </p>
+               <div className="grid gap-4 sm:grid-cols-3">
+                 <div>
+                   <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Edition</label>
+                   <Select value={selectedEdition || EDITION_COURSE} onValueChange={setSelectedEdition}>
+                     <SelectTrigger className="h-9">
+                       <SelectValue placeholder="Edition" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {EDITIONS.map((ed) => (
+                         <SelectItem key={ed.value} value={ed.value}>
+                           <div className="flex flex-col items-start">
+                             <span className="font-medium">{ed.label}</span>
+                             <span className="text-[10px] text-[var(--text-muted)]">{ed.description}</span>
+                           </div>
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <div>
+                   <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Course / Strand</label>
+                   <Select value={selectedDept || ""} onValueChange={setSelectedDept} disabled={selectedEdition === EDITION_MAIN}>
+                     <SelectTrigger className="h-9">
+                       <SelectValue placeholder="Select course / strand…" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {COURSE_OPTIONS.flatMap((entry) => [
+                         <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
+                         ...entry.subs.map((s) => (
+                           <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
+                         )),
+                       ])}
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <div>
+                   <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Batch</label>
+                   <Input
+                     value={selectedBatch}
+                     onChange={(e) => setSelectedBatch(e.target.value)}
+                     placeholder="e.g. 2025-2026"
+                     className="h-9"
+                     disabled={selectedEdition === EDITION_MAIN}
+                     list={batchDatalistId}
+                   />
+                   {batchOptions.length > 0 && (
+                     <datalist id={batchDatalistId}>
+                       {batchOptions.map((b) => (
+                         <option key={b} value={b} />
+                       ))}
+                     </datalist>
+                   )}
+                 </div>
+               </div>
+             <p className="text-[10px] text-[var(--text-muted)] mt-2">
+               {selectedEdition === EDITION_MAIN
+                 ? "Yearbook Main opens first for every student, regardless of course."
+                 : "Options are loaded from existing student profiles. Students auto-see the yearbook that matches their course/strand on login."}
+             </p>
           </div>
 
           <div className="rounded-lg border border-[var(--border-light)] bg-[var(--bg-surface)] p-6">
@@ -611,9 +654,11 @@ export default function YearbookManagementPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Upload PDF Edition</DialogTitle>
-            <DialogDescription>
-               Upload a PDF for {selectedDept || "the selected course/strand"}{selectedBatch ? ` (${selectedBatch})` : ""}
-             </DialogDescription>
+           <DialogDescription>
+              {selectedEdition === EDITION_MAIN
+                ? `Upload the ${EDITION_MAIN_LABEL} edition — this opens first for every student.`
+                : `Upload a PDF for ${selectedDept || "the selected course/strand"}${selectedBatch ? ` (${selectedBatch})` : ""}`}
+            </DialogDescription>
           </DialogHeader>
           <PdfUploader
             onUploadSuccess={handleUpload}

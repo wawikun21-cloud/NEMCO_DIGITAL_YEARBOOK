@@ -155,6 +155,7 @@ function usePdfPageImages(pdfPages) {
   const [loading, setLoading] = useState(false)
   const [aspectRatio, setAspectRatio] = useState(null)
   const [pdfPageCounts, setPdfPageCounts] = useState({})
+  const [firstPageReady, setFirstPageReady] = useState(false)
   const cacheRef = useRef({})
   const dimsRef = useRef({})
   const concurrencyRef = useRef(0)
@@ -163,6 +164,27 @@ function usePdfPageImages(pdfPages) {
   const loadedRef = useRef(false)
   const processQueueRef = useRef(null)
   const aspectRatioRef = useRef(null)
+  const firstPageKeyRef = useRef(null)
+
+  // Track which PDF+page is the "first page" of the flipbook so we can
+  // signal when it has actually been rendered to a data URL. The flipbook
+  // stays hidden until this flips, eliminating the flash of blank pages
+  // between mount and async PDF rasterization.
+  useEffect(() => {
+    if (!pdfPages || pdfPages.length === 0) {
+      firstPageKeyRef.current = null
+      setFirstPageReady(false)
+      return
+    }
+    const first = pdfPages[0]
+    const key = `${first.id}-1`
+    firstPageKeyRef.current = key
+    if (cacheRef.current[key] || images[key]) {
+      setFirstPageReady(true)
+    } else {
+      setFirstPageReady(false)
+    }
+  }, [pdfPages])
 
   const recomputeAspectRatio = useCallback(() => {
     const dims = Object.values(dimsRef.current)
@@ -215,6 +237,9 @@ function usePdfPageImages(pdfPages) {
       dimsRef.current[key] = { width: viewport.width, height: viewport.height }
       recomputeAspectRatio()
       setImages((prev) => ({ ...prev, [key]: dataUrl }))
+      if (firstPageKeyRef.current && key === firstPageKeyRef.current) {
+        setFirstPageReady(true)
+      }
       return dataUrl
     })()
   }, [recomputeAspectRatio])
@@ -288,7 +313,7 @@ function usePdfPageImages(pdfPages) {
     return () => { cancelled = true }
   }, [pdfPages])
 
-  return { images, loading, aspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: dimsRef }
+  return { images, loading, aspectRatio, pdfPageCounts, firstPageReady, renderEager, enqueueLazy, dims: dimsRef }
 }
   
 const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible, isLeftPage }, ref) {
@@ -391,12 +416,12 @@ const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
 
 const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pageNum, isLoading, isLeftPage }, ref) {
   return (
-    <div ref={ref} className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
+    <div ref={ref} className="relative h-full w-full bg-white">
       <div className="book-page-edge book-page-edge-right" />
       {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
-      <div className="flex-1 relative flex items-center justify-center z-[4]">
+      <div className="absolute inset-0 flex items-center justify-center">
         {imageUrl ? (
-          <img src={imageUrl} alt={title} className="h-full w-full object-contain" draggable={false} />
+          <img src={imageUrl} alt={title} className="h-full w-full object-cover" draggable={false} />
         ) : isLoading ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
@@ -409,7 +434,7 @@ const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pag
           </div>
         )}
       </div>
-      <div className="text-center py-1.5 border-t border-gray-100 z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{title} • Page {pageNum}</span></div>
+      <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{title} • Page {pageNum}</span></div>
     </div>
   )
 })
@@ -553,17 +578,17 @@ export default function Yearbook3DPage() {
         }
       }
 
-      let catalog = null
-      try {
+       let catalog = null
+       try {
          catalog = await getYearbookCatalog()
-          if (!cancelled) {
+         if (!cancelled) {
            setAvailableDepartments(catalog.departments || [])
            setAvailableBatches(catalog.batches || [])
            setDepartmentBatchMatrix(catalog.departmentBatchMatrix || {})
          }
-      } catch {
-        // Catalog load is optional; filters still work without dropdown data
-      }
+       } catch {
+         // Catalog load is optional; filters still work without dropdown data
+       }
 
       if (!cancelled) {
         if (isStudentView) {
@@ -696,27 +721,19 @@ export default function Yearbook3DPage() {
      return () => document.removeEventListener("mousedown", handler)
    }, [showToc])
 
-   const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
-   const sections = useMemo(() => (data?.sections || []), [data?.sections])
+    const pdfPages = useMemo(() => (data?.pdfPages || []), [data?.pdfPages])
+    const mainPdfPages = useMemo(() => (data?.mainPdfPages || []), [data?.mainPdfPages])
+    const coursePdfPages = useMemo(() => (data?.coursePdfPages || []), [data?.coursePdfPages])
+    const sections = useMemo(() => (data?.sections || []), [data?.sections])
      const hierarchicalCourseOptions = useMemo(() => {
        return COURSE_OPTIONS.map((opt) => ({
          value: opt.value,
          label: opt.value,
          subs: [...opt.subs],
        }))
-     }, [])
+  }, [])
 
-  const batchOptions = useMemo(() => {
-    const normalizedDept = normalizeEditionFilter(selectedDepartment)
-    if (normalizedDept) {
-      const matrixBatches = departmentBatchMatrix[normalizedDept] || []
-      const filtered = availableBatches.filter((b) => matrixBatches.includes(b))
-      return filtered.length > 0 ? filtered : matrixBatches
-    }
-    return availableBatches
-  }, [availableBatches, departmentBatchMatrix, selectedDepartment])
-
-  useEffect(() => {
+   useEffect(() => {
     if (!selectedDepartment) return
     const normalizedDept = normalizeEditionFilter(selectedDepartment)
     const matrixBatches = departmentBatchMatrix[normalizedDept] || []
@@ -726,7 +743,7 @@ export default function Yearbook3DPage() {
     }
   }, [selectedDepartment, departmentBatchMatrix])
 
-  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
+  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
 
@@ -770,9 +787,17 @@ export default function Yearbook3DPage() {
            contentPages.push({ type: "student-back", data: fp })
          }
        }
-     } else if (sourceType === "pdfs") {
-       for (const pdf of pdfPages) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
-     } else {
+      } else if (sourceType === "pdfs") {
+        // The YEARBOOK MAIN edition always comes first (it is global), followed by
+        // the student's course-scoped edition. A section divider marks the change
+        // so readers know they've switched from the main yearbook to their course.
+        const mainCount = (pdf) => pdfPageCounts[pdf.id] || pdf.page_count || 1
+        for (const pdf of mainPdfPages) { for (let i = 1; i <= mainCount(pdf); i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+        if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
+          contentPages.push({ type: "section", name: selectedDepartment || "Course Yearbook" })
+        }
+        for (const pdf of coursePdfPages) { for (let i = 1; i <= mainCount(pdf); i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+      } else {
        if (sections.length > 0) {
          const sectionMap = new Map(), unsectioned = []
          for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
@@ -807,51 +832,61 @@ export default function Yearbook3DPage() {
          const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== firstKey)
          return [{ type: "cover", _designPage: firstPdfPage }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
        }
-       return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
-    }, [profiles, sections, pdfPages, data?.sourceType, pdfPageCounts])
+        return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
+     }, [profiles, sections, pdfPages, mainPdfPages, coursePdfPages, selectedDepartment, data?.sourceType, pdfPageCounts])
 
-  // Collect image URLs that the visible cover page depends on so we can preload
-  // them before revealing the flipbook. This prevents the flash of blank cover
-  // on initial mount.
-  const coverImageUrls = useMemo(() => {
-    const urls = []
-    const coverPage = bookPageList[0]
-    if (!coverPage) return urls
-    const dp = coverPage._designPage
-    if (dp?.type === "student" || dp?.type === "student-back") {
-      const av = dp.data?.profile?.avatar_url
-      if (av) urls.push(av)
-    }
-    return urls
-  }, [bookPageList])
+   // Preload cover-derived images. Flip `bookReady` once every asset has either
+   // loaded or failed AND the first fill PDF page has actually rendered to a data
+   // URL. Without this gate, the flipbook mounts before its first page's PDF image
+   // has decoded, so the cover paints blank for a few seconds before content appears.
+   const coverImageUrls = useMemo(() => {
+     const urls = []
+     const coverPage = bookPageList[0]
+     if (!coverPage) return urls
+     const dp = coverPage._designPage
+     if (dp?.type === "student" || dp?.type === "student-back") {
+       const av = dp.data?.profile?.avatar_url
+       if (av) urls.push(av)
+     }
+     return urls
+   }, [bookPageList])
 
-  // Preload cover-derived images. Flip `bookReady` once every asset has either
-  // loaded or failed. Without this gate, the flipbook mounts before its first
-  // page's avatar/PDF image has decoded, so the cover paints blank.
-  useEffect(() => {
-    if (!data) {
-      setBookReady(false)
-      return
-    }
-    if (coverImageUrls.length === 0) {
-      setBookReady(true)
-      return
-    }
-    let cancelled = false
-    let remaining = coverImageUrls.length
-    const done = () => {
-      if (cancelled) return
-      remaining -= 1
-      if (remaining <= 0) setBookReady(true)
-    }
-    for (const url of coverImageUrls) {
-      const img = new Image()
-      img.onload = done
-      img.onerror = done
-      img.src = url
-    }
-    return () => { cancelled = true }
-  }, [data, coverImageUrls])
+   const hasCoverPdf = useMemo(() => {
+     const coverPage = bookPageList[0]
+     return coverPage?._designPage?.type === "pdf"
+   }, [bookPageList])
+
+   useEffect(() => {
+     if (!data) {
+       setBookReady(false)
+       return
+     }
+     // If the cover is a PDF, wait until the first page has actually rendered to
+     // a data URL before revealing the flipbook. Otherwise the cover is a blank
+     // white page for a few seconds while pdfjs works.
+     if (hasCoverPdf && !pdfFirstPageReady) {
+       setBookReady(false)
+       return
+     }
+     if (coverImageUrls.length === 0) {
+       setBookReady(true)
+       return
+     }
+     let cancelled = false
+     let remaining = coverImageUrls.length
+     const done = () => {
+       if (cancelled) return
+       remaining -= 1
+       if (remaining <= 0) setBookReady(true)
+     }
+     for (const url of coverImageUrls) {
+       const img = new Image()
+       img.onload = done
+       img.onerror = done
+       img.src = url
+     }
+     return () => { cancelled = true }
+   }, [data, coverImageUrls, hasCoverPdf, pdfFirstPageReady])
 
   const displayPageList = useMemo(() => {
     if (!filtered) return bookPageList
@@ -1441,19 +1476,10 @@ export default function Yearbook3DPage() {
              className="mx-auto"
              style={{ maxWidth: "100%" }}
            >
-              {bookPageList.map((page, idx) => {
-                // Windowing: only render pages within a window of the current page.
-                // The flipbook remains responsive during navigation while off-screen
-                // pages stay lightweight placeholders, cutting render time on large
-                // yearbooks. The cover (idx 0) is always rendered.
-                const dist = Math.abs(idx - currentPage)
-                const inWindow = idx === 0 || dist <= 7
-                if (!inWindow) {
-                  return <div key={idx === 0 ? "cover" : `page-${idx}`} className="h-full w-full bg-white" />
-                }
-                const isStudent = page.type === "student" || page.type === "student-back"
-                const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data?.profile?.id)
-                const isLeftPage = idx % 2 === 0
+               {bookPageList.map((page, idx) => {
+                 const isStudent = page.type === "student" || page.type === "student-back"
+                 const visible = !isStudent || !filteredIdSet || filteredIdSet.has(page.data?.profile?.id)
+                 const isLeftPage = idx % 2 === 0
 
                 if (page.type === "cover") {
                   const dp = page._designPage
@@ -1511,30 +1537,30 @@ export default function Yearbook3DPage() {
                       </div>
                     )
                   }
-                  if (dp.type === "pdf") {
-                    const img = pdfImages[`${dp.data.id}-${dp.pageNum}`]
-                    return (
-                      <div key="cover" className="flex h-full w-full flex-col bg-white p-5 sm:p-6 relative book-page-curve-shading">
-                        <div className="book-page-edge book-page-edge-right" />
-                        <div className="flex-1 relative flex items-center justify-center z-[4]">
-                          {img ? (
-                            <img src={img} alt={dp.data.title} className="h-full w-full object-contain" draggable={false} />
-                          ) : pdfLoading ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
-                              <span className="text-[10px] text-[var(--text-muted)]/50">Loading page {dp.pageNum}…</span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center gap-1">
-                              <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
-                              <span className="text-[10px] text-[var(--text-muted)]/40">{dp.data.title}</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-center py-1.5 border-t border-gray-100 z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
-                      </div>
-                    )
-                  }
+                   if (dp.type === "pdf") {
+                     const img = pdfImages[`${dp.data.id}-${dp.pageNum}`]
+                     return (
+                       <div key="cover" className="relative h-full w-full bg-white">
+                         <div className="book-page-edge book-page-edge-right" />
+                         <div className="absolute inset-0 flex items-center justify-center">
+                           {img ? (
+                             <img src={img} alt={dp.data.title} className="h-full w-full object-cover" draggable={false} />
+                           ) : pdfLoading ? (
+                             <div className="flex flex-col items-center gap-2">
+                               <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
+                               <span className="text-[10px] text-[var(--text-muted)]/50">Loading page {dp.pageNum}…</span>
+                             </div>
+                           ) : (
+                             <div className="flex flex-col items-center gap-1">
+                               <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
+                               <span className="text-[10px] text-[var(--text-muted)]/40">{dp.data.title}</span>
+                             </div>
+                           )}
+                         </div>
+                         <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
+                       </div>
+                     )
+                   }
                   return <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
                 }
                 if (page.type === "inside-cover") {

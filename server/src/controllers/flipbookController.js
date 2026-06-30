@@ -40,8 +40,8 @@ export async function fetchPublicFlipbook(req, res, next) {
 
 export async function fetchPdfPages(req, res, next) {
   try {
-    const { department, batch } = req.query
-    const pages = await getFlipbookPdfPages(department || null, batch || null)
+    const { department, batch, edition } = req.query
+    const pages = await getFlipbookPdfPages(department || null, batch || null, { edition: edition || null })
     res.json({ pages })
   } catch (error) {
     next(error)
@@ -50,14 +50,16 @@ export async function fetchPdfPages(req, res, next) {
 
 export async function addPdfPage(req, res, next) {
   try {
-    const { title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, sectionName, department, batch } = req.body
+    const { title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, sectionName, department, batch, edition } = req.body
 
     if (!fileUrl || !fileName) {
       return res.status(400).json({ message: "fileUrl and fileName are required" })
     }
 
-    if (!department?.trim()) {
-      return res.status(400).json({ message: "Course/strand is required. Select a value from student profiles." })
+    const isMain = (edition || "").toLowerCase() === "main"
+
+    if (!isMain && !department?.trim()) {
+      return res.status(400).json({ message: "Course/strand is required. Select a value from student profiles, or choose 'Yearbook Main' edition." })
     }
 
     const page = await createFlipbookPdfPage({
@@ -71,8 +73,9 @@ export async function addPdfPage(req, res, next) {
       filePath,
       uploadedBy: req.user?.id || null,
       sectionName,
-      department,
-      batch,
+      department: isMain ? null : department,
+      batch: isMain ? null : batch,
+      edition: isMain ? "main" : (edition || "course"),
     })
 
     res.json({ page })
@@ -84,7 +87,7 @@ export async function addPdfPage(req, res, next) {
 export async function updatePdfPage(req, res, next) {
   try {
     const { id } = req.params
-    const { title, description, sortOrder, isActive, department, batch } = req.body
+    const { title, description, sortOrder, isActive, department, batch, edition } = req.body
 
     const page = await updateFlipbookPdfPage(id, {
       title,
@@ -93,6 +96,7 @@ export async function updatePdfPage(req, res, next) {
       isActive,
       department,
       batch,
+      edition,
     })
 
     if (!page) {
