@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react"
 import HTMLFlipBook from "react-pageflip"
-import { getDownloadUrl } from "@/services/flipbookService"
 
 const BOOK_3D_STYLES_ID = "book-3d-depth-styles"
 
@@ -143,7 +142,7 @@ import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
 import { useAuth } from "@/contexts/AuthContext"
 import { dedupeBatchLabels, newestBatchLabel, normalizeEditionFilter } from "@/utils/yearbookEditionHelpers"
-import { COURSE_OPTIONS } from "@/utils/courseOptions"
+import { COURSE_OPTIONS, DEPARTMENT_OPTIONS } from "@/utils/courseOptions"
 import * as pdfjsLib from "pdfjs-dist"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -151,7 +150,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString()
 
-function usePdfPageImages(pdfPages, isMobile = false) {
+function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
   const [images, setImages] = useState({})
   const [loading, setLoading] = useState(false)
   const [aspectRatio, setAspectRatio] = useState(null)
@@ -250,10 +249,9 @@ function usePdfPageImages(pdfPages, isMobile = false) {
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
     concurrencyRef.current++
-    // Use a smaller scale on mobile: the flipbook pages are small on phone
-    // screens, so a 1.5x raster is wasted pixels and forces pdfjs to work
-    // harder during the already-expensive eager-pass that gates first paint.
-    const scale = isMobile ? 1.2 : 1.5
+    // Use a lower raster scale to speed up initial PDF page rendering.
+    // Desktop uses 1.2x and mobile uses 1.0x for a faster first paint.
+    const scale = isMobile ? 1.0 : 1.2
     renderPage(pdfId, pageNum, scale).finally(() => {
       concurrencyRef.current--
       processQueueRef.current()
@@ -264,8 +262,8 @@ function usePdfPageImages(pdfPages, isMobile = false) {
     if (!loadedRef.current) return
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
-    queueRef.current.push(() => renderPage(pdfId, pageNum, 1.0))
-  }, [renderPage])
+    queueRef.current.push(() => renderPage(pdfId, pageNum, isMobile ? 0.8 : 0.9))
+  }, [renderPage, isMobile])
 
   useEffect(() => {
     if (!pdfPages || pdfPages.length === 0) {
@@ -285,36 +283,77 @@ function usePdfPageImages(pdfPages, isMobile = false) {
     async function loadDocs() {
       const newPageCounts = {}
       const newImages = {}
-      const allDocTasks = []
-
+      const pdfIds = new Map()
       for (const pdf of pdfPages) {
-        allDocTasks.push((async () => {
-          try {
-            const fileUrl = pdf.file_path
-              ? await getDownloadUrl(pdf.file_path)
-              : pdf.file_url
-            const loadingTask = pdfjsLib.getDocument(fileUrl)
-            const pdfDoc = await loadingTask.promise
-            docsRef.current[pdf.id] = pdfDoc
-            newPageCounts[pdf.id] = pdfDoc.numPages
-            for (let p = 1; p <= pdfDoc.numPages; p++) {
-              const key = `${pdf.id}-${p}`
-              if (cacheRef.current[key]) {
-                newImages[key] = cacheRef.current[key]
-              }
-            }
-          } catch { /* skip */ }
-        })())
+        if (!pdfIds.has(pdf.id)) pdfIds.set(pdf.id, pdf)
       }
 
-      await Promise.allSettled(allDocTasks)
+      const initialPdfIds = new Set(priorityPdfIds)
+      const firstPdf = pdfPages[0]
+      if (firstPdf && !initialPdfIds.has(firstPdf.id)) initialPdfIds.add(firstPdf.id)
 
+      const remainingPdfIds = [...pdfIds.keys()].filter((id) => !initialPdfIds.has(id))
+      const initialTasks = []
+      const remainingTasks = []
+
+      const createTask = (pdf) => async () => {
+        try {
+          let fileUrl = null
+          if (pdf.file_path) {
+            fileUrl = `/api/admin/upload/file/${encodeURIComponent(pdf.file_path)}`
+          } else if (pdf.file_url) {
+            try {
+              const parsed = new URL(pdf.file_url)
+              let path = parsed.pathname.replace(/^\/+/, "")
+              if (path.startsWith("flipbook-pdfs/")) path = path.slice("flipbook-pdfs/".length)
+              if (path) {
+                fileUrl = `/api/admin/upload/file/${encodeURIComponent(path)}`
+              }
+            } catch (err) {
+              fileUrl = pdf.file_url
+            }
+            if (!fileUrl) fileUrl = pdf.file_url
+          }
+          if (!fileUrl) return
+          const loadingTask = pdfjsLib.getDocument(fileUrl)
+          const pdfDoc = await loadingTask.promise
+          docsRef.current[pdf.id] = pdfDoc
+          newPageCounts[pdf.id] = pdfDoc.numPages
+          if (!loadedRef.current) {
+            loadedRef.current = true
+            processQueueRef.current?.()
+          }
+          for (let p = 1; p <= pdfDoc.numPages; p++) {
+            const key = `${pdf.id}-${p}`
+            if (cacheRef.current[key]) {
+              newImages[key] = cacheRef.current[key]
+            }
+          }
+        } catch { /* skip */ }
+      }
+
+      for (const id of initialPdfIds) {
+        const pdf = pdfIds.get(id)
+        if (pdf) initialTasks.push(createTask(pdf))
+      }
+      for (const id of remainingPdfIds) {
+        const pdf = pdfIds.get(id)
+        if (pdf) remainingTasks.push(createTask(pdf))
+      }
+
+      await Promise.allSettled(initialTasks.map((task) => task()))
       if (cancelled) return
 
       setImages((prev) => ({ ...prev, ...newImages }))
       setPdfPageCounts(newPageCounts)
       loadedRef.current = true
       setLoading(false)
+
+      if (remainingTasks.length > 0) {
+        setTimeout(() => {
+          Promise.allSettled(remainingTasks.map((task) => task()))
+        }, 100)
+      }
     }
 
     loadDocs()
@@ -609,9 +648,9 @@ export default function Yearbook3DPage() {
 
       if (!cancelled) {
         if (isStudentView) {
-          setSelectedDepartment(subCourse || courseStrand)
+          setSelectedDepartment(courseStrand)
         }
-        const initDept = subCourse || courseStrand || null
+        const initDept = courseStrand || null
         const matrix = catalog?.departmentBatchMatrix || {}
         const initBatches = initDept
           ? (matrix[initDept] || [])
@@ -744,21 +783,17 @@ export default function Yearbook3DPage() {
      const coursePdfPages = useMemo(() => (data?.coursePdfPages || []), [data?.coursePdfPages])
     const pdfPages = useMemo(() => [...mainPdfPages, ...coursePdfPages], [mainPdfPages, coursePdfPages])
     const sections = useMemo(() => (data?.sections || []), [data?.sections])
-     const hierarchicalCourseOptions = useMemo(() => {
-        // Build the list of courses a student can view: their own sub-course,
-        // its parent course, and any other courses that have PDFs uploaded.
-        // This ensures a BSIT student can see PDFs uploaded under "CIT" even
-        // if no PDFs exist specifically for "BSIT".
-        const options = COURSE_OPTIONS.map((opt) => ({
-          value: opt.value,
-          label: opt.value,
-          subs: [...opt.subs],
-        }))
-        return options
+const departmentOptions = useMemo(() => {
+       return DEPARTMENT_OPTIONS
    }, [])
 
     useEffect(() => {
-     if (!selectedDepartment) return
+     if (!selectedDepartment) {
+       if (selectedBatch !== null) {
+         setSelectedBatch(null)
+       }
+       return
+     }
      const normalizedDept = normalizeEditionFilter(selectedDepartment)
      // Check batches for the selected department AND its parent course (e.g. BSIT → CIT).
      // PDFs may be stored under the parent course name.
@@ -769,9 +804,10 @@ export default function Yearbook3DPage() {
      if (selectedBatch && !allBatches.includes(selectedBatch)) {
        setSelectedBatch(newestBatchLabel(allBatches))
      }
-   }, [selectedDepartment, departmentBatchMatrix])
+   }, [selectedDepartment, selectedBatch, departmentBatchMatrix])
 
-  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages, isMobile)
+  const priorityPdfIds = useMemo(() => [...new Set(mainPdfPages.map((pdf) => pdf.id))], [mainPdfPages])
+  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages, isMobile, priorityPdfIds)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
 
@@ -793,6 +829,22 @@ export default function Yearbook3DPage() {
 
   const bookPageList = useMemo(() => {
      const sourceType = data?.sourceType || "profiles"
+     // Helper to read a sane page count for a PDF and cap it to prevent
+     // extremely large/invalid values from producing a huge flipbook.
+     const getPdfCount = (pdf) => {
+       const raw = pdfPageCounts[pdf.id] || pdf.page_count || 1
+       let n = Number(raw) || 1
+       if (!Number.isFinite(n) || n < 1) n = 1
+       if (n > 500) n = 500
+       return Math.floor(n)
+     }
+     const seenPdfPages = new Set()
+     const pushPdfPage = (pdf, pageNum) => {
+       const key = `${pdf.id}-${pageNum}`
+       if (seenPdfPages.has(key)) return
+       seenPdfPages.add(key)
+       contentPages.push({ type: "pdf", data: pdf, pageNum })
+     }
      const contentPages = []
      if (sourceType === "profiles") {
        if (sections.length > 0) {
@@ -816,36 +868,40 @@ export default function Yearbook3DPage() {
          }
        }
       } else if (sourceType === "pdfs") {
-        // The YEARBOOK MAIN edition always comes first (it is global), followed by
-        // the student's course-scoped edition. A section divider marks the change
-        // so readers know they've switched from the main yearbook to their course.
-        //
-        // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
-        // same page never appears twice even when mainPdfPages and coursePdfPages
-        // reference the same pdf. Duplicate keys caused both the React key warning
-        // and slow mobile loading (pdfjs rendered the same page multiple times).
-        const mainCount = (pdf) => pdfPageCounts[pdf.id] || pdf.page_count || 1
-        const seenPdfPages = new Set()
-        const pushPdfPage = (pdf, pageNum) => {
-          const key = `${pdf.id}-${pageNum}`
-          if (seenPdfPages.has(key)) return
-          seenPdfPages.add(key)
-          contentPages.push({ type: "pdf", data: pdf, pageNum })
-        }
-        for (const pdf of mainPdfPages) { for (let i = 1; i <= mainCount(pdf); i++) pushPdfPage(pdf, i) }
-        if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
-          contentPages.push({ type: "section", name: selectedDepartment || "Course Yearbook" })
-        }
-        for (const pdf of coursePdfPages) { for (let i = 1; i <= mainCount(pdf); i++) pushPdfPage(pdf, i) }
-        // Reserve the first page of the first pdf for the cover. It is rendered by
-        // the <BookCover _designPage> branch, so it must not appear in the body.
-        const firstPdfPage = mainPdfPages.length > 0 ? mainPdfPages[0] : (coursePdfPages.length > 0 ? coursePdfPages[0] : null)
-        if (firstPdfPage) {
-          const coverKey = `${firstPdfPage.id}-1`
-          const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== coverKey)
-          return [{ type: "cover", _designPage: { type: "pdf", data: firstPdfPage, pageNum: 1 } }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
-        }
-        return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
+          // The YEARBOOK MAIN edition always comes first (it is global), followed by
+          // the student's course-scoped edition. A section divider marks the change
+          // so readers know they've switched from the main yearbook to their course.
+          //
+          // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
+          // same page never appears twice even when mainPdfPages and coursePdfPages
+          // reference the same pdf. Also clamp page counts to reasonable bounds to
+          // avoid runaway lengths caused by corrupt/misstored page_count values.
+          // use shared getPdfCount / pushPdfPage helpers defined above
+
+          for (const pdf of mainPdfPages) {
+            const cnt = getPdfCount(pdf)
+            for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
+          }
+
+          if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
+            contentPages.push({ type: "section", name: selectedDepartment || "Department Yearbook" })
+          }
+
+          for (const pdf of coursePdfPages) {
+            const cnt = getPdfCount(pdf)
+            for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
+          }
+
+          // Reserve the first page of the first pdf for the cover. It is rendered by
+          // the <BookCover _designPage> branch, so it must not appear in the body.
+          const firstPdfPage = mainPdfPages.length > 0 ? mainPdfPages[0] : (coursePdfPages.length > 0 ? coursePdfPages[0] : null)
+          if (firstPdfPage) {
+            const coverKey = `${firstPdfPage.id}-1`
+            const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== coverKey)
+            return [{ type: "cover", _designPage: { type: "pdf", data: firstPdfPage, pageNum: 1 } }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
+          }
+
+          return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
       } else {
        if (sections.length > 0) {
          const sectionMap = new Map(), unsectioned = []
@@ -858,21 +914,21 @@ export default function Yearbook3DPage() {
              contentPages.push({ type: "student", data: sp })
              contentPages.push({ type: "student-back", data: sp })
            }
-           for (const pdf of (pdfSectionMap.get(sec.name) || [])) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+           for (const pdf of (pdfSectionMap.get(sec.name) || [])) { const cnt = getPdfCount(pdf); for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i) }
          }
          for (const up of unsectioned) {
            contentPages.push({ type: "student", data: up })
            contentPages.push({ type: "student-back", data: up })
          }
-         for (const pdf of unsectionedPdfs) { const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }) }
+         for (const pdf of unsectionedPdfs) { const cnt = getPdfCount(pdf); for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i) }
        } else {
          let pi = 0
          for (let i = 0; i < profiles.length; i++) {
            contentPages.push({ type: "student", data: profiles[i] })
            contentPages.push({ type: "student-back", data: profiles[i] })
-           if ((i + 1) % 2 === 0 && pi < pdfPages.length) { contentPages.push({ type: "pdf", data: pdfPages[pi], pageNum: 1 }); pi++ }
+           if ((i + 1) % 2 === 0 && pi < pdfPages.length) { pushPdfPage(pdfPages[pi], 1); pi++ }
          }
-         while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const count = pdfPageCounts[pdf.id] || pdf.page_count || 1; for (let i = 1; i <= count; i++) contentPages.push({ type: "pdf", data: pdf, pageNum: i }); pi++ }
+         while (pi < pdfPages.length) { const pdf = pdfPages[pi]; const cnt = getPdfCount(pdf); for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i); pi++ }
        }
      }
        const firstPdfPage = pdfPages.length > 0 ? { type: "pdf", data: pdfPages[0], pageNum: 1 } : null
@@ -910,12 +966,15 @@ export default function Yearbook3DPage() {
        setBookReady(false)
        return
      }
-     // If the cover is a PDF, wait until the first page has actually rendered to
-     // a data URL before revealing the flipbook. Otherwise the cover is a blank
-     // white page for a few seconds while pdfjs works.
      if (hasCoverPdf && !pdfFirstPageReady) {
+       let fallback = null
        setBookReady(false)
-       return
+       fallback = window.setTimeout(() => {
+         setBookReady(true)
+       }, 1500)
+       return () => {
+         window.clearTimeout(fallback)
+       }
      }
      if (coverImageUrls.length === 0) {
        setBookReady(true)
@@ -1375,8 +1434,8 @@ export default function Yearbook3DPage() {
              ? `${selectedDepartment}${selectedBatch ? ` (${selectedBatch})` : ""} doesn't have a flipbook yet.`
              : "No content has been added to this yearbook yet."}
          </p>
-         {hierarchicalCourseOptions.length > 0 && (
-           <p className="text-xs text-[var(--text-muted)]">Try selecting a different course/strand or batch from the filter above.</p>
+         {departmentOptions.length > 0 && (
+           <p className="text-xs text-[var(--text-muted)]">Try selecting a different department or batch from the filter above.</p>
          )}
        </div>
      </div>
@@ -1406,28 +1465,24 @@ export default function Yearbook3DPage() {
               </div>
             </div>
               <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-                {hierarchicalCourseOptions.length > 0 && (
+                {departmentOptions.length > 0 && (
                   <div className="hidden sm:flex items-center gap-1.5">
                     <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
                       <SelectTrigger className={`h-7 min-w-[110px] text-xs sm:min-w-[140px] ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                        <SelectValue placeholder="Course / Strand" />
+                        <SelectValue placeholder="Department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {hierarchicalCourseOptions.flatMap((entry) => [
-                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
-                          ...entry.subs.map((s) => (
-                            <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
-                          )),
-                        ])}
+                        {departmentOptions.map((entry) => (
+                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>
+                        ))}
                       </SelectContent>
                      </Select>
                       {studentProfile?.course_or_strand && (
                         <button
                           onClick={() => {
-                            const subCourse = studentProfile.sub_course?.trim()
                             const parentCourse = studentProfile.course_or_strand?.trim()
-                            setSelectedDepartment(subCourse || parentCourse)
-                            const matrix = departmentBatchMatrix[subCourse] || departmentBatchMatrix[parentCourse] || {}
+                            setSelectedDepartment(parentCourse)
+                            const matrix = departmentBatchMatrix[parentCourse] || {}
                             const batches = dedupeBatchLabels(Object.keys(matrix))
                             setSelectedBatch(newestBatchLabel(batches))
                           }}
@@ -1503,29 +1558,25 @@ export default function Yearbook3DPage() {
                </div>
 
               {/* Mobile-only filter row: inside header so it inherits the header background */}
-              {hierarchicalCourseOptions.length > 0 && (
+              {departmentOptions.length > 0 && (
                 <div className="sm:hidden mx-auto max-w-5xl px-3 pb-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
                       <SelectTrigger className={`h-7 min-w-[110px] flex-1 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
-                        <SelectValue placeholder="Course / Strand" />
+                        <SelectValue placeholder="Department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {hierarchicalCourseOptions.flatMap((entry) => [
-                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
-                          ...entry.subs.map((s) => (
-                            <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
-                          )),
-                        ])}
+                        {departmentOptions.map((entry) => (
+                          <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>
+                        ))}
                       </SelectContent>
                      </Select>
                       {studentProfile?.course_or_strand && (
                         <button
                           onClick={() => {
-                            const subCourse = studentProfile.sub_course?.trim()
                             const parentCourse = studentProfile.course_or_strand?.trim()
-                            setSelectedDepartment(subCourse || parentCourse)
-                            const matrix = departmentBatchMatrix[subCourse] || departmentBatchMatrix[parentCourse] || {}
+                            setSelectedDepartment(parentCourse)
+                            const matrix = departmentBatchMatrix[parentCourse] || {}
                             const batches = dedupeBatchLabels(Object.keys(matrix))
                             setSelectedBatch(newestBatchLabel(batches))
                           }}
@@ -1583,16 +1634,15 @@ export default function Yearbook3DPage() {
               maxWidth={bookMaxWidth}
               minHeight={350}
               maxHeight={bookMaxHeight}
-                  showCover={true}
+              showCover={true}
               drawShadow={true}
               maxShadowOpacity={0.5}
-               flippingTime={Math.round((isMobile ? mobileFlipSpeed : flipSpeed) * 1000)}
-                usePortrait={true}
-               startPage={initialPage !== null ? initialPage : 0}
-               key={`flipbook-${selectedDepartment}-${selectedBatch}-${isFullscreen}-${isMobile}`}
+              flippingTime={Math.round((isMobile ? mobileFlipSpeed : flipSpeed) * 1000)}
+              usePortrait={true}
+              startPage={initialPage !== null ? initialPage : 0}
               clickEventForward={true}
-               mobileScrollSupport={true}
-                useMouseEvents={true}
+              mobileScrollSupport={true}
+              useMouseEvents={true}
               showPageCorners={true}
                  disableFlipByClick={false}
                swipeDistance={28}

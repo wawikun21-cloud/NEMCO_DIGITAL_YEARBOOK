@@ -146,7 +146,8 @@ async function resolveCourseOrStrand(value) {
    if (courses.includes(normalized)) return normalized
    if (subCourses.includes(normalized)) return normalized
 
-   const allValues = [...courses, ...subCourses]
+   const staticDepartments = COURSE_OPTIONS_CLIENT.flatMap((entry) => [entry.value, ...(entry.subs || [])])
+   const allValues = [...courses, ...subCourses, ...staticDepartments]
    const caseMatch = allValues.find((c) => c.toLowerCase() === normalized.toLowerCase())
    if (caseMatch) return caseMatch
 
@@ -491,7 +492,7 @@ export async function getPublicFlipbook(department = null, batch = null) {
     }
 
     const dept = normalizeEditionFilter(department)
-    const bat = normalizeEditionFilter(batch)
+    const bat = dept ? normalizeEditionFilter(batch) : null
 
     // The YEARBOOK MAIN edition always comes first, regardless of the student's
     // course. The course edition is loaded separately so the client can keep the

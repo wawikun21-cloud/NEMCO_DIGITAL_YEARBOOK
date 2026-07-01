@@ -3,6 +3,9 @@ export function errorHandler(error, req, res, next) {
     return next(error)
   }
 
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
+  res.setHeader("Access-Control-Allow-Credentials", "true")
+
   if (error.name === "ZodError") {
     const message = error.errors[0]?.message || "Invalid request body"
     return res.status(400).json({ message })

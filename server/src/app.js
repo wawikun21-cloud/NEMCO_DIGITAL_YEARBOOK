@@ -35,18 +35,16 @@ const corsOptions = {
     return callback(new Error("CORS origin is not allowed"))
   },
   credentials: true,
+  exposedHeaders: ["Content-Type", "Content-Length", "Authorization"],
 }
 
 app.use(cors(corsOptions))
 app.use(express.json({ limit: "10mb" }))
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"))
 
-// Set a 5-minute timeout for long-running requests (e.g., bulk imports)
 app.use((req, res, next) => {
-  req.setTimeout(300000, () => {
-    res.status(408).json({ message: "Request timeout" })
-  })
-  res.setTimeout(300000)
+  req.setTimeout(600000)
+  res.setTimeout(600000)
   next()
 })
 

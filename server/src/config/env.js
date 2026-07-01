@@ -31,6 +31,21 @@ export const config = {
     region: process.env.B2_REGION || "",
     publicBaseUrl: process.env.B2_PUBLIC_BASE_URL || "",
   },
+  gcs: {
+    projectId: process.env.GCS_PROJECT_ID || "",
+    bucket: process.env.GCS_BUCKET_NAME || "",
+    keyFile: process.env.GCS_KEY_FILE || "",
+    credentials: process.env.GCS_CREDENTIALS || "",
+    publicBaseUrl: process.env.GCS_PUBLIC_BASE_URL || "",
+  },
+  r2: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
+    bucket: process.env.R2_BUCKET_NAME || "",
+    endpoint: process.env.R2_ENDPOINT || "",
+    region: process.env.R2_REGION || "auto",
+    publicBaseUrl: process.env.R2_PUBLIC_BASE_URL || "",
+  },
 }
 
 const requiredEnv = [

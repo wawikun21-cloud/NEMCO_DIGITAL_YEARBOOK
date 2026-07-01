@@ -41,7 +41,7 @@ export async function updateFlipbookSettings(updates) {
 export async function getPublicFlipbook(department = null, batch = null) {
   const params = new URLSearchParams()
   if (department) params.set("department", department)
-  if (batch) params.set("batch", batch)
+  if (department && batch) params.set("batch", batch)
 
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/flipbook?${params}`, {
     method: "GET",
@@ -102,17 +102,42 @@ export async function removePdfPage(id) {
   return true
 }
 
-export async function uploadPdfFile(file, onProgress) {
+async function getPresignedUrl(fileName, fileSize) {
   const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/upload/presigned-url`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName, contentType: "application/pdf", fileSize }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to get upload URL")
+  return data
+}
+
+async function confirmUpload(key, fileName, fileSize) {
+  const authHeaders = await getAuthHeaders()
+  const response = await fetch(`${API_BASE_URL}/admin/upload/confirm-upload`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ key, fileName, fileSize }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to confirm upload")
+  return data
+}
+
+function uploadViaServer(file, onProgress) {
+  const authHeaders = getAuthHeadersSync()
   const formData = new FormData()
   formData.append("file", file)
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
+    let timedOut = false
     const timeoutId = setTimeout(() => {
+      timedOut = true
       xhr.abort()
-      reject(new Error("Upload timed out. Please check your connection and try again."))
-    }, 300000)
+    }, 900000)
 
     xhr.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable && onProgress) {
@@ -125,42 +150,103 @@ export async function uploadPdfFile(file, onProgress) {
       clearTimeout(timeoutId)
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const data = JSON.parse(xhr.responseText)
-          resolve(data)
-        } catch (e) {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
           reject(new Error("Failed to parse server response"))
         }
       } else {
         try {
-          const errorData = JSON.parse(xhr.responseText)
-          reject(new Error(errorData.message || `Upload failed with status ${xhr.status}`))
+          const err = JSON.parse(xhr.responseText)
+          reject(new Error(err.message || `Upload failed (${xhr.status})`))
         } catch {
-          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText || "Unknown error"}`))
+          reject(new Error(`Upload failed (${xhr.status})`))
         }
       }
     })
 
     xhr.addEventListener("error", () => {
       clearTimeout(timeoutId)
-      reject(new Error("Network error during upload"))
+      reject(new Error(timedOut
+        ? "Upload timed out. The file may be too large for your connection."
+        : "Network error during upload. Check your connection and try again."))
     })
 
     xhr.addEventListener("abort", () => {
       clearTimeout(timeoutId)
-      reject(new Error("Upload was aborted"))
+      reject(new Error(timedOut ? "Upload timed out." : "Upload was cancelled."))
     })
 
     xhr.open("POST", `${API_BASE_URL}/admin/upload/pdf`)
-    Object.entries(authHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value))
+    Object.entries(authHeaders).forEach(([k, v]) => xhr.setRequestHeader(k, v))
     xhr.send(formData)
   })
 }
 
-export async function getDownloadUrl(key) {
-  const response = await fetch(`${API_BASE_URL}/admin/upload/download-url?key=${encodeURIComponent(key)}`)
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.message || "Failed to get download URL")
-  return data.url
+function getAuthHeadersSync() {
+  const accessToken = sessionStorage.getItem("digitalYearbookAccessToken")
+  if (!accessToken) throw new Error("You must be logged in to perform this action.")
+  return { Authorization: `Bearer ${accessToken}` }
+}
+
+export async function uploadPdfFile(file, onProgress) {
+  try {
+    const presigned = await getPresignedUrl(file.name, file.size)
+
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      let timedOut = false
+      const timeoutId = setTimeout(() => {
+        timedOut = true
+        xhr.abort()
+      }, 900000)
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percent = Math.round((event.loaded / event.total) * 100)
+          onProgress(percent)
+        }
+      })
+
+      xhr.addEventListener("load", async () => {
+        clearTimeout(timeoutId)
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const confirmed = await confirmUpload(presigned.key, file.name, file.size)
+            resolve(confirmed)
+          } catch (err) {
+            reject(err)
+          }
+        } else {
+          reject(new Error(`Upload to storage failed (${xhr.status})`))
+        }
+      })
+
+      xhr.addEventListener("error", () => {
+        clearTimeout(timeoutId)
+        if (timedOut) {
+          reject(new Error("Upload timed out. Please try a smaller file or check your connection."))
+        } else {
+          reject({ _corsFallback: true, message: "Direct upload blocked. Falling back to server upload..." })
+        }
+      })
+
+      xhr.addEventListener("abort", () => {
+        clearTimeout(timeoutId)
+        reject(new Error(timedOut ? "Upload timed out." : "Upload was cancelled."))
+      })
+
+      xhr.open("PUT", presigned.uploadUrl)
+      xhr.setRequestHeader("Content-Type", "application/pdf")
+      xhr.send(file)
+    })
+
+    return result
+  } catch (err) {
+    if (err && err._corsFallback) {
+      return uploadViaServer(file, onProgress)
+    }
+    throw err
+  }
 }
 
 export async function getYearbookCatalog() {

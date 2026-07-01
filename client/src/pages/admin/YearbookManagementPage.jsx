@@ -54,7 +54,7 @@ const EDITION_COURSE = "course"
 
 const EDITIONS = [
   { value: EDITION_MAIN, label: EDITION_MAIN_LABEL, description: "Always opens first in the flipbook for every student" },
-  { value: EDITION_COURSE, label: "Course / Strand", description: "Shown after the main yearbook, scoped to a course/strand + batch" },
+  { value: EDITION_COURSE, label: "Department", description: "Shown after the main yearbook, scoped to a department + batch" },
 ]
 
 function SettingsSection({ settings, onUpdate }) {
@@ -465,7 +465,7 @@ export default function YearbookManagementPage() {
   const handleUpload = async ({ file, title, description, onProgress, pageCount }) => {
     const isMain = selectedEdition === EDITION_MAIN
     if (!isMain && !selectedDept) {
-      throw new Error("Select a course/strand before uploading.")
+      throw new Error("Select a department before uploading.")
     }
     setUploading(true)
     try {
@@ -543,7 +543,7 @@ export default function YearbookManagementPage() {
                   <Upload size={16} />
                   Upload New Edition
                 </h3>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload a PDF for a specific course/strand and batch</p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload a PDF for a specific department and batch</p>
               </div>
               <Button
                 size="sm"
@@ -576,18 +576,15 @@ export default function YearbookManagementPage() {
                    </Select>
                  </div>
                  <div>
-                   <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Course / Strand</label>
+                   <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">Department</label>
                    <Select value={selectedDept || ""} onValueChange={setSelectedDept} disabled={selectedEdition === EDITION_MAIN}>
                      <SelectTrigger className="h-9">
-                       <SelectValue placeholder="Select course / strand…" />
+                       <SelectValue placeholder="Select department…" />
                      </SelectTrigger>
                      <SelectContent>
-                       {COURSE_OPTIONS.flatMap((entry) => [
-                         <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>,
-                         ...entry.subs.map((s) => (
-                           <SelectItem key={s} value={s} className="pl-6">{s}</SelectItem>
-                         )),
-                       ])}
+                       {COURSE_OPTIONS.map((entry) => (
+                         <SelectItem key={entry.value} value={entry.value} className="font-semibold">{entry.label}</SelectItem>
+                       ))}
                      </SelectContent>
                    </Select>
                  </div>
@@ -612,8 +609,8 @@ export default function YearbookManagementPage() {
                </div>
              <p className="text-[10px] text-[var(--text-muted)] mt-2">
                {selectedEdition === EDITION_MAIN
-                 ? "Yearbook Main opens first for every student, regardless of course."
-                 : "Options are loaded from existing student profiles. Students auto-see the yearbook that matches their course/strand on login."}
+                 ? "Yearbook Main opens first for every student, regardless of department."
+                 : "Options are loaded from existing student profiles. Students auto-see the yearbook that matches their department on login."}
              </p>
           </div>
 

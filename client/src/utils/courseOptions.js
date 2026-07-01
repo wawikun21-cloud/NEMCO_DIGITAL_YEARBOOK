@@ -5,8 +5,14 @@ export const COURSE_OPTIONS = [
   { value: "CEAS", label: "CEAS", subs: ["BSED", "BEED", "AB"] },
 ]
 
+export const DEPARTMENT_OPTIONS = COURSE_OPTIONS.map(({ value, label }) => ({ value, label }))
+
 export function getCourseOptions() {
   return COURSE_OPTIONS
+}
+
+export function getDepartmentOptions() {
+  return DEPARTMENT_OPTIONS
 }
 
 export function getSubOptions(courseValue) {
