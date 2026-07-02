@@ -270,3 +270,36 @@ export async function searchDepartments(query) {
   if (!response.ok) throw new Error(data.message || "Failed to search departments")
   return data.departments
 }
+
+export async function renderPdfImages(pdfId, fileUrl, filePath) {
+  const authHeaders = await getAuthHeaders()
+  const params = new URLSearchParams()
+  if (fileUrl) params.set("fileUrl", fileUrl)
+  if (filePath) params.set("file_path", filePath)
+  
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${pdfId}/render?${params}`, {
+    method: "POST",
+    headers: authHeaders,
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to start PDF rendering")
+  return data
+}
+
+export async function getPdfPageImages(pdfId, scale = 2.0) {
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${pdfId}/images?scale=${scale}`, {
+    method: "GET",
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to fetch PDF page images")
+  return data.images
+}
+
+export async function checkPdfImagesRendered(pdfId) {
+  const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${pdfId}/images/check`, {
+    method: "GET",
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || "Failed to check PDF images")
+  return data.rendered
+}

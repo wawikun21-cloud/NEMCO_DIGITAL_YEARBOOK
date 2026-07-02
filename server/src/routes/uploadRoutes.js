@@ -8,8 +8,14 @@ import { config } from "../config/env.js"
 const MAX_FILE_SIZE = 500 * 1024 * 1024
 const router = Router()
 
+function setCorsHeaders(res, origin) {
+  res.setHeader("Access-Control-Allow-Origin", origin || "http://localhost:3000")
+  res.setHeader("Access-Control-Allow-Credentials", "true")
+}
+
 router.options("*", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
+  const origin = req.headers.origin || "*"
+  res.setHeader("Access-Control-Allow-Origin", origin)
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
   res.setHeader("Access-Control-Allow-Credentials", "true")
@@ -20,9 +26,8 @@ router.options("*", (req, res) => {
 router.get("/file/*", async (req, res, next) => {
   try {
     const key = decodeURIComponent(req.params[0])
-    // Allow cross-origin requests (frontend dev server or other origins)
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    const origin = req.headers.origin
+    setCorsHeaders(res, origin)
     const downloadUrl = await getDownloadUrl(key)
     const mod = downloadUrl.startsWith("https") ? https : http
     mod.get(downloadUrl, (downloadRes) => {
@@ -49,8 +54,7 @@ router.post("/presigned-url", requireAuth, async (req, res, next) => {
 
     const { uploadUrl, key, fileUrl } = await getUploadUrl(fileName, contentType || "application/pdf")
 
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    setCorsHeaders(res, req.headers.origin)
     res.json({ uploadUrl, key, fileUrl })
   } catch (error) {
     next(error)
@@ -67,8 +71,7 @@ router.post("/confirm-upload", requireAuth, async (req, res, next) => {
 
     const fileUrl = buildPublicUrl(key)
 
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    setCorsHeaders(res, req.headers.origin)
     res.json({
       fileUrl,
       fileKey: key,
@@ -138,8 +141,7 @@ router.post("/pdf", requireAuth, async (req, res, next) => {
     const fileUrl = result.fileUrl
     const key = result.key
 
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    setCorsHeaders(res, req.headers.origin)
     res.json({
       fileUrl,
       fileKey: key,
@@ -163,8 +165,7 @@ router.get("/download-url", async (req, res, next) => {
     }
 
     const url = await getDownloadUrl(decodeURIComponent(key))
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    setCorsHeaders(res, req.headers.origin)
     res.json({ url })
   } catch (error) {
     next(error)
@@ -181,8 +182,7 @@ router.delete("/pdf", requireAuth, json({ limit: "10mb" }), async (req, res, nex
       await deletePdfFile(key)
     }
 
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*")
-    res.setHeader("Access-Control-Allow-Credentials", "true")
+    setCorsHeaders(res, req.headers.origin)
     res.json({ message: "File deleted successfully" })
   } catch (error) {
     next(error)

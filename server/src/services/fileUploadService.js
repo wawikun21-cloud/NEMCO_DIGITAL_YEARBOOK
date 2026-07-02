@@ -87,6 +87,9 @@ export function buildPublicUrl(key) {
   if (config.r2.publicBaseUrl) {
     return `${config.r2.publicBaseUrl.replace(/\/$/, "")}/${key}`
   }
+  if (config.apiBaseUrl) {
+    return `${config.apiBaseUrl}/admin/upload/file/${encodeURIComponent(key)}`
+  }
   return `/api/admin/upload/file/${encodeURIComponent(key)}`
 }
 

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js"
+import { queueRenderJob } from "./pdfRenderService.js"
 
 const COURSE_OPTIONS_CLIENT = [
   { value: "CCJE", label: "CCJE", subs: ["BSCRIM"] },
@@ -19,49 +20,36 @@ const FLIPBOOK_SETTINGS_DEFAULTS = {
   auto_flip_interval: 10,
 }
 
-async function columnsExist() {
+const columnExistenceCache = new Map()
+
+async function checkColumnExists(column) {
+  if (columnExistenceCache.has(column)) {
+    return columnExistenceCache.get(column)
+  }
   try {
     const { error } = await supabaseAdmin
       .from("flipbook_pdf_pages")
-      .select("department")
+      .select(column)
       .limit(1)
-    if (error && error.message.includes("does not exist")) {
-      return false
-    }
-    return true
+    const exists = !error
+    columnExistenceCache.set(column, exists)
+    return exists
   } catch {
+    columnExistenceCache.set(column, false)
     return false
   }
+}
+
+async function columnsExist() {
+  return checkColumnExists("department")
 }
 
 async function subDepartmentColumnExists() {
-  try {
-    const { error } = await supabaseAdmin
-      .from("flipbook_pdf_pages")
-      .select("sub_department")
-      .limit(1)
-    if (error && error.message.includes("does not exist")) {
-      return false
-    }
-    return true
-  } catch {
-    return false
-  }
+  return checkColumnExists("sub_department")
 }
 
 async function editionColumnExists() {
-  try {
-    const { error } = await supabaseAdmin
-      .from("flipbook_pdf_pages")
-      .select("edition")
-      .limit(1)
-    if (error && error.message.includes("does not exist")) {
-      return false
-    }
-    return true
-  } catch {
-    return false
-  }
+  return checkColumnExists("edition")
 }
 
 // The primary yearbook that opens first for every student regardless of course.
@@ -494,28 +482,38 @@ export async function getPublicFlipbook(department = null, batch = null) {
     const dept = normalizeEditionFilter(department)
     const bat = dept ? normalizeEditionFilter(batch) : null
 
-    // The YEARBOOK MAIN edition always comes first, regardless of the student's
-    // course. The course edition is loaded separately so the client can keep the
-    // main yearbook at the front of the flipbook.
     const [mainPages, coursePages] = await Promise.all([
       fetchActivePdfPages(null, null, null, { edition: EDITION_MAIN }),
-      fetchActivePdfPages(dept, bat),
+      dept ? fetchActivePdfPages(dept, bat) : Promise.resolve([]),
     ])
 
-    // Fallback: if no pages for the specific dept+batch, try the course alone.
     let resolvedCoursePages = coursePages
-    if (resolvedCoursePages.length === 0 && dept && bat) {
+    if (dept && resolvedCoursePages.length === 0 && bat) {
       resolvedCoursePages = await fetchActivePdfPages(dept, null)
     }
+
+    if (dept && resolvedCoursePages.length > 0) {
+      const deptValues = new Set([dept, ...getParentCoursesForSub(dept)].map((value) => String(value || "").trim().toLowerCase()))
+      resolvedCoursePages = resolvedCoursePages.filter((page) => {
+        const pageDept = String(page?.department || "").trim().toLowerCase()
+        return pageDept && deptValues.has(pageDept)
+      })
+    }
+
+    const allPages = [...mainPages, ...resolvedCoursePages]
+    const enrichedPages = await enrichPdfPagesWithImages(allPages)
+    
+    const enrichedMain = enrichedPages.slice(0, mainPages.length)
+    const enrichedCourse = enrichedPages.slice(mainPages.length)
 
     return {
       settings,
       sourceType: "pdfs",
       profiles: [],
       sections: [],
-      pdfPages: [...mainPages, ...resolvedCoursePages],
-      mainPdfPages: mainPages,
-      coursePdfPages: resolvedCoursePages,
+      pdfPages: enrichedPages,
+      mainPdfPages: enrichedMain,
+      coursePdfPages: enrichedCourse,
     }
 }
 
@@ -615,9 +613,6 @@ export async function getFlipbookPdfPages(department = null, batch = null, { edi
       .from("flipbook_pdf_pages")
       .select(selectCols)
 
-    // Edition filter (admin):
-    //   - explicit edition value  → only that edition
-    //   - no edition param         → all rows (admin manages main + course)
     if (hasEditionCol && edition) {
       const ed = normalizeEdition(edition)
       query = query.eq("edition", ed)
@@ -639,6 +634,38 @@ export async function getFlipbookPdfPages(department = null, batch = null, { edi
     }
 
     return data || []
+}
+
+async function enrichPdfPagesWithImages(pages) {
+  if (!pages || pages.length === 0) return pages
+  
+  const pdfIds = pages.map(p => p.id)
+  const { data: images } = await supabaseAdmin
+    .from("flipbook_pdf_page_images")
+    .select("pdf_page_id, page_num, image_url, width, height, scale")
+    .in("pdf_page_id", pdfIds)
+    .eq("scale", 2.0)
+    .order("page_num", { ascending: true })
+  
+  if (!images || images.length === 0) return pages
+  
+  const imagesByPdf = {}
+  for (const img of images) {
+    if (!imagesByPdf[img.pdf_page_id]) {
+      imagesByPdf[img.pdf_page_id] = []
+    }
+    imagesByPdf[img.pdf_page_id].push(img)
+  }
+  
+  return pages.map(page => ({
+    ...page,
+    rendered_images: imagesByPdf[page.id] || [],
+  }))
+}
+
+export async function getFlipbookPdfPagesWithImages(department = null, batch = null, { edition = null } = {}) {
+  const pages = await getFlipbookPdfPages(department, batch, { edition })
+  return enrichPdfPagesWithImages(pages)
 }
 
 export async function createFlipbookPdfPage({ title, description, fileUrl, fileName, fileSize, pageCount, coverImageUrl, filePath, uploadedBy, department, subDepartment, batch, edition }) {
@@ -691,6 +718,10 @@ export async function createFlipbookPdfPage({ title, description, fileUrl, fileN
 
   if (error) {
     throw new Error(`Failed to create PDF page: ${error.message}`)
+  }
+
+  if (data?.file_path || data?.file_url) {
+    queueRenderJob(data.id, data.file_url, data.file_path)
   }
 
   return data

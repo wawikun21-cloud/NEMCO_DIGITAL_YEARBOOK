@@ -109,7 +109,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  X,
   AlertTriangle,
   ZoomIn,
   ZoomOut,
@@ -124,7 +123,6 @@ import {
   Volume2,
   VolumeX,
   List,
-  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -141,9 +139,34 @@ import {
 import DownloadPdfButton from "@/components/student/DownloadPdfButton"
 import DownloadFlipbookButton from "@/components/student/DownloadFlipbookButton"
 import { useAuth } from "@/contexts/AuthContext"
-import { dedupeBatchLabels, newestBatchLabel, normalizeEditionFilter } from "@/utils/yearbookEditionHelpers"
+import { dedupeBatchLabels, newestBatchLabel, normalizeEditionFilter, resolveFileUrl, API_BASE_URL } from "@/utils/yearbookEditionHelpers"
 import { COURSE_OPTIONS, DEPARTMENT_OPTIONS } from "@/utils/courseOptions"
 import * as pdfjsLib from "pdfjs-dist"
+
+function resolveDepartmentForCourseOrStrand(value) {
+  if (!value) return null
+  const normalized = String(value).trim()
+  if (!normalized) return null
+  const lookup = normalized.toLowerCase()
+  const course = COURSE_OPTIONS.find((c) => c.value.toLowerCase() === lookup || c.subs.some((sub) => sub.toLowerCase() === lookup))
+  return course?.value || normalized
+}
+
+function getDepartmentWhitelist(department) {
+  const parent = resolveDepartmentForCourseOrStrand(department)
+  if (!parent) return null
+  const normalizedParent = normalizeEditionFilter(parent)?.toLowerCase()
+  if (!normalizedParent) return null
+  const course = COURSE_OPTIONS.find((c) => c.value.toLowerCase() === normalizedParent)
+  const allowed = new Set([normalizedParent])
+  if (course?.subs) {
+    for (const sub of course.subs) {
+      const normalizedSub = normalizeEditionFilter(sub)?.toLowerCase()
+      if (normalizedSub) allowed.add(normalizedSub)
+    }
+  }
+  return allowed
+}
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.mjs",
@@ -162,14 +185,12 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
   const queueRef = useRef([])
   const docsRef = useRef({})
   const loadedRef = useRef(false)
+  const lazyTasksRef = useRef([])
   const processQueueRef = useRef(null)
   const aspectRatioRef = useRef(null)
   const firstPageKeyRef = useRef(null)
+  const renderedImagesRef = useRef({})
 
-  // Track which PDF+page is the "first page" of the flipbook so we can
-  // signal when it has actually been rendered to a data URL. The flipbook
-  // stays hidden until this flips, eliminating the flash of blank pages
-  // between mount and async PDF rasterization.
   useEffect(() => {
     if (!pdfPages || pdfPages.length === 0) {
       firstPageKeyRef.current = null
@@ -179,6 +200,16 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     const first = pdfPages[0]
     const key = `${first.id}-1`
     firstPageKeyRef.current = key
+    
+    if (first?.rendered_images?.length > 0) {
+      const firstImg = first.rendered_images.find(img => img.page_num === 1)
+      if (firstImg?.image_url) {
+        renderedImagesRef.current[key] = firstImg.image_url
+        setFirstPageReady(true)
+        return
+      }
+    }
+    
     if (cacheRef.current[key] || images[key]) {
       setFirstPageReady(true)
     } else {
@@ -232,7 +263,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
       canvas.height = viewport.height
       const ctx = canvas.getContext("2d")
       await page.render({ canvasContext: ctx, viewport }).promise
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7)
       cacheRef.current[key] = dataUrl
       dimsRef.current[key] = { width: viewport.width, height: viewport.height }
       recomputeAspectRatio()
@@ -249,9 +280,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
     concurrencyRef.current++
-    // Use a lower raster scale to speed up initial PDF page rendering.
-    // Desktop uses 1.2x and mobile uses 1.0x for a faster first paint.
-    const scale = isMobile ? 1.0 : 1.2
+    const scale = isMobile ? 0.9 : 1.0
     renderPage(pdfId, pageNum, scale).finally(() => {
       concurrencyRef.current--
       processQueueRef.current()
@@ -262,7 +291,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     if (!loadedRef.current) return
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
-    queueRef.current.push(() => renderPage(pdfId, pageNum, isMobile ? 0.8 : 0.9))
+    lazyTasksRef.current.push(() => renderPage(pdfId, pageNum, isMobile ? 0.7 : 0.8))
   }, [renderPage, isMobile])
 
   useEffect(() => {
@@ -272,8 +301,11 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
       setPdfPageCounts({})
       docsRef.current = {}
       loadedRef.current = false
+      lazyTasksRef.current = []
+      renderedImagesRef.current = {}
       return
     }
+    
     let cancelled = false
     setLoading(true)
     queueRef.current = []
@@ -281,11 +313,19 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     loadedRef.current = false
 
     async function loadDocs() {
-      const newPageCounts = {}
       const newImages = {}
       const pdfIds = new Map()
+      const pdfRenderedImages = {}
+      
       for (const pdf of pdfPages) {
         if (!pdfIds.has(pdf.id)) pdfIds.set(pdf.id, pdf)
+        
+        if (pdf?.rendered_images?.length > 0) {
+          pdfRenderedImages[pdf.id] = {}
+          for (const img of pdf.rendered_images) {
+            pdfRenderedImages[pdf.id][img.page_num] = img.image_url
+          }
+        }
       }
 
       const initialPdfIds = new Set(priorityPdfIds)
@@ -298,36 +338,49 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
 
       const createTask = (pdf) => async () => {
         try {
+          const renderedImgs = pdfRenderedImages[pdf.id] || {}
+          for (let p = 1; p <= (pdf.page_count || 1); p++) {
+            const key = `${pdf.id}-${p}`
+            if (renderedImgs[p]) {
+              newImages[key] = renderedImgs[p]
+              dimsRef.current[key] = { width: null, height: null }
+              setImages((prev) => ({ ...prev, [key]: renderedImgs[p] }))
+            }
+          }
+          
           let fileUrl = null
           if (pdf.file_path) {
-            fileUrl = `/api/admin/upload/file/${encodeURIComponent(pdf.file_path)}`
-          } else if (pdf.file_url) {
-            try {
-              const parsed = new URL(pdf.file_url)
-              let path = parsed.pathname.replace(/^\/+/, "")
-              if (path.startsWith("flipbook-pdfs/")) path = path.slice("flipbook-pdfs/".length)
-              if (path) {
-                fileUrl = `/api/admin/upload/file/${encodeURIComponent(path)}`
-              }
-            } catch (err) {
-              fileUrl = pdf.file_url
+            const path = `/admin/upload/file/${encodeURIComponent(pdf.file_path)}`
+            if (API_BASE_URL) {
+              fileUrl = API_BASE_URL.endsWith("/api")
+                ? `${API_BASE_URL.slice(0, -4)}${path}`
+                : `${API_BASE_URL}${path}`
+            } else {
+              fileUrl = path
             }
-            if (!fileUrl) fileUrl = pdf.file_url
+          } else if (pdf.file_url) {
+            fileUrl = resolveFileUrl(pdf.file_url)
           }
           if (!fileUrl) return
           const loadingTask = pdfjsLib.getDocument(fileUrl)
           const pdfDoc = await loadingTask.promise
           docsRef.current[pdf.id] = pdfDoc
-          newPageCounts[pdf.id] = pdfDoc.numPages
           if (!loadedRef.current) {
             loadedRef.current = true
             processQueueRef.current?.()
           }
+          setPdfPageCounts((prev) => (
+            prev[pdf.id] === pdfDoc.numPages ? prev : { ...prev, [pdf.id]: pdfDoc.numPages }
+          ))
+          const docImages = {}
           for (let p = 1; p <= pdfDoc.numPages; p++) {
             const key = `${pdf.id}-${p}`
             if (cacheRef.current[key]) {
-              newImages[key] = cacheRef.current[key]
+              docImages[key] = cacheRef.current[key]
             }
+          }
+          if (Object.keys(docImages).length > 0) {
+            setImages((prev) => ({ ...prev, ...docImages }))
           }
         } catch { /* skip */ }
       }
@@ -344,23 +397,28 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
       await Promise.allSettled(initialTasks.map((task) => task()))
       if (cancelled) return
 
-      setImages((prev) => ({ ...prev, ...newImages }))
-      setPdfPageCounts(newPageCounts)
+      Object.assign(renderedImagesRef.current, pdfRenderedImages)
+      lazyTasksRef.current = remainingTasks
+      if (Object.keys(newImages).length > 0) {
+        setImages((prev) => ({ ...prev, ...newImages }))
+      }
       loadedRef.current = true
       setLoading(false)
-
-      if (remainingTasks.length > 0) {
-        setTimeout(() => {
-          Promise.allSettled(remainingTasks.map((task) => task()))
-        }, 100)
-      }
     }
 
     loadDocs()
     return () => { cancelled = true }
-  }, [pdfPages])
+  }, [pdfPages, priorityPdfIds])
 
-  return { images, loading, aspectRatio, pdfPageCounts, firstPageReady, renderEager, enqueueLazy, dims: dimsRef }
+  const startLazyLoading = useCallback(() => {
+    const tasks = lazyTasksRef.current
+    if (!tasks.length) return
+    lazyTasksRef.current = []
+    queueRef.current.push(...tasks)
+    processQueueRef.current()
+  }, [])
+
+  return { images, loading, aspectRatio, pdfPageCounts, firstPageReady, renderEager, enqueueLazy, startLazyLoading, dims: dimsRef, renderedImages: renderedImagesRef }
 }
   
 const StudentPage = forwardRef(function StudentPage({ profile, pageNum, totalPages, visible, isLeftPage }, ref) {
@@ -555,6 +613,7 @@ export default function Yearbook3DPage() {
   const mobileFlipSpeed = 1.5
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768)
     const [bookState, setBookState] = useState("read")
    const [bookTranslateX, setBookTranslateX] = useState(0)
   const [showToc, setShowToc] = useState(false)
@@ -576,6 +635,7 @@ export default function Yearbook3DPage() {
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth)
+      setWindowHeight(window.innerHeight)
       recomputeCenteringRef.current()
     }
     window.addEventListener('resize', handleResize)
@@ -598,59 +658,63 @@ export default function Yearbook3DPage() {
 
     async function loadProfileAndCatalog() {
       let courseStrand = null
-      let subCourse = null
+      let catalog = null
+
+      let sessionData = null
+      try {
+        const result = await supabase.auth.getSession()
+        sessionData = result?.data || null
+      } catch {
+        sessionData = null
+      }
+      const userId = sessionData?.session?.user?.id
+
+      const profilePromise = (isStudentView && userId)
+        ? (async () => {
+            try {
+              const result = await supabase.from("profiles").select("course_or_strand, sub_course").eq("id", userId).maybeSingle()
+              return result
+            } catch {
+              return { data: null }
+            }
+          })()
+        : Promise.resolve({ data: null })
+
+      const catalogPromise = userId
+        ? (async () => {
+            try {
+              return await getYearbookCatalog()
+            } catch {
+              return null
+            }
+          })()
+        : Promise.resolve(null)
+
+      const [{ data: profile } = {}, catalogResult] = await Promise.all([profilePromise, catalogPromise])
+      if (cancelled) return
 
       if (isStudentView) {
-        try {
-          const { data: sessionData } = await supabase.auth.getSession()
-          const userId = sessionData?.session?.user?.id
-
-          if (userId) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("course_or_strand, sub_course")
-              .eq("id", userId)
-              .maybeSingle()
-            if (profile) {
-              courseStrand = profile.course_or_strand?.trim() || null
-              subCourse = profile.sub_course?.trim() || null
-              if (!cancelled) setStudentProfile(profile)
-            }
-          }
-        } catch {
-          // Fall back to auth profile if Supabase read fails
+        if (profile) {
+          courseStrand = profile.course_or_strand?.trim() || null
+          if (!cancelled) setStudentProfile(profile)
         }
-
         if (!courseStrand && authProfile?.course_or_strand) {
           courseStrand = authProfile.course_or_strand.trim()
         }
       }
 
-       let catalog = null
-       try {
-         const { data: sessionData } = await supabase.auth.getSession()
-         // Catalog requires auth — skip it for unauthenticated/public viewers
-         // to avoid a 401 in the console. The course dropdown falls back to
-         // the static COURSE_OPTIONS list when catalog is null.
-         if (!sessionData?.session?.user?.id) {
-           catalog = null
-         } else {
-           catalog = await getYearbookCatalog()
-         }
-         if (!cancelled) {
-           setAvailableDepartments(catalog?.departments || [])
-           setAvailableBatches(catalog?.batches || [])
-           setDepartmentBatchMatrix(catalog?.departmentBatchMatrix || {})
-         }
-       } catch {
-         // Catalog load is optional; filters still work without dropdown data
-       }
+      catalog = catalogResult
+      if (!cancelled) {
+        setAvailableDepartments(catalog?.departments || [])
+        setAvailableBatches(catalog?.batches || [])
+        setDepartmentBatchMatrix(catalog?.departmentBatchMatrix || {})
+      }
 
       if (!cancelled) {
         if (isStudentView) {
-          setSelectedDepartment(courseStrand)
+          setSelectedDepartment(resolveDepartmentForCourseOrStrand(courseStrand))
         }
-        const initDept = courseStrand || null
+        const initDept = resolveDepartmentForCourseOrStrand(courseStrand) || null
         const matrix = catalog?.departmentBatchMatrix || {}
         const initBatches = initDept
           ? (matrix[initDept] || [])
@@ -779,13 +843,50 @@ export default function Yearbook3DPage() {
      return () => document.removeEventListener("mousedown", handler)
    }, [showToc])
 
-     const mainPdfPages = useMemo(() => (data?.mainPdfPages || []), [data?.mainPdfPages])
-     const coursePdfPages = useMemo(() => (data?.coursePdfPages || []), [data?.coursePdfPages])
+     const departmentWhitelist = useMemo(() => getDepartmentWhitelist(selectedDepartment), [selectedDepartment])
+     const mainPdfPages = useMemo(() => {
+       const rawPages = data?.mainPdfPages || []
+       return rawPages.filter((page) => {
+         const pageDept = String(page?.department || "").trim().toLowerCase()
+         if (!pageDept) return true
+         if (!departmentWhitelist || departmentWhitelist.size === 0) return false
+         return departmentWhitelist.has(pageDept)
+       })
+     }, [data?.mainPdfPages, departmentWhitelist])
+     const coursePdfPages = useMemo(() => {
+       const rawPages = data?.coursePdfPages || []
+       if (!departmentWhitelist || departmentWhitelist.size === 0) {
+         return []
+       }
+       return rawPages.filter((page) => {
+         const pageDept = String(page?.department || "").trim().toLowerCase()
+         return pageDept && departmentWhitelist.has(pageDept)
+       })
+     }, [data?.coursePdfPages, departmentWhitelist])
     const pdfPages = useMemo(() => [...mainPdfPages, ...coursePdfPages], [mainPdfPages, coursePdfPages])
     const sections = useMemo(() => (data?.sections || []), [data?.sections])
 const departmentOptions = useMemo(() => {
        return DEPARTMENT_OPTIONS
    }, [])
+
+   const handleDepartmentChange = useCallback((department) => {
+     if (!department) {
+       setSelectedDepartment(null)
+       setSelectedBatch(null)
+       return
+     }
+     const normalizedDept = resolveDepartmentForCourseOrStrand(department)
+     const deptBatches = departmentBatchMatrix[normalizedDept] || []
+     const parentCourse = COURSE_OPTIONS.find((c) => c.subs.includes(normalizedDept))
+     const parentBatches = parentCourse ? (departmentBatchMatrix[parentCourse.value] || []) : []
+     const allBatches = dedupeBatchLabels([...deptBatches, ...parentBatches])
+     setSelectedDepartment(normalizedDept)
+     setSelectedBatch((currentBatch) => (
+       currentBatch && allBatches.includes(currentBatch)
+         ? currentBatch
+         : newestBatchLabel(allBatches)
+     ))
+   }, [departmentBatchMatrix])
 
     useEffect(() => {
      if (!selectedDepartment) {
@@ -801,15 +902,22 @@ const departmentOptions = useMemo(() => {
      const parentCourse = COURSE_OPTIONS.find((c) => c.subs.includes(normalizedDept))
      const parentBatches = parentCourse ? (departmentBatchMatrix[parentCourse.value] || []) : []
      const allBatches = dedupeBatchLabels([...deptBatches, ...parentBatches])
-     if (selectedBatch && !allBatches.includes(selectedBatch)) {
-       setSelectedBatch(newestBatchLabel(allBatches))
-     }
-   }, [selectedDepartment, selectedBatch, departmentBatchMatrix])
+     setSelectedBatch((currentBatch) => (
+       currentBatch && allBatches.includes(currentBatch)
+         ? currentBatch
+         : newestBatchLabel(allBatches)
+     ))
+   }, [selectedDepartment, departmentBatchMatrix])
 
   const priorityPdfIds = useMemo(() => [...new Set(mainPdfPages.map((pdf) => pdf.id))], [mainPdfPages])
-  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, dims: pdfImageDimensions } = usePdfPageImages(pdfPages, isMobile, priorityPdfIds)
+  const { images: pdfImages, loading: pdfLoading, aspectRatio: pdfAspectRatio, pdfPageCounts, firstPageReady: pdfFirstPageReady, renderEager, enqueueLazy, startLazyLoading, dims: pdfImageDimensions } = usePdfPageImages(pdfPages, isMobile, priorityPdfIds)
 
   const profiles = (data?.profiles || []).filter((p) => p.profile)
+
+  useEffect(() => {
+    if (!bookReady) return
+    startLazyLoading()
+  }, [bookReady, startLazyLoading])
 
    const filtered = useMemo(() => {
      if (!search) return null
@@ -1059,8 +1167,6 @@ const departmentOptions = useMemo(() => {
       clearTimeout(debounceTimer)
     }
   }, [bookPageList.length, bookState])
-
-  const pdfListStable = pdfPages.length === 0 || !pdfLoading
 
   useEffect(() => {
     if (!pdfPages.length || !data) return
@@ -1381,15 +1487,22 @@ const departmentOptions = useMemo(() => {
   const isDragging = bookState === "user_fold"
 
   const bookAspectRatio = pdfAspectRatio || 3 / 4
-  // Responsive book sizing: derive from viewport instead of a fixed px value so the
-  // book never overflows on small screens. Horizontal padding budget: 32px normal, 40px fullscreen.
-  const availableBookWidth = windowWidth - (isFullscreen ? 40 : 32)
-  const bookWidth = isFullscreen
-    ? Math.max(240, Math.min(600, availableBookWidth))
-    : Math.max(220, Math.min(400, availableBookWidth))
-  const bookHeight = Math.round(bookWidth / bookAspectRatio)
-  const bookMaxWidth = isFullscreen ? 900 : 600
-  const bookMaxHeight = isFullscreen ? 1200 : 800
+  // Responsive book sizing: derive from viewport width and height so fullscreen
+  // book content fits inside the viewport without requiring vertical scroll.
+  const availableBookWidth = windowWidth - (isFullscreen ? 80 : 32)
+  const availableBookHeight = windowHeight - (isFullscreen ? 120 : 460)
+  const maxBookWidth = isFullscreen ? 900 : 600
+  const maxBookHeight = isFullscreen ? Math.max(availableBookHeight, 600) : 800
+  let bookWidth = Math.min(maxBookWidth, availableBookWidth)
+  let bookHeight = Math.round(bookWidth / bookAspectRatio)
+  if (bookHeight > availableBookHeight) {
+    bookHeight = Math.max(350, Math.min(availableBookHeight, maxBookHeight))
+    bookWidth = Math.round(bookHeight * bookAspectRatio)
+  }
+  bookWidth = Math.max(isFullscreen ? 320 : 220, bookWidth)
+  bookHeight = Math.max(350, bookHeight)
+  const bookMaxWidth = Math.min(maxBookWidth, availableBookWidth)
+  const bookMaxHeight = isFullscreen ? availableBookHeight : maxBookHeight
 
   const pageLabel = currentPage === 0 ? "Cover" : currentPage === totalPages - 1 ? "Back Cover" : `${currentPage} / ${totalPages - 1}`
 
@@ -1467,7 +1580,7 @@ const departmentOptions = useMemo(() => {
               <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
                 {departmentOptions.length > 0 && (
                   <div className="hidden sm:flex items-center gap-1.5">
-                    <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                    <Select value={selectedDepartment || ""} onValueChange={handleDepartmentChange}>
                       <SelectTrigger className={`h-7 min-w-[110px] text-xs sm:min-w-[140px] ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
                         <SelectValue placeholder="Department" />
                       </SelectTrigger>
@@ -1480,11 +1593,8 @@ const departmentOptions = useMemo(() => {
                       {studentProfile?.course_or_strand && (
                         <button
                           onClick={() => {
-                            const parentCourse = studentProfile.course_or_strand?.trim()
-                            setSelectedDepartment(parentCourse)
-                            const matrix = departmentBatchMatrix[parentCourse] || {}
-                            const batches = dedupeBatchLabels(Object.keys(matrix))
-                            setSelectedBatch(newestBatchLabel(batches))
+                            const parentCourse = resolveDepartmentForCourseOrStrand(studentProfile.course_or_strand)
+                            handleDepartmentChange(parentCourse)
                           }}
                           className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
                         >
@@ -1561,7 +1671,7 @@ const departmentOptions = useMemo(() => {
               {departmentOptions.length > 0 && (
                 <div className="sm:hidden mx-auto max-w-5xl px-3 pb-3">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Select value={selectedDepartment || ""} onValueChange={setSelectedDepartment}>
+                    <Select value={selectedDepartment || ""} onValueChange={handleDepartmentChange}>
                       <SelectTrigger className={`h-7 min-w-[110px] flex-1 text-xs ${headerDark ? "bg-white/[0.08] border-white/[0.15] text-[#f0e6d3]" : "bg-white border-black/10 text-[#1a2a3a]"}`}>
                         <SelectValue placeholder="Department" />
                       </SelectTrigger>
@@ -1574,11 +1684,8 @@ const departmentOptions = useMemo(() => {
                       {studentProfile?.course_or_strand && (
                         <button
                           onClick={() => {
-                            const parentCourse = studentProfile.course_or_strand?.trim()
-                            setSelectedDepartment(parentCourse)
-                            const matrix = departmentBatchMatrix[parentCourse] || {}
-                            const batches = dedupeBatchLabels(Object.keys(matrix))
-                            setSelectedBatch(newestBatchLabel(batches))
+                            const parentCourse = resolveDepartmentForCourseOrStrand(studentProfile.course_or_strand)
+                            handleDepartmentChange(parentCourse)
                           }}
                          className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 h-7 text-[10px] font-medium transition-colors ${headerDark ? "bg-[var(--bg-primary)]/20 text-[#f0e6d3] hover:bg-[var(--bg-primary)]/30" : "bg-[var(--bg-primary)]/10 text-[var(--bg-primary)] hover:bg-[var(--bg-primary)]/15"}`}
                        >
@@ -1604,7 +1711,7 @@ const departmentOptions = useMemo(() => {
       )}
 
       <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
-        {pdfPages.length > 0 && pdfLoading && (
+        {bookReady && pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
             <p className="text-sm text-[var(--text-muted)] font-light">Rendering PDF pages…</p>
@@ -1623,7 +1730,7 @@ const departmentOptions = useMemo(() => {
                <p className="text-sm text-[var(--text-muted)] font-light">Opening your yearbook…</p>
                <div className="h-1 w-32 rounded-full bg-black/10 overflow-hidden mt-2"><div className="h-full rounded-full bg-[var(--accent-gold)] animate-pulse" style={{ width: "60%" }} /></div>
              </div>
-            ) : pdfListStable ? (
+            ) : (
               <HTMLFlipBook
                 key={`${bookPageList.length}-${isFullscreen}-${isMobile}-${selectedDepartment}-${selectedBatch}-${bookPageList.filter(p => p.type === "pdf").map(p => `${p.data?.id}-${p.pageNum}`).join(",")}`}
               ref={bookRef}
@@ -1715,29 +1822,30 @@ const departmentOptions = useMemo(() => {
                       </div>
                     )
                   }
-                   if (dp.type === "pdf") {
-                     const img = pdfImages[`${dp.data.id}-${dp.pageNum}`]
-                     return (
-                       <div key="cover" className="relative h-full w-full bg-white">
-                         <div className="book-page-edge book-page-edge-right" />
-                         <div className="absolute inset-0 flex items-center justify-center">
-                           {img ? (
-                             <img src={img} alt={dp.data.title} className="h-full w-full object-cover" draggable={false} />
-                           ) : pdfLoading ? (
-                             <div className="flex flex-col items-center gap-2">
-                               <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
-                               <span className="text-[10px] text-[var(--text-muted)]/50">Loading page {dp.pageNum}…</span>
-                             </div>
-                           ) : (
-                             <div className="flex flex-col items-center gap-1">
-                               <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
-                               <span className="text-[10px] text-[var(--text-muted)]/40">{dp.data.title}</span>
-                             </div>
-                           )}
-                         </div>
-                         <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
-                       </div>
-                     )
+if (dp.type === "pdf") {
+                      const renderedImg = dp.data?.rendered_images?.find(img => img.page_num === dp.pageNum)
+                      const imageUrl = renderedImg?.image_url || pdfImages[`${dp.data.id}-${dp.pageNum}`]
+                      return (
+                        <div key="cover" className="relative h-full w-full bg-white">
+                          <div className="book-page-edge book-page-edge-right" />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={dp.data.title} className="h-full w-full object-cover" draggable={false} />
+                            ) : pdfLoading ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <Loader2 size={18} className="animate-spin text-[var(--bg-primary)]/40" />
+                                <span className="text-[10px] text-[var(--text-muted)]/50">Loading page {dp.pageNum}…</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
+                                <span className="text-[10px] text-[var(--text-muted)]/40">{dp.data.title}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
+                        </div>
+                      )
                    }
                   return <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
                 }
@@ -1764,20 +1872,16 @@ const departmentOptions = useMemo(() => {
                    <StudentBackPage key={`student-back-${page.data.profile?.id || idx}`} profile={page.data.profile} visible={visible} isLeftPage={isLeftPage} />
                  )
                }
-               if (page.type === "pdf") {
-                 const img = pdfImages[`${page.data.id}-${page.pageNum}`]
-                 return (
-                   <PdfPageContent key={`pdf-${page.data.id}-${page.pageNum}`} imageUrl={img} title={page.data.title} pageNum={page.pageNum} isLoading={!img && pdfLoading} isLeftPage={isLeftPage} />
-                 )
-               }
+if (page.type === "pdf") {
+                  const renderedImg = page.data?.rendered_images?.find(img => img.page_num === page.pageNum)
+                  const img = renderedImg?.image_url || pdfImages[`${page.data.id}-${page.pageNum}`]
+                  return (
+                    <PdfPageContent key={`pdf-${page.data.id}-${page.pageNum}`} imageUrl={img} title={page.data.title} pageNum={page.pageNum} isLoading={!img && pdfLoading} isLeftPage={isLeftPage} />
+                  )
+                }
                return <div key={`page-${idx}`} />
              })}
             </HTMLFlipBook>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 size={32} className="animate-spin text-[var(--accent-gold)]" />
-                <p className="text-sm text-[var(--text-muted)] font-light">Preparing pages…</p>
-              </div>
             )}
           </div>
 

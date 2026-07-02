@@ -18,6 +18,7 @@ const parseOrigins = (value) => {
 export const config = {
   port: parsePort(process.env.PORT),
   nodeEnv: process.env.NODE_ENV || "development",
+  apiBaseUrl: process.env.API_BASE_URL ? process.env.API_BASE_URL.replace(/\/$/, "") : "",
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,

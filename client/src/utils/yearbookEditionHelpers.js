@@ -1,3 +1,22 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") || ""
+
+export function resolveFileUrl(fileUrl) {
+  if (!fileUrl) return fileUrl
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+    return fileUrl
+  }
+  if (fileUrl.startsWith("/api/")) {
+    if (!API_BASE_URL) return fileUrl
+    if (API_BASE_URL.endsWith("/api")) {
+      return `${API_BASE_URL.slice(0, -4)}${fileUrl}`
+    }
+    return `${API_BASE_URL}${fileUrl}`
+  }
+  return API_BASE_URL ? `${API_BASE_URL}/${fileUrl.replace(/^\/+/, "")}` : `/${fileUrl}`
+}
+
+export { API_BASE_URL }
+
 export function normalizeBatchLabel(value) {
   if (value == null) return null
   const normalized = String(value)

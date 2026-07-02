@@ -9,6 +9,12 @@ import {
   getYearbookCatalog,
   searchDepartments as searchDepartmentsService,
 } from "../services/flipbookService.js"
+import {
+  renderPdfPages,
+  getPdfPageImages,
+  hasRenderedImages,
+  queueRenderJob,
+} from "../services/pdfRenderService.js"
 
 function setCorsHeaders(req, res) {
   if (!res.getHeader("Access-Control-Allow-Origin")) {
@@ -152,6 +158,48 @@ export async function searchDepartmentsHandler(req, res, next) {
     const departments = await searchDepartmentsService(q || "")
     setCorsHeaders(req, res)
     res.json({ departments })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function renderPdfImages(req, res, next) {
+  try {
+    const { id } = req.params
+    const { fileUrl, file_path } = req.query
+    
+    if (!fileUrl && !file_path) {
+      return res.status(400).json({ message: "Either fileUrl or file_path is required" })
+    }
+    
+    queueRenderJob(id, fileUrl, file_path)
+    
+    setCorsHeaders(req, res)
+    res.json({ message: "PDF rendering started in background", pdfId: id })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function getPdfImages(req, res, next) {
+  try {
+    const { id } = req.params
+    const { scale } = req.query
+    
+    const images = await getPdfPageImages(id, parseFloat(scale) || 2.0)
+    setCorsHeaders(req, res)
+    res.json({ images })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function checkPdfImages(req, res, next) {
+  try {
+    const { id } = req.params
+    const rendered = await hasRenderedImages(id)
+    setCorsHeaders(req, res)
+    res.json({ rendered, pdfId: id })
   } catch (error) {
     next(error)
   }

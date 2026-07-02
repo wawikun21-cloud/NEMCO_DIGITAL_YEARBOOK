@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import * as pdfjsLib from "pdfjs-dist"
+import { resolveFileUrl, API_BASE_URL } from "@/utils/yearbookEditionHelpers"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.mjs",
@@ -341,7 +342,8 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
 
       for (const page of expandedPages) {
         try {
-          const loadingTask = pdfjsLib.getDocument(page.file_url)
+          const resolvedUrl = resolveFileUrl(page.file_url)
+          const loadingTask = pdfjsLib.getDocument(resolvedUrl)
           const pdfDoc = await loadingTask.promise
 
           for (let p = 1; p <= pdfDoc.numPages; p++) {
@@ -468,7 +470,7 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
   const handleDownload = () => {
     if (currentSheetData) {
       const link = document.createElement("a")
-      link.href = currentSheetData.file_url
+      link.href = resolveFileUrl(currentSheetData.file_url)
       link.download = currentSheetData.file_name
       link.target = "_blank"
       link.click()
@@ -663,7 +665,7 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
                 </div>
               </div>
               <iframe
-                src={`${currentSheetData.file_url}#toolbar=1&navpanes=0&scrollbar=1&zoom=${zoom * 100}`}
+                src={`${resolveFileUrl(currentSheetData.file_url)}#toolbar=1&navpanes=0&scrollbar=1&zoom=${zoom * 100}`}
                 className="h-[calc(100%-40px)] w-full border-0"
                 title={currentSheetData.title}
               />
@@ -786,7 +788,7 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
                   </Button>
                 </div>
                 <iframe
-                  src={`${currentSheetData.file_url}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom * 100}`}
+                  src={`${resolveFileUrl(currentSheetData.file_url)}#toolbar=0&navpanes=0&scrollbar=1&zoom=${zoom * 100}`}
                   className="h-full w-full border-0"
                   title={currentSheetData.title}
                 />
