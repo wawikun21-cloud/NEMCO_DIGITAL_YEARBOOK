@@ -39,13 +39,13 @@ export default function WebGLPdfViewer({ pdfUrl, theme }) {
         const pages = []
         for (let i = 1; i <= doc.numPages; i++) {
           const page = await doc.getPage(i)
-          const viewport = page.getViewport({ scale: 2 })
+          const viewport = page.getViewport({ scale: 5 })
           const canvas = document.createElement("canvas")
           canvas.width = viewport.width
           canvas.height = viewport.height
           const ctx = canvas.getContext("2d")
           await page.render({ canvasContext: ctx, viewport }).promise
-          pages.push(canvas.toDataURL("image/jpeg", 0.92))
+          pages.push(canvas.toDataURL("image/jpeg", 0.95))
         }
         if (!cancelled) {
           setPageImages(pages)

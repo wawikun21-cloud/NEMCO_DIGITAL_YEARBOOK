@@ -9,13 +9,14 @@ export async function uploadImport(req, res, next) {
 
     const adminId = req.user.id
     const batch = await createImportBatch(req.file.originalname, adminId)
+    const batchId = batch.id
 
     const sheetName = req.body.sheetName || undefined
     const rows = await parseExcelFile(req.file.buffer, sheetName)
 
     // Guard: reject very large imports to prevent timeouts
     if (rows.length > 500) {
-      await updateBatchProgress(batch.id, {
+      await updateBatchProgress(batchId, {
         status: "failed",
         message: "Too many rows. Maximum 500 rows per import.",
       })
@@ -24,17 +25,17 @@ export async function uploadImport(req, res, next) {
       })
     }
 
-    await updateBatchProgress(batch.id, {
+    await updateBatchProgress(batchId, {
       total_rows: rows.length,
       status: "processing",
     })
 
     // processImportRows is async and handles per-row errors internally.
     // It will NOT throw — it collects errors and returns counts.
-    const results = await processImportRows(rows, batch.id)
+    const results = await processImportRows(rows, batchId)
     const status = results.errorCount > 0 ? "completed_with_errors" : "completed"
 
-    await updateBatchProgress(batch.id, {
+    await updateBatchProgress(batchId, {
       status,
       success_count: results.successCount,
       failed_count: results.errorCount,
@@ -43,7 +44,7 @@ export async function uploadImport(req, res, next) {
     res.json({
       message:
         status === "completed_with_errors" ? "Import completed with errors" : "Import completed",
-      batchId: batch.id,
+      batchId: batchId,
       status,
       totalRows: rows.length,
       successCount: results.successCount,

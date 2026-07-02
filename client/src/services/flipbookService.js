@@ -286,7 +286,7 @@ export async function renderPdfImages(pdfId, fileUrl, filePath) {
   return data
 }
 
-export async function getPdfPageImages(pdfId, scale = 2.0) {
+export async function getPdfPageImages(pdfId, scale = 400) {
   const response = await fetch(`${API_BASE_URL}/admin/yearbook/pdf-pages/${pdfId}/images?scale=${scale}`, {
     method: "GET",
   })

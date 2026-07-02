@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js"
-import { queueRenderJob } from "./pdfRenderService.js"
+import { getPdfPageImagesWithFallback } from "./pdfRenderService.js"
 
 const COURSE_OPTIONS_CLIENT = [
   { value: "CCJE", label: "CCJE", subs: ["BSCRIM"] },
@@ -640,15 +640,10 @@ async function enrichPdfPagesWithImages(pages) {
   if (!pages || pages.length === 0) return pages
   
   const pdfIds = pages.map(p => p.id)
-  const { data: images } = await supabaseAdmin
-    .from("flipbook_pdf_page_images")
-    .select("pdf_page_id, page_num, image_url, width, height, scale")
-    .in("pdf_page_id", pdfIds)
-    .eq("scale", 2.0)
-    .order("page_num", { ascending: true })
+  const images = await getPdfPageImagesWithFallback(pdfIds)
   
   if (!images || images.length === 0) return pages
-  
+
   const imagesByPdf = {}
   for (const img of images) {
     if (!imagesByPdf[img.pdf_page_id]) {
@@ -721,7 +716,10 @@ export async function createFlipbookPdfPage({ title, description, fileUrl, fileN
   }
 
   if (data?.file_path || data?.file_url) {
-    queueRenderJob(data.id, data.file_url, data.file_path)
+    const { renderPdfPagesProgressive } = await import("./pdfRenderService.js")
+    renderPdfPagesProgressive(data.id, data.file_url, data.file_path).catch((err) => {
+      console.error(`[flipbookService] Progressive render failed for pdf_id=${data.id}:`, err.message)
+    })
   }
 
   return data

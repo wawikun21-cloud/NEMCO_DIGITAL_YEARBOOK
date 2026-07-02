@@ -263,7 +263,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
       canvas.height = viewport.height
       const ctx = canvas.getContext("2d")
       await page.render({ canvasContext: ctx, viewport }).promise
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.7)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
       cacheRef.current[key] = dataUrl
       dimsRef.current[key] = { width: viewport.width, height: viewport.height }
       recomputeAspectRatio()
@@ -280,7 +280,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
     concurrencyRef.current++
-    const scale = isMobile ? 0.9 : 1.0
+    const scale = isMobile ? 2.0 : 2.5
     renderPage(pdfId, pageNum, scale).finally(() => {
       concurrencyRef.current--
       processQueueRef.current()
@@ -291,7 +291,7 @@ function usePdfPageImages(pdfPages, isMobile = false, priorityPdfIds = []) {
     if (!loadedRef.current) return
     const key = `${pdfId}-${pageNum}`
     if (cacheRef.current[key]) return
-    lazyTasksRef.current.push(() => renderPage(pdfId, pageNum, isMobile ? 0.7 : 0.8))
+    lazyTasksRef.current.push(() => renderPage(pdfId, pageNum, isMobile ? 1.5 : 2.0))
   }, [renderPage, isMobile])
 
   useEffect(() => {

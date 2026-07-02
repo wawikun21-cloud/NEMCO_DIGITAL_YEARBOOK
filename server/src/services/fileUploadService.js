@@ -70,14 +70,14 @@ export function extractKeyFromUrl(publicUrl) {
   try {
     if (config.r2.publicBaseUrl) {
       const base = config.r2.publicBaseUrl.replace(/\/$/, "")
-      if (publicUrl.startsWith(base)) return publicUrl.slice(base.length + 1)
+      if (publicUrl.startsWith(base)) return decodeURIComponent(publicUrl.slice(base.length + 1))
     }
     const url = new URL(publicUrl)
     const pathname = url.pathname.replace(/^\//, "")
     if (config.r2.bucket && pathname.startsWith(config.r2.bucket + "/")) {
-      return pathname.slice(config.r2.bucket.length + 1)
+      return decodeURIComponent(pathname.slice(config.r2.bucket.length + 1))
     }
-    return pathname
+    return decodeURIComponent(pathname)
   } catch {
     return null
   }

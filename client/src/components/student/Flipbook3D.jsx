@@ -54,7 +54,7 @@ function usePdfRenderer(fileUrl) {
   }, [fileUrl])
 
   const renderPage = useCallback(
-    async (pageNum, scale = 2) => {
+    async (pageNum, scale = 5) => {
       if (!pdfDoc) return null
       const cacheKey = `${pageNum}-${scale}`
       if (renderCacheRef.current[cacheKey]) {

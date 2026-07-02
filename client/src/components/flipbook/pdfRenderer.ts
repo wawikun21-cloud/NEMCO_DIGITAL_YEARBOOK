@@ -28,7 +28,7 @@ export async function loadPdf(url: string): Promise<pdfjsLib.PDFDocumentProxy> {
 export async function renderPdfPage(
   pdfDoc: pdfjsLib.PDFDocumentProxy,
   pageNum: number,
-  scale = 2
+  scale = 5
 ): Promise<string> {
   const cacheKey = `${pdfDoc}-${pageNum}-${scale}`
   const cached = renderCache.get(cacheKey)
@@ -44,7 +44,7 @@ export async function renderPdfPage(
 
   await page.render({ canvasContext: ctx, viewport }).promise
 
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
   renderCache.set(cacheKey, dataUrl)
   return dataUrl
 }
@@ -52,7 +52,7 @@ export async function renderPdfPage(
 export async function getPageDimensions(
   pdfDoc: pdfjsLib.PDFDocumentProxy,
   pageNum: number,
-  scale = 2
+  scale = 5
 ): Promise<{ width: number; height: number }> {
   const page = await pdfDoc.getPage(pageNum)
   const viewport = page.getViewport({ scale })
@@ -64,7 +64,7 @@ export async function preloadPdfRange(
   centerPage: number,
   totalPages: number,
   range = 2,
-  scale = 2
+  scale = 5
 ): Promise<Map<number, string>> {
   const results = new Map<number, string>()
   const start = Math.max(1, centerPage - range)

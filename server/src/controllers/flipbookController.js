@@ -10,10 +10,9 @@ import {
   searchDepartments as searchDepartmentsService,
 } from "../services/flipbookService.js"
 import {
-  renderPdfPages,
+  queueRenderJob,
   getPdfPageImages,
   hasRenderedImages,
-  queueRenderJob,
 } from "../services/pdfRenderService.js"
 
 function setCorsHeaders(req, res) {
@@ -186,7 +185,7 @@ export async function getPdfImages(req, res, next) {
     const { id } = req.params
     const { scale } = req.query
     
-    const images = await getPdfPageImages(id, parseFloat(scale) || 2.0)
+    const images = await getPdfPageImages(id, parseFloat(scale) || 400)
     setCorsHeaders(req, res)
     res.json({ images })
   } catch (error) {

@@ -54,7 +54,7 @@ function usePdfRenderer(fileUrl) {
   }, [fileUrl])
 
   const renderPage = useCallback(
-    async (pageNum, scale = 2) => {
+    async (pageNum, scale = 5) => {
       if (!pdfDoc) return null
       const cacheKey = `${pageNum}-${scale}`
       if (renderCacheRef.current[cacheKey]) {
@@ -360,7 +360,7 @@ export default function PdfFlipbookViewer({ pdfPages, settings }) {
             canvas.height = viewport.height
             const ctx = canvas.getContext("2d")
             await pdfPage.render({ canvasContext: ctx, viewport }).promise
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
+const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
             renderCacheRef.current[cacheKey] = dataUrl
             allImages[cacheKey] = dataUrl
 

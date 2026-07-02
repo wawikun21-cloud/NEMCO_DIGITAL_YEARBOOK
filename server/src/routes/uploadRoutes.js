@@ -3,7 +3,6 @@ import https from "https"
 import http from "http"
 import { getUploadUrl, getDownloadUrl, extractKeyFromUrl, deletePdfFile, buildPublicUrl } from "../services/fileUploadService.js"
 import { requireAuth } from "../middlewares/authMiddleware.js"
-import { config } from "../config/env.js"
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024
 const router = Router()
@@ -30,11 +29,25 @@ router.get("/file/*", async (req, res, next) => {
     setCorsHeaders(res, origin)
     const downloadUrl = await getDownloadUrl(key)
     const mod = downloadUrl.startsWith("https") ? https : http
-    mod.get(downloadUrl, (downloadRes) => {
-      res.setHeader("Content-Type", downloadRes.headers["content-type"] || "application/pdf")
-      res.setHeader("Content-Length", downloadRes.headers["content-length"] || "")
-      downloadRes.pipe(res)
-    }).on("error", next)
+
+    const upstreamReq = mod.get(downloadUrl, (downloadRes) => {
+      try {
+        if (downloadRes.statusCode >= 400) {
+          res.status(downloadRes.statusCode).json({ message: "File not found or inaccessible" })
+          downloadRes.resume()
+          return
+        }
+        res.setHeader("Content-Type", downloadRes.headers["content-type"] || "application/pdf")
+        if (downloadRes.headers["content-length"]) {
+          res.setHeader("Content-Length", downloadRes.headers["content-length"])
+        }
+        downloadRes.pipe(res)
+      } catch (err) {
+        if (!res.headersSent) next(err)
+        else res.destroy(err)
+      }
+    })
+    upstreamReq.on("error", next)
   } catch (error) {
     next(error)
   }

@@ -7,7 +7,7 @@ if (config.gcs.keyFile) opts.keyFilename = config.gcs.keyFile
 if (config.gcs.credentials) {
   try {
     opts.credentials = JSON.parse(config.gcs.credentials)
-  } catch (e) {
+  } catch {
     // ignore parse errors, SDK will use keyFile or env
   }
 }
