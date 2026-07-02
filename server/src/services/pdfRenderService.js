@@ -321,11 +321,12 @@ async function renderWithPdftoppm(pdfBuffer, pdfFileName, pdfId, onPage) {
   }
 }
 
-async function getPdfPageImages(pdfId, scale = RENDER_DPI) {
+async function getPdfPageImages(pdfIds, scale = RENDER_DPI) {
+  const ids = Array.isArray(pdfIds) ? pdfIds : [pdfIds]
   const { data, error } = await supabaseAdmin
     .from("flipbook_pdf_page_images")
     .select("*")
-    .eq("pdf_page_id", pdfId)
+    .in("pdf_page_id", ids)
     .eq("scale", scale)
     .order("page_num", { ascending: true })
   
@@ -336,10 +337,10 @@ async function getPdfPageImages(pdfId, scale = RENDER_DPI) {
   return data || []
 }
 
-export async function getPdfPageImagesWithFallback(pdfId) {
-  let images = await getPdfPageImages(pdfId, RENDER_DPI)
+async function getPdfPageImagesWithFallback(pdfIds) {
+  let images = await getPdfPageImages(pdfIds, RENDER_DPI)
   if (images.length === 0) {
-    images = await getPdfPageImages(pdfId, RENDER_DPI_LOW)
+    images = await getPdfPageImages(pdfIds, RENDER_DPI_LOW)
   }
   return images
 }

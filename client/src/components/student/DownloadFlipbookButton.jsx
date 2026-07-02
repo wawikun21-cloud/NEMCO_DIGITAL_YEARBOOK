@@ -2,6 +2,13 @@ import { useState, useCallback } from "react"
 import { BookOpen, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import * as pdfjsLib from "pdfjs-dist"
+import { resolveFileUrl } from "@/utils/yearbookEditionHelpers"
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.mjs",
+  import.meta.url
+).toString()
 
 const MAX_IMAGE_WIDTH = 1200
 const JPEG_QUALITY = 0.8
@@ -52,13 +59,22 @@ function buildCoverContent(title, subtitle) {
   </div>`
 }
 
-function buildBackCoverContent(title) {
-  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1f33,#132F45,#1a3a5c);color:#fff;border-radius:8px 0 0 8px;">
-    <div style="font-size:32px;margin-bottom:12px;">❤️</div>
-    <p style="font-size:20px;font-weight:700;color:rgba(255,255,255,0.8);">${escapeHtml(title)}</p>
-    <p style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:4px;">Digital Yearbook</p>
-    <div style="margin-top:16px;height:1px;width:64px;background:rgba(255,255,255,0.1);"></div>
-    <p style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:16px;">Made with ❤ by NEMCO</p>
+function buildBackCoverContent(title, subtitle, pdfPageImage) {
+  if (pdfPageImage) {
+    return `<div style="width:100%;height:100%;background:#fff;display:flex;flex-direction:column;">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <img src="${pdfPageImage}" style="max-width:100%;max-height:100%;object-fit:contain;" />
+      </div>
+    </div>`
+  }
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a3a5c,#132F45,#0d1f33);color:#fff;border-radius:0 8px 8px 0;position:relative;overflow:hidden;">
+    <div style="position:absolute;inset:0;opacity:10;background-image:radial-gradient(circle at 30% 20%,rgba(255,255,255,0.15) 0%,transparent 50%),radial-gradient(circle at 70% 80%,rgba(255,255,255,0.1) 0%,transparent 50%);"></div>
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(to right,transparent,#d9a300,transparent);"></div>
+    <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(to right,transparent,#d9a300,transparent);"></div>
+    <div style="font-size:48px;margin-bottom:16px;position:relative;z-index:1;">🎓</div>
+    <h1 style="font-size:28px;font-weight:800;letter-spacing:-0.5px;line-height:1.2;position:relative;z-index:1;text-align:center;padding:0 20px;">${escapeHtml(title)}</h1>
+    ${subtitle ? `<p style="font-size:14px;color:rgba(255,255,255,0.6);margin-top:8px;position:relative;z-index:1;">${escapeHtml(subtitle)}</p>` : ""}
+    <div style="display:inline-flex;align-items:center;gap:6px;margin-top:20px;padding:6px 16px;border-radius:20px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);font-size:11px;color:rgba(255,255,255,0.8);position:relative;z-index:1;">📖 Interactive Flipbook</div>
   </div>`
 }
 
@@ -400,11 +416,70 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
         toast.loading(`Preparing download… ${pct}%`, { id: "flipbook-download" })
       }
 
+      const localImages = { ...pdfImages }
+
+      const missingPdfPages = []
+      for (const page of pageList) {
+        if (page.type !== "pdf") continue
+        const key = `${page.data.id}-${page.pageNum}`
+        if (!localImages[key]) missingPdfPages.push({ page, key })
+      }
+
+      if (missingPdfPages.length > 0) {
+        const bySource = new Map()
+        for (const { page, key } of missingPdfPages) {
+          const src = page.data.file_path || page.data.file_url
+          if (!src) continue
+          if (!bySource.has(src)) bySource.set(src, [])
+          bySource.get(src).push({ page, key })
+        }
+
+        const totalPdfSteps = missingPdfPages.length
+        let donePdfSteps = 0
+
+        for (const [src, pages] of bySource) {
+          const fileUrl = resolveFileUrl(src)
+          if (!fileUrl) continue
+          const title = pages[0].page.data.title || "PDF"
+          toast.loading(`Downloading ${title}…`, { id: "flipbook-download" })
+          const response = await fetch(fileUrl)
+          if (!response.ok) throw new Error(`Failed to fetch ${title}: ${response.status}`)
+          const arrayBuffer = await response.arrayBuffer()
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+          for (const { page, key } of pages) {
+            if ((page.pageNum || 1) > pdfDoc.numPages) continue
+            const pdfPage = await pdfDoc.getPage(page.pageNum || 1)
+            const scale = 2.0
+            const viewport = pdfPage.getViewport({ scale })
+            const canvas = document.createElement("canvas")
+            canvas.width = viewport.width
+            canvas.height = viewport.height
+            const ctx = canvas.getContext("2d")
+            await pdfPage.render({ canvasContext: ctx, viewport }).promise
+            localImages[key] = canvas.toDataURL("image/jpeg", 0.95)
+            donePdfSteps++
+            const pct = totalImages > 0
+              ? Math.round(((donePdfSteps) / (totalImages + totalPdfSteps)) * 100)
+              : Math.round((donePdfSteps / totalPdfSteps) * 100)
+            setProgress({ current: donePdfSteps, total: totalImages + totalPdfSteps, percent: pct })
+            toast.loading(`Preparing download… ${pct}%`, { id: "flipbook-download" })
+          }
+        }
+      }
+
       setProgress(null)
 
       const pagesData = pageList.map((page) => {
         if (page.type === "cover") return buildCoverContent(title, subtitle)
-        if (page.type === "back-cover") return buildBackCoverContent(title)
+        if (page.type === "back-cover") {
+          const dp = page._designPage
+          if (dp?.type === "pdf") {
+            const imgKey = `${dp.data.id}-${dp.pageNum}`
+            return buildBackCoverContent(title, subtitle, localImages[imgKey] || null)
+          }
+          return buildBackCoverContent(title, subtitle)
+        }
         if (page.type === "section") return buildSectionContent(page.name || "Section")
         if (page.type === "student") {
           const profile = page.data?.profile
@@ -416,7 +491,7 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
         }
         if (page.type === "pdf") {
           const imgKey = `${page.data.id}-${page.pageNum}`
-          const imgData = pdfImages[imgKey]
+          const imgData = localImages[imgKey]
           return buildPdfContent(imgData || null, page.data.title, page.pageNum)
         }
         return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#fff;color:#ccc;font-size:12px;">Empty page</div>`

@@ -3,6 +3,13 @@ import { Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { jsPDF } from "jspdf"
+import * as pdfjsLib from "pdfjs-dist"
+import { resolveFileUrl } from "@/utils/yearbookEditionHelpers"
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.mjs",
+  import.meta.url
+).toString()
 
 export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelSize, pageAspectRatios, pdfImageDimensions }) {
   const [generating, setGenerating] = useState(false)
@@ -27,6 +34,52 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
     toast.loading("Generating PDF…", { id: "pdf-download" })
 
     try {
+      const localImages = { ...pdfImages }
+      const localDimensions = { ...(pdfImageDimensions || {}) }
+
+      const missingPdfPages = []
+      for (const page of pageList) {
+        if (page.type !== "pdf") continue
+        const key = `${page.data.id}-${page.pageNum}`
+        if (!localImages[key]) missingPdfPages.push({ page, key })
+      }
+
+      if (missingPdfPages.length > 0) {
+        const bySource = new Map()
+        for (const { page, key } of missingPdfPages) {
+          const src = page.data.file_path || page.data.file_url
+          if (!src) continue
+          if (!bySource.has(src)) bySource.set(src, [])
+          bySource.get(src).push({ page, key })
+        }
+
+        for (const [src, pages] of bySource) {
+          const fileUrl = resolveFileUrl(src)
+          if (!fileUrl) continue
+          const title = pages[0].page.data.title || "PDF"
+          toast.loading(`Downloading ${title}…`, { id: "pdf-download" })
+          const response = await fetch(fileUrl)
+          if (!response.ok) throw new Error(`Failed to fetch ${title}: ${response.status}`)
+          const arrayBuffer = await response.arrayBuffer()
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+          for (const { page, key } of pages) {
+            if ((page.pageNum || 1) > pdfDoc.numPages) continue
+            const pdfPage = await pdfDoc.getPage(page.pageNum || 1)
+            const scale = 2.5
+            const viewport = pdfPage.getViewport({ scale })
+            const canvas = document.createElement("canvas")
+            canvas.width = viewport.width
+            canvas.height = viewport.height
+            const ctx = canvas.getContext("2d")
+            await pdfPage.render({ canvasContext: ctx, viewport }).promise
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
+            localImages[key] = dataUrl
+            localDimensions[key] = { width: viewport.width, height: viewport.height }
+          }
+        }
+      }
+
       const { w, h } = pageSize
       const orientation = w >= h ? "landscape" : "portrait"
       const pdf = new jsPDF({ orientation, unit: "px", format: [w, h] })
@@ -46,9 +99,9 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
               drawStudentBackPage(pdf, dp, w, h)
               } else if (dp?.type === "pdf") {
                 const imgKey = `${dp.data.id}-${dp.pageNum}`
-                const imgData = pdfImages[imgKey]
+                const imgData = localImages[imgKey]
                 if (imgData) {
-                  addImageFit(pdf, imgData, w, h, pdfImageDimensions?.[imgKey])
+                  addImageFit(pdf, imgData, w, h, localDimensions?.[imgKey])
                 }
               } else {
               drawCoverPage(pdf, data, w, h)
@@ -56,19 +109,19 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
          } else if (page.type === "inside-cover") {
            pdf.setFillColor(248, 247, 245)
            pdf.rect(0, 0, w, h, "F")
-         } else if (page.type === "back-cover") {
-          drawBackCoverPage(pdf, data, w, h)
-        } else if (page.type === "section") {
-          drawSectionPage(pdf, page, w, h)
-        } else if (page.type === "student") {
-          drawStudentPage(pdf, page, w, h)
-          } else if (page.type === "pdf") {
-            const imgKey = `${page.data.id}-${page.pageNum}`
-            const imgData = pdfImages[imgKey]
-            if (imgData) {
-              addImageFit(pdf, imgData, w, h, pdfImageDimensions?.[imgKey])
-            }
-          }
+          } else if (page.type === "back-cover") {
+            drawBackCoverPage(pdf, data, w, h, page._designPage, localImages)
+         } else if (page.type === "section") {
+           drawSectionPage(pdf, page, w, h)
+         } else if (page.type === "student") {
+           drawStudentPage(pdf, page, w, h)
+           } else if (page.type === "pdf") {
+             const imgKey = `${page.data.id}-${page.pageNum}`
+             const imgData = localImages[imgKey]
+             if (imgData) {
+               addImageFit(pdf, imgData, w, h, localDimensions?.[imgKey])
+             }
+           }
       }
 
       const fileName = `${(data?.settings?.title || "yearbook").replace(/\s+/g, "_")}.pdf`
@@ -101,39 +154,51 @@ export default function DownloadPdfButton({ pageList, pdfImages, data, pdfPixelS
 }
 
 function addImageFit(pdf, imgData, pageW, pageH, imgDimensions, margin = 0) {
-  const availW = pageW - margin * 2
-  const availH = pageH - margin * 2
-  let imgW, imgH
-  if (imgDimensions) {
-    imgW = imgDimensions.width
-    imgH = imgDimensions.height
-  } else if (typeof imgData === "string") {
-    const dims = getImageDimensions(imgData)
-    imgW = dims.width
-    imgH = dims.height
-  } else {
-    imgW = imgData.naturalWidth || imgData.width
-    imgH = imgData.naturalHeight || imgData.height
-  }
-  if (!imgW || !imgH) return
-  const scale = Math.min(availW / imgW, availH / imgH)
-  const drawW = Math.round(imgW * scale)
-  const drawH = Math.round(imgH * scale)
-  const x = Math.round((pageW - drawW) / 2)
-  const y = Math.round((pageH - drawH) / 2)
-  pdf.addImage(imgData, "JPEG", x, y, drawW, drawH)
-}
+   const availW = pageW - margin * 2
+   const availH = pageH - margin * 2
+   let imgW, imgH
+   if (imgDimensions?.width && imgDimensions?.height) {
+     imgW = imgDimensions.width
+     imgH = imgDimensions.height
+   } else if (typeof imgData === "string") {
+     const dims = getImageDimensions(imgData)
+     imgW = dims.width
+     imgH = dims.height
+   } else {
+     imgW = imgData.naturalWidth || imgData.width
+     imgH = imgData.naturalHeight || imgData.height
+   }
+   if (!imgW || !imgH) return
+   const scale = Math.min(availW / imgW, availH / imgH)
+   const drawW = Math.round(imgW * scale)
+   const drawH = Math.round(imgH * scale)
+   const x = Math.round((pageW - drawW) / 2)
+   const y = Math.round((pageH - drawH) / 2)
+   pdf.addImage(imgData, "JPEG", x, y, drawW, drawH)
+ }
 
 const dimensionsCache = new Map()
 
 function getImageDimensions(dataUrl) {
-  if (dimensionsCache.has(dataUrl)) return dimensionsCache.get(dataUrl)
-  const img = new Image()
-  img.src = dataUrl
-  const dims = { width: img.naturalWidth || 600, height: img.naturalHeight || 800 }
-  dimensionsCache.set(dataUrl, dims)
-  return dims
-}
+   if (dimensionsCache.has(dataUrl)) {
+     const cached = dimensionsCache.get(dataUrl)
+     if ((cached.width || 0) > 0) return cached
+   }
+   const img = new Image()
+   img.src = dataUrl
+   if (img.complete && img.naturalWidth > 0) {
+     const dims = { width: img.naturalWidth, height: img.naturalHeight }
+     dimensionsCache.set(dataUrl, dims)
+     return dims
+   }
+   img.onload = () => {
+     const dims = { width: img.naturalWidth, height: img.naturalHeight }
+     dimensionsCache.set(dataUrl, dims)
+   }
+   const dims = { width: img.naturalWidth || 600, height: img.naturalHeight || 800 }
+   dimensionsCache.set(dataUrl, dims)
+   return dims
+ }
 
 function drawCoverPage(pdf, data, w, h) {
   pdf.setFillColor(26, 58, 92)
@@ -162,30 +227,16 @@ function drawCoverPage(pdf, data, w, h) {
   pdf.text(badge, (w - bw) / 2, h / 2 + fontSize * 1.2)
 }
 
-function drawBackCoverPage(pdf, data, w, h) {
-  pdf.setFillColor(13, 31, 51)
-  pdf.rect(0, 0, w, h, "F")
-
-  const fontSize = Math.round(w / 28)
-  pdf.setFontSize(fontSize)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(200, 200, 220)
-  const title = data?.settings?.title || "NEMCO"
-  const tw = pdf.getTextWidth(title)
-  pdf.text(title, (w - tw) / 2, h / 2 - fontSize * 0.3)
-
-  pdf.setFontSize(Math.round(fontSize * 0.65))
-  pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(150, 150, 170)
-  const sub = "Digital Yearbook"
-  const sw = pdf.getTextWidth(sub)
-  pdf.text(sub, (w - sw) / 2, h / 2 + fontSize * 0.5)
-
-  pdf.setFontSize(Math.round(fontSize * 0.55))
-  pdf.setTextColor(120, 120, 140)
-  const credit = "Made with love by NEMCO"
-  const cw = pdf.getTextWidth(credit)
-  pdf.text(credit, (w - cw) / 2, h / 2 + fontSize * 1.3)
+function drawBackCoverPage(pdf, data, w, h, _designPage, pdfImages) {
+  if (_designPage?.type === "pdf") {
+    const imgKey = `${_designPage.data.id}-${_designPage.pageNum}`
+    const imgData = pdfImages[imgKey]
+    if (imgData) {
+      addImageFit(pdf, imgData, w, h)
+      return
+    }
+  }
+  drawCoverPage(pdf, data, w, h)
 }
 
 function drawSectionPage(pdf, page, w, h) {

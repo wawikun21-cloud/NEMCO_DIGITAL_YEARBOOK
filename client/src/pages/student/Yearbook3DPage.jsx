@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react"
+﻿import { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from "react"
 import HTMLFlipBook from "react-pageflip"
 
 const BOOK_3D_STYLES_ID = "book-3d-depth-styles"
@@ -93,7 +93,7 @@ function injectBook3DStyles() {
     .stf__parent .stf__block {
       transform-style: preserve-3d !important;
     }
-    /* Visual feedback while dragging — subtle lift + intensified shadow */
+    /* Visual feedback while dragging â€” subtle lift + intensified shadow */
     .book-dragging .stf__parent .stf__block .stf__item {
       filter: brightness(0.97) contrast(1.02);
       transition: filter 0.15s ease-out;
@@ -484,14 +484,40 @@ const BookCover = forwardRef(function BookCover({ title, subtitle }, ref) {
   )
 })
 
-const BackCover = forwardRef(function BackCover({ title }, ref) {
+const BackCover = forwardRef(function BackCover({ title, subtitle, _designPage, pdfImages, isLeftPage }, ref) {
+  if (_designPage?.type === "pdf") {
+    const imgKey = `${_designPage.data.id}-${_designPage.pageNum}`
+    const imageUrl = pdfImages[imgKey]
+    return (
+      <div ref={ref} className="flex h-full w-full relative book-page-curve-shading">
+        <div className="book-page-edge book-page-edge-left" />
+        {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
+        <div className="absolute inset-0 flex items-center justify-center bg-white">
+          {imageUrl ? (
+            <img src={imageUrl} alt={_designPage.data.title} className="h-full w-full object-cover" draggable={false} />
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <BookOpen size={20} className="text-[var(--bg-primary)]/20" />
+              <span className="text-[10px] text-[var(--text-muted)]/40">{_designPage.data.title}</span>
+            </div>
+          )}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{_designPage.data.title} • Page {_designPage.pageNum}</span></div>
+      </div>
+    )
+  }
   return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0d1f33] via-[#132F45] to-[#1a3a5c] p-5 sm:p-6 text-center relative">
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 40%)" }} />
+    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#1a3a5c] via-[#132F45] to-[#0d1f33] p-5 sm:p-6 text-center relative book-hardcover">
+      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)" }} />
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--accent-gold)] to-transparent" />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%)" }} />
       <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 2px 2px 4px rgba(255,255,255,0.04), inset -1px -1px 3px rgba(0,0,0,0.15)" }} />
-      <Heart size={32} className="mb-3 text-[var(--accent-gold)]/60" />
-      <p className="text-lg font-bold text-white/80 relative z-10">{title || "NEMCO"}</p>
-      <p className="mt-1 text-xs text-white/40 relative z-10">Digital Yearbook</p>
+      <div className="flex flex-col items-center justify-center flex-1 min-h-0 relative z-10">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10"><GraduationCap size={36} className="text-[var(--accent-gold)]" /></div>
+        <h1 className="text-2xl font-extrabold text-white sm:text-3xl tracking-tight leading-tight">{title || "NEMCO Digital Yearbook"}</h1>
+        {subtitle && <p className="mt-2 text-sm text-white/60 font-light">{subtitle}</p>}
+      </div>
     </div>
   )
 })
@@ -539,7 +565,7 @@ const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pag
           </div>
         )}
       </div>
-      <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{title} • Page {pageNum}</span></div>
+      <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{title} Page {pageNum}</span></div>
     </div>
   )
 })
@@ -604,13 +630,13 @@ export default function Yearbook3DPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [showStrip, setShowStrip] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => window.innerWidth < 640 ? 0.75 : 0.95)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [flipSpeed, setFlipSpeed] = useState(0.7)
   // Mobile flip speed: tuned so a button- or swipe-driven page turn reads as a
   // deliberate page lift-and-drop rather than a snap. 1500 ms gives a calm,
   // followable arc on a small screen without feeling sluggish.
-  const mobileFlipSpeed = 1.5
+  const mobileFlipSpeed = 0.8
   const [pendingPage, setPendingPage] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768)
@@ -760,13 +786,13 @@ export default function Yearbook3DPage() {
   }, [data])
 
    
-  // Sync flip speed from settings — persists to backend on change
+  // Sync flip speed from settings â€” persists to backend on change
   useEffect(() => {
     if (data?.settings?.flip_speed) setFlipSpeed(data.settings.flip_speed)
   }, [data?.settings?.flip_speed])
 
    
-  // Navigate to student page on URL param — runs once when data loads
+  // Navigate to student page on URL param â€” runs once when data loads
   useEffect(() => {
     if (!data) return
     const params = new URLSearchParams(window.location.search)
@@ -975,41 +1001,38 @@ const departmentOptions = useMemo(() => {
            contentPages.push({ type: "student-back", data: fp })
          }
        }
-      } else if (sourceType === "pdfs") {
-          // The YEARBOOK MAIN edition always comes first (it is global), followed by
-          // the student's course-scoped edition. A section divider marks the change
-          // so readers know they've switched from the main yearbook to their course.
-          //
-          // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
-          // same page never appears twice even when mainPdfPages and coursePdfPages
-          // reference the same pdf. Also clamp page counts to reasonable bounds to
-          // avoid runaway lengths caused by corrupt/misstored page_count values.
-          // use shared getPdfCount / pushPdfPage helpers defined above
+       } else if (sourceType === "pdfs") {
+           // The YEARBOOK MAIN edition always comes first (it is global), followed by
+           // the student's course-scoped edition.
+           //
+           // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
+           // same page never appears twice even when mainPdfPages and coursePdfPages
+           // reference the same pdf. Also clamp page counts to reasonable bounds to
+           // avoid runaway lengths caused by corrupt/misstored page_count values.
+           // use shared getPdfCount / pushPdfPage helpers defined above
 
-          for (const pdf of mainPdfPages) {
-            const cnt = getPdfCount(pdf)
-            for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
-          }
+           for (const pdf of mainPdfPages) {
+             const cnt = getPdfCount(pdf)
+             for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
+           }
 
-          if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
-            contentPages.push({ type: "section", name: selectedDepartment || "Department Yearbook" })
-          }
+           for (const pdf of coursePdfPages) {
+             const cnt = getPdfCount(pdf)
+             for (let i = 2; i <= cnt; i++) pushPdfPage(pdf, i)
+           }
 
-          for (const pdf of coursePdfPages) {
-            const cnt = getPdfCount(pdf)
-            for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
-          }
-
-          // Reserve the first page of the first pdf for the cover. It is rendered by
-          // the <BookCover _designPage> branch, so it must not appear in the body.
-          const firstPdfPage = mainPdfPages.length > 0 ? mainPdfPages[0] : (coursePdfPages.length > 0 ? coursePdfPages[0] : null)
-          if (firstPdfPage) {
-            const coverKey = `${firstPdfPage.id}-1`
+            // Reserve the first page of the first pdf for the cover. It is rendered by
+            // the <BookCover _designPage> branch, so it must not appear in the body.
+            const firstPdfPage = mainPdfPages.length > 0 ? mainPdfPages[0] : (coursePdfPages.length > 0 ? coursePdfPages[0] : null)
+            const coverKey = firstPdfPage ? `${firstPdfPage.id}-1` : null
+            const coverDesignPage = firstPdfPage ? { type: "pdf", data: firstPdfPage, pageNum: 1 } : null
             const filteredContent = contentPages.filter((p) => `${p.data?.id}-${p.pageNum}` !== coverKey)
-            return [{ type: "cover", _designPage: { type: "pdf", data: firstPdfPage, pageNum: 1 } }, { type: "inside-cover" }, ...filteredContent, { type: "back-cover" }]
-          }
-
-          return [{ type: "cover", _designPage: null }, { type: "inside-cover" }, ...contentPages, { type: "back-cover" }]
+            return [
+              { type: "cover", _designPage: coverDesignPage },
+              { type: "inside-cover" },
+              ...filteredContent,
+              { type: "back-cover", _designPage: coverDesignPage }
+            ]
       } else {
        if (sections.length > 0) {
          const sectionMap = new Map(), unsectioned = []
@@ -1292,7 +1315,7 @@ const departmentOptions = useMemo(() => {
               const origFlip = flipController.flip.bind(flipController)
               flipController.flip = (globalPos) => {
                 if (flipController.getCalculation() !== null) {
-                  // A fold is already in progress — skip the flip call so the
+                  // A fold is already in progress â€” skip the flip call so the
                   // fold completes naturally. userStop → stopMove will handle
                   // the final page snap. This prevents the double onFlip fire.
                   return
@@ -1300,11 +1323,16 @@ const departmentOptions = useMemo(() => {
                 origFlip(globalPos)
               }
             }
-             try { pf.getPage(0).setDensity("soft") } catch { /* */ }
-             try {
-               const pages = pf.getPageCollection?.()?.pages
-               if (pages?.[0]) pages[0].density = "soft"
-             } catch { /* */ }
+              try { pf.getPage(0).setDensity("soft") } catch { /* */ }
+              try {
+                const pages = pf.getPageCollection?.()?.pages
+                if (pages?.[0]) pages[0].density = "soft"
+              } catch { /* */ }
+              try { pf.getPage(pf.getPageCount() - 1).setDensity("soft") } catch { /* */ }
+              try {
+                const pages = pf.getPageCollection?.()?.pages
+                if (pages?.length) pages[pages.length - 1].density = "soft"
+              } catch { /* */ }
               // Eliminate the 250ms setTimeout delay before startUserTouch fires.
               // On desktop, mousedown → startUserTouch is instant, so dragging
               // starts immediately. On mobile, the library delays it by swipeTimeout
@@ -1351,12 +1379,12 @@ const departmentOptions = useMemo(() => {
                     if (pageWidth > 0 && calc) {
                       const dir = pos.x < pageWidth / 2 ? -1 : 1
                       if (lastDir !== 0 && dir !== lastDir) {
-                        // Direction reversed — drop the cached calc and start fresh
+                        // Direction reversed â€” drop the cached calc and start fresh
                         lastDir = dir
                         return origFold(pos)
                       }
                       lastDir = dir
-                      // Same direction — fold at the new position in place so the
+                      // Same direction â€” fold at the new position in place so the
                       // curl angle tracks the finger continuously.
                       return origFold(pos)
                     }
@@ -1365,45 +1393,94 @@ const departmentOptions = useMemo(() => {
                   }
                 }
 
-                // 2. Drive the fold directly from touch moves so the cover follows
-                //    the finger per-frame without waiting for userMove.
-                ui.onTouchMove = function (e) {
-                  if (e.changedTouches && e.changedTouches.length > 0) {
-                    const touch = e.changedTouches[0]
-                    const pos = ui["getMousePos"](touch.clientX, touch.clientY)
-                    if (ui["app"]["getSettings"]()["mobileScrollSupport"]) {
-                      // Update the live finger point so the library tracks it.
-                      ui["touchPoint"] = { point: pos, time: Date.now() }
-                      if (ui["app"]["getState"]() === "read") {
-                        // We're at rest — start a user fold if the finger has moved
-                        // past the dead-zone.
-                        const app = ui["app"]
-                        const isUserTouch = typeof app["getUserTouch"] === "function"
-                          ? app["getUserTouch"]()
-                          : true
-                        if (isUserTouch && !pf["isUserMove"]) {
-                          const dx = Math.abs((pf["mousePosition"]?.x ?? 0) - pos.x)
-                          const dy = Math.abs((pf["mousePosition"]?.y ?? 0) - pos.y)
-                          if (Math.hypot(dx, dy) > 4) {
-                            pf["isUserMove"] = true
-                            pf["flipController"]?.fold?.(pos)
-                          }
-                        } else if (pf["isUserMove"]) {
-                          pf["flipController"]?.fold?.(pos)
-                        }
-                      } else {
-                        // Mid-fold: just update the curl angle.
-                        pf["flipController"]?.fold?.(pos)
-                      }
-                      // Prevent scroll while dragging the page.
-                      if (e.cancelable) e.preventDefault()
-                    } else {
-                      ui["app"]["userMove"](pos, true)
+                  // 2. Drive the fold directly from touch moves so the cover follows
+                  //    the finger per-frame without waiting for userMove.
+                  //    Apply the same per-frame fold tracking on phones as on desktop touch —
+                  //    this is what makes the drag follow the finger with no lag.
+                   ui.onTouchMove = function (e) {
+                     if (e.changedTouches && e.changedTouches.length > 0) {
+                       const touch = e.changedTouches[0]
+                       const bookEl = bookWrapperRef.current
+                       const startedInBook = bookEl ? bookEl.contains(touch.target) : true
+                       if (!startedInBook) return
+                       const pos = ui["getMousePos"](touch.clientX, touch.clientY)
+                       if (ui["app"]["getSettings"]()["mobileScrollSupport"]) {
+                         ui["touchPoint"] = { point: pos, time: Date.now() }
+                         if (ui["app"]["getState"]() === "read") {
+                           const app = ui["app"]
+                           const isUserTouch = typeof app["getUserTouch"] === "function"
+                             ? app["getUserTouch"]()
+                             : true
+                           if (isUserTouch && !pf["isUserMove"]) {
+                             const dx = Math.abs((pf["mousePosition"]?.x ?? 0) - pos.x)
+                             const dy = Math.abs((pf["mousePosition"]?.y ?? 0) - pos.y)
+                             if (dx > 4 && dx > dy * 1.5) {
+                               pf["isUserMove"] = true
+                               pf["flipController"]?.fold?.(pos)
+                             }
+                           } else if (pf["isUserMove"]) {
+                             pf["flipController"]?.fold?.(pos)
+                           }
+                         } else {
+                           pf["flipController"]?.fold?.(pos)
+                         }
+                         if (e.cancelable && pf["isUserMove"]) e.preventDefault()
+                       } else {
+                         ui["touchPoint"] = { point: pos, time: Date.now() }
+                         ui["app"]["userMove"](pos, true)
+                       }
+                     }
+                   }
+                 // 3. DESKTOP MOUSE SWIPE ENHANCEMENT
+                 if (window.innerWidth >= 640) {
+                 let mouseDown = false
+                 let mouseCommittedToFlip = false
+                 let mouseStartPos = null
+                 ui.onMouseDown = function (e) {
+                  if (isFlippingRef.current) return
+                  mouseDown = true
+                  mouseCommittedToFlip = false
+                  mouseStartPos = { x: e.clientX, y: e.clientY }
+                  const pos = ui["getMousePos"](e.clientX, e.clientY)
+                  ui["touchPoint"] = { point: pos, time: Date.now() }
+                  pf["isUserTouch"] = true
+                  pf["mousePosition"] = { x: e.clientX, y: e.clientY, ...pos }
+                }
+                ui.onMouseMove = function (e) {
+                  if (!mouseDown) return
+                  const pos = ui["getMousePos"](e.clientX, e.clientY)
+                  pf["mousePosition"] = { x: e.clientX, y: e.clientY, ...pos }
+                  if (ui["app"]["getState"]() === "read") {
+                    if (!mouseStartPos) return
+                    const dx = Math.abs(mouseStartPos.x - e.clientX)
+                    const dy = Math.abs(mouseStartPos.y - e.clientY)
+                    if (!mouseCommittedToFlip && dx > 4 && dx > dy * 1.5) {
+                      mouseCommittedToFlip = true
+                      pf["isUserMove"] = true
+                      pf["flipController"]?.fold?.(pos)
+                    } else if (mouseCommittedToFlip || pf["isUserMove"]) {
+                      pf["flipController"]?.fold?.(pos)
                     }
+                    if (e.cancelable && (mouseCommittedToFlip || pf["isUserMove"])) {
+                      e.preventDefault?.()
+                    }
+                  } else if (pf["isUserMove"]) {
+                    pf["flipController"]?.fold?.(pos)
                   }
                 }
+                ui.onMouseUp = function (e) {
+                  mouseDown = false
+                  mouseCommittedToFlip = false
+                  mouseStartPos = null
+                  if (pf["isUserMove"]) {
+                    const pos = ui["getMousePos"](e.clientX, e.clientY)
+                    pf["flipController"]?.fold?.(pos)
+                  }
+                  pf["isUserMove"] = false
+                  pf["isUserTouch"] = false
+                }
               }
-                // userMove — only kick off the fold if the finger has moved past
+                // userMove â€” only kick off the fold if the finger has moved past
                 // the 4px dead-zone AND we aren't already mid-fold. After that
                 // the onTouchMove handler drives per-frame curl tracking.
                 try {
@@ -1416,8 +1493,9 @@ const departmentOptions = useMemo(() => {
                       pf["flipController"]?.fold?.(pos)
                     }
                   }
-                } catch { /* */ }
-            if (initialPage !== null && initialPage !== 0) {
+                 } catch { /* */ }
+               }
+             if (initialPage !== null && initialPage !== 0) {
              pf.turnToPage(initialPage)
            }
          }
@@ -1510,7 +1588,7 @@ const departmentOptions = useMemo(() => {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0d1f33] to-[#132F45]">
       <div className="flex flex-col items-center gap-4">
         <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
-        <p className="text-sm text-white/60 font-light">Opening your yearbook…</p>
+        <p className="text-sm text-white/60 font-light">Opening your yearbook</p>
       </div>
     </div>
   )
@@ -1555,8 +1633,8 @@ const departmentOptions = useMemo(() => {
     )
 
    return (
-    <div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50" : "min-h-screen"}`}
-      style={{ background: isFullscreen ? "linear-gradient(135deg, rgba(30,20,10,0.95) 0%, rgba(15,25,40,0.97) 50%, rgba(10,15,30,0.95) 100%)" : "linear-gradient(135deg, #faf8f5 0%, #f0ede8 30%, #e8e4de 60%, #f0ede8 100%)" }}>
+<div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50" : "min-h-screen overflow-y-auto sm:overflow-y-visible"}`}
+       style={{ background: isFullscreen ? "linear-gradient(135deg, rgba(30,20,10,0.95) 0%, rgba(15,25,40,0.97) 50%, rgba(10,15,30,0.95) 100%)" : "linear-gradient(135deg, #faf8f5 0%, #f0ede8 30%, #e8e4de 60%, #f0ede8 100%)" }}>
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 right-1/4 h-64 w-64 rounded-full bg-amber-500/[0.04] blur-3xl" />
         <div className="absolute bottom-0 left-1/4 h-48 w-48 rounded-full bg-[var(--bg-primary)]/[0.04] blur-3xl" />
@@ -1639,7 +1717,7 @@ const departmentOptions = useMemo(() => {
                              pg.type === "back-cover" ? "Back Cover" :
                              pg.type === "inside-cover" ? "Inside Cover" :
                              pg.type === "section" ? pg.name :
-                             pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} — Page ${pg.pageNum}` :
+                             pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} â€” Page ${pg.pageNum}` :
                              pg.type === "student" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"}` :
                              pg.type === "student-back" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"} (back)` :
                              `Page ${idx}`
@@ -1710,11 +1788,11 @@ const departmentOptions = useMemo(() => {
         </div>
       )}
 
-      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
+      <div className={`relative z-10 flex flex-1 flex-col items-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
         {bookReady && pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
-            <p className="text-sm text-[var(--text-muted)] font-light">Rendering PDF pages…</p>
+            <p className="text-sm text-[var(--text-muted)] font-light">Rendering PDF page</p>
             <div className="h-1 w-32 rounded-full bg-black/10 overflow-hidden mt-2"><div className="h-full rounded-full bg-[var(--accent-gold)] animate-pulse" style={{ width: "60%" }} /></div>
           </div>
         )}
@@ -1722,12 +1800,12 @@ const departmentOptions = useMemo(() => {
            <div
              ref={bookWrapperRef}
              className={`book-resting-shadow${isDragging ? " book-dragging" : ""}`}
-             style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
+              style={{ transform: `translateX(${bookTranslateX}%) scale(${zoom})`, touchAction: "pan-y", transformOrigin: "center center", width: "100%", display: "flex", justifyContent: "center", maxWidth: "100vw", overflow: "visible", transition: isFlipping ? "none" : "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
            >
            {!bookReady ? (
              <div className="flex flex-col items-center gap-3 py-16">
                <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
-               <p className="text-sm text-[var(--text-muted)] font-light">Opening your yearbook…</p>
+               <p className="text-sm text-[var(--text-muted)] font-light">Opening your yearbook</p>
                <div className="h-1 w-32 rounded-full bg-black/10 overflow-hidden mt-2"><div className="h-full rounded-full bg-[var(--accent-gold)] animate-pulse" style={{ width: "60%" }} /></div>
              </div>
             ) : (
@@ -1748,11 +1826,11 @@ const departmentOptions = useMemo(() => {
               usePortrait={true}
               startPage={initialPage !== null ? initialPage : 0}
               clickEventForward={true}
-              mobileScrollSupport={true}
-              useMouseEvents={true}
-              showPageCorners={true}
+                mobileScrollSupport={true}
+                useMouseEvents={true}
+               showPageCorners={true}
                  disableFlipByClick={false}
-               swipeDistance={28}
+                swipeDistance={20}
               autoSize={true}
               renderOnlyPageLengthChange={false}
               onFlip={onFlip}
@@ -1843,7 +1921,7 @@ if (dp.type === "pdf") {
                               </div>
                             )}
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title} • Page {dp.pageNum}</span></div>
+                          <div className="absolute inset-x-0 bottom-0 py-1 text-center z-[4]"><span className="text-[9px] text-[var(--text-muted)]/50">{dp.data.title}  Page {dp.pageNum}</span></div>
                         </div>
                       )
                    }
@@ -1854,7 +1932,7 @@ if (dp.type === "pdf") {
                 }
                 if (page.type === "back-cover") {
                  return (
-                   <BackCover key="back-cover" title={data?.settings?.title} />
+                   <BackCover key="back-cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} _designPage={page._designPage} pdfImages={pdfImages} isLeftPage={isLeftPage} />
                  )
                }
                if (page.type === "section") {
@@ -1899,7 +1977,7 @@ if (page.type === "pdf") {
 
         <div className={`mt-4 sm:mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-5 ${isFullscreen ? "hidden" : ""}`}>
           <Button variant="outline" size="icon" onClick={goPrev} disabled={currentPage <= 0 || isFlipping}
-            className="h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
+            className={`h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg backdrop-blur-sm transition-colors ${headerDark ? "border-black/15 bg-black/10 text-black shadow-black/40 hover:bg-white/15 hover:text-[#f0e6d3]" : "border-white/10 bg-white/90 text-black shadow-black/10 hover:bg-white"}`}
             aria-label="Previous page">
             <ChevronLeft size={18} className="sm:hidden" />
             <ChevronLeft size={22} className="hidden sm:block" />
@@ -1917,7 +1995,7 @@ if (page.type === "pdf") {
             })}
           </div>
           <Button variant="outline" size="icon" onClick={goNext} disabled={currentPage >= totalPages - 1 || isFlipping}
-            className="h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg shadow-black/10 border-black/10 bg-white/90 backdrop-blur-sm hover:bg-white"
+            className={`h-9 w-9 sm:h-11 sm:w-11 rounded-full shadow-lg backdrop-blur-sm transition-colors ${headerDark ? "border-black/15 bg-black/10 text-black shadow-black/40 hover:bg-white/15 hover:text-[#f0e6d3]" : "border-white/10 bg-white/90 text-black shadow-black/10 hover:bg-white"}`}
             aria-label="Next page">
             <ChevronRight size={18} className="sm:hidden" />
             <ChevronRight size={22} className="hidden sm:block" />
@@ -1930,7 +2008,7 @@ if (page.type === "pdf") {
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom in"><ZoomIn size={13} /></Button>
         </div>
 
-        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
+        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}> drag to scroll • ← → keys • Ctrl+K search</p>
 
         <div className={`mt-4 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
           <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} pdfImageDimensions={pdfImageDimensions} />
@@ -1961,3 +2039,4 @@ if (page.type === "pdf") {
     </div>
   )
 }
+
