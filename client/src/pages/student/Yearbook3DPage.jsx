@@ -101,6 +101,25 @@ function injectBook3DStyles() {
     .book-dragging {
       filter: drop-shadow(0 32px 56px rgba(0,0,0,0.3)) drop-shadow(0 14px 24px rgba(0,0,0,0.16)) !important;
     }
+
+    /* Visible scrollbar for the book viewport on mobile screens */
+    @media (max-width: 639px) {
+      .book-viewport-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.28) rgba(0,0,0,0.06);
+      }
+      .book-viewport-scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+      .book-viewport-scroll::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.06);
+        border-radius: 999px;
+      }
+      .book-viewport-scroll::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.28);
+        border-radius: 999px;
+      }
+    }
    `
   document.head.appendChild(style)
 }
@@ -116,7 +135,6 @@ import {
   Minimize2,
   Grid3X3,
   BookOpen,
-  Sparkles,
   Heart,
   GraduationCap,
   Loader2,
@@ -505,20 +523,6 @@ const InsideCover = forwardRef(function InsideCover({ isLeftPage }, ref) {
   )
 })
 
-const SectionPage = forwardRef(function SectionPage({ name, isLeftPage }, ref) {
-  return (
-    <div ref={ref} className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-5 sm:p-6 relative book-page-curve-shading">
-      <div className="book-page-edge book-page-edge-right" />
-      {isLeftPage ? <div className="book-spine-shadow-right" /> : <div className="book-spine-shadow-left" />}
-      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4 relative z-[4]" />
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-primary)]/8 mb-3 relative z-[4]"><Sparkles size={20} className="text-[var(--bg-primary)]" /></div>
-      <h3 className="text-lg font-bold text-[var(--text-primary)] relative z-[4]">{name}</h3>
-      <div className="mt-2 h-0.5 w-12 rounded-full bg-[var(--accent-gold)]/40 relative z-[4]" />
-      <div className="h-px w-16 bg-[var(--bg-primary)]/20 mt-4 relative z-[4]" />
-    </div>
-  )
-})
-
 const PdfPageContent = forwardRef(function PdfPageContent({ imageUrl, title, pageNum, isLoading, isLeftPage }, ref) {
   return (
     <div ref={ref} className="relative h-full w-full bg-white">
@@ -564,8 +568,7 @@ function PageStrip({ pages, currentPage, onSelect, disabled }) {
             <div className={`flex h-full w-full items-center justify-center rounded-sm overflow-hidden ${i === 0 ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70" : "bg-[var(--bg-surface)]"}`}>
               {i === 0 ? <BookMarked size={12} className="text-white/80" /> :
                 pg?.type === "back-cover" ? <Heart size={12} className="text-[var(--bg-primary)]/30" /> :
-                  pg?.type === "section" ? <Sparkles size={12} className="text-[var(--bg-primary)]/40" /> :
-                    pg?.type === "pdf" ? <div className="flex flex-col items-center gap-0.5"><BookOpen size={10} className="text-[var(--bg-primary)]/50" /><span className="text-[6px] text-[var(--text-muted)]/50">PDF</span></div> :
+                  pg?.type === "pdf" ? <div className="flex flex-col items-center gap-0.5"><BookOpen size={10} className="text-[var(--bg-primary)]/50" /><span className="text-[6px] text-[var(--text-muted)]/50">PDF</span></div> :
                       pg?.type === "student-back" ? <div className="flex items-center justify-center"><GraduationCap size={10} className="text-[var(--bg-primary)]/30" /></div> :
                         pg?.data?.profile ? (
                           <div className="flex flex-col items-center gap-0.5">
@@ -959,7 +962,6 @@ const departmentOptions = useMemo(() => {
          const sectionMap = new Map(), unsectioned = []
          for (const fp of profiles) { const sn = fp.section_name || ""; if (sn) { if (!sectionMap.has(sn)) sectionMap.set(sn, []); sectionMap.get(sn).push(fp) } else unsectioned.push(fp) }
          for (const sec of sections) {
-           contentPages.push({ type: "section", name: sec.name })
            for (const sp of (sectionMap.get(sec.name) || [])) {
              contentPages.push({ type: "student", data: sp })
              contentPages.push({ type: "student-back", data: sp })
@@ -977,8 +979,7 @@ const departmentOptions = useMemo(() => {
        }
       } else if (sourceType === "pdfs") {
           // The YEARBOOK MAIN edition always comes first (it is global), followed by
-          // the student's course-scoped edition. A section divider marks the change
-          // so readers know they've switched from the main yearbook to their course.
+          // the student's course-scoped edition.
           //
           // Build the pdf body from a de-duplicated set of {id, pageNum} keys so the
           // same page never appears twice even when mainPdfPages and coursePdfPages
@@ -989,10 +990,6 @@ const departmentOptions = useMemo(() => {
           for (const pdf of mainPdfPages) {
             const cnt = getPdfCount(pdf)
             for (let i = 1; i <= cnt; i++) pushPdfPage(pdf, i)
-          }
-
-          if (mainPdfPages.length > 0 && coursePdfPages.length > 0) {
-            contentPages.push({ type: "section", name: selectedDepartment || "Department Yearbook" })
           }
 
           for (const pdf of coursePdfPages) {
@@ -1017,7 +1014,6 @@ const departmentOptions = useMemo(() => {
          const pdfSectionMap = new Map(), unsectionedPdfs = []
          for (const pdf of pdfPages) { const sn = pdf.section_name || ""; if (sn) { if (!pdfSectionMap.has(sn)) pdfSectionMap.set(sn, []); pdfSectionMap.get(sn).push(pdf) } else unsectionedPdfs.push(pdf) }
          for (const sec of sections) {
-           contentPages.push({ type: "section", name: sec.name })
            for (const sp of (sectionMap.get(sec.name) || [])) {
              contentPages.push({ type: "student", data: sp })
              contentPages.push({ type: "student-back", data: sp })
@@ -1107,7 +1103,7 @@ const departmentOptions = useMemo(() => {
   const displayPageList = useMemo(() => {
     if (!filtered) return bookPageList
     return bookPageList.filter((pg) => {
-       if (pg.type === "cover" || pg.type === "inside-cover" || pg.type === "back-cover" || pg.type === "section" || pg.type === "pdf") return true
+       if (pg.type === "cover" || pg.type === "inside-cover" || pg.type === "back-cover" || pg.type === "pdf") return true
       if (pg.type === "student" || pg.type === "student-back") return filteredIdSet.has(pg.data.profile?.id)
       return true
     })
@@ -1555,7 +1551,7 @@ const departmentOptions = useMemo(() => {
     )
 
    return (
-    <div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50" : "min-h-screen"}`}
+    <div ref={containerRef} className={`flex flex-col ${isFullscreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[100dvh] overflow-hidden sm:h-auto sm:min-h-screen sm:overflow-visible"}`}
       style={{ background: isFullscreen ? "linear-gradient(135deg, rgba(30,20,10,0.95) 0%, rgba(15,25,40,0.97) 50%, rgba(10,15,30,0.95) 100%)" : "linear-gradient(135deg, #faf8f5 0%, #f0ede8 30%, #e8e4de 60%, #f0ede8 100%)" }}>
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 right-1/4 h-64 w-64 rounded-full bg-amber-500/[0.04] blur-3xl" />
@@ -1568,12 +1564,12 @@ const departmentOptions = useMemo(() => {
           <div className={`absolute inset-0 pointer-events-none ${headerDark ? "bg-gradient-to-b from-white/[0.03] to-transparent" : "bg-gradient-to-b from-amber-500/[0.02] to-transparent"}`} />
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 sm:px-4 py-2.5 sm:py-3 relative">
             <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3">
-              <div className={`flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl shadow-lg ring-1 ${headerDark ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-[var(--bg-primary)]/30 ring-white/10" : "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/80 shadow-[var(--bg-primary)]/20 ring-black/10"}`}>
+              <div className={`hidden h-8 w-8 sm:flex sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl shadow-lg ring-1 ${headerDark ? "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/70 shadow-[var(--bg-primary)]/30 ring-white/10" : "bg-gradient-to-br from-[var(--bg-primary)] to-[var(--bg-primary)]/80 shadow-[var(--bg-primary)]/20 ring-black/10"}`}>
                 <BookMarked size={16} className="text-white sm:hidden" />
                 <BookMarked size={20} className="hidden text-white sm:block" />
               </div>
               <div className="min-w-0">
-                <h1 className={`truncate text-sm sm:text-base font-bold leading-tight tracking-tight ${headerDark ? "text-[#f0e6d3]" : "text-[#1a2a3a]"}`}>{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
+                <h1 className={`hidden truncate text-sm sm:block sm:text-base font-bold leading-tight tracking-tight ${headerDark ? "text-[#f0e6d3]" : "text-[#1a2a3a]"}`}>{data?.settings?.title || "NEMCO Digital Yearbook"}</h1>
                 {data?.settings?.subtitle && <p className={`hidden truncate text-[11px] leading-tight sm:block ${headerDark ? "text-[#f0e6d3]/50" : "text-[#1a2a3a]/50"}`}>{data.settings.subtitle}</p>}
               </div>
             </div>
@@ -1615,7 +1611,7 @@ const departmentOptions = useMemo(() => {
                  )
                )}
                <Button variant="ghost" size="icon-sm" className={`hidden h-7 w-7 sm:flex sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setShowStrip(!showStrip)} aria-label="Page thumbnails"><Grid3X3 size={15} /></Button>
-              <Button variant="ghost" size="icon-sm" className={`h-7 w-7 sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+              <Button variant="ghost" size="icon-sm" className={`hidden h-7 w-7 sm:flex sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </Button>
               <Button variant="ghost" size="icon-sm" className={`hidden h-7 w-7 sm:flex sm:h-8 sm:w-8 ${headerDark ? "text-[#f0e6d3]/60 hover:text-[#f0e6d3] hover:bg-white/[0.08]" : "text-[#1a2a3a]/55 hover:text-[#1a2a3a] hover:bg-black/[0.04]"}`} onClick={() => setSoundEnabled(!soundEnabled)} aria-label={soundEnabled ? "Mute" : "Sound on"}>
@@ -1638,7 +1634,6 @@ const departmentOptions = useMemo(() => {
                            const label = pg.type === "cover" ? "Cover" :
                              pg.type === "back-cover" ? "Back Cover" :
                              pg.type === "inside-cover" ? "Inside Cover" :
-                             pg.type === "section" ? pg.name :
                              pg.type === "pdf" ? `PDF: ${pg.data?.title || "Document"} — Page ${pg.pageNum}` :
                              pg.type === "student" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"}` :
                              pg.type === "student-back" ? `${pg.data.profile?.display_name || pg.data.profile?.full_name || "Student"} (back)` :
@@ -1710,7 +1705,7 @@ const departmentOptions = useMemo(() => {
         </div>
       )}
 
-      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 overflow-y-auto overflow-x-visible ${isFullscreen ? "p-2" : ""}`}>
+      <div className={`relative z-10 flex flex-1 flex-col items-center justify-center px-4 pt-3 pb-24 sm:py-6 overflow-y-auto overflow-x-visible book-viewport-scroll ${isFullscreen ? "p-2" : ""}`}>
         {bookReady && pdfPages.length > 0 && pdfLoading && (
           <div className="flex flex-col items-center gap-3 mb-4">
             <div className="relative"><div className="absolute inset-0 animate-ping rounded-full bg-[var(--accent-gold)]/20" /><BookMarked size={40} className="relative text-[var(--accent-gold)] animate-pulse" /></div>
@@ -1770,18 +1765,6 @@ const departmentOptions = useMemo(() => {
                   const dp = page._designPage
                   if (!dp) {
                     return <BookCover key="cover" title={data?.settings?.title} subtitle={data?.settings?.subtitle} />
-                  }
-                  if (dp.type === "section") {
-                    return (
-                      <div key="cover" className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[var(--bg-primary)]/3 via-white to-[var(--bg-primary)]/3 p-5 sm:p-6 relative book-page-curve-shading">
-                        <div className="book-page-edge book-page-edge-right" />
-                        <div className="h-px w-16 bg-[var(--bg-primary)]/20 mb-4 relative z-[4]" />
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-primary)]/8 mb-3 relative z-[4]"><Sparkles size={20} className="text-[var(--bg-primary)]" /></div>
-                        <h3 className="text-lg font-bold text-[var(--text-primary)] relative z-[4]">{dp.name}</h3>
-                        <div className="mt-2 h-0.5 w-12 rounded-full bg-[var(--accent-gold)]/40 relative z-[4]" />
-                        <div className="h-px w-16 bg-[var(--bg-primary)]/20 mt-4 relative z-[4]" />
-                      </div>
-                    )
                   }
                   if (dp.type === "student") {
                     const pr = dp.data.profile
@@ -1857,11 +1840,6 @@ if (dp.type === "pdf") {
                    <BackCover key="back-cover" title={data?.settings?.title} />
                  )
                }
-               if (page.type === "section") {
-                 return (
-                   <SectionPage key={`section-${page.name}`} name={page.name} isLeftPage={isLeftPage} />
-                 )
-               }
                if (page.type === "student") {
                  return (
                    <StudentPage key={`student-${page.data.profile?.id || idx}`} profile={page.data.profile} pageNum={idx} totalPages={totalPages - 3} visible={visible} isLeftPage={isLeftPage} />
@@ -1885,7 +1863,7 @@ if (page.type === "pdf") {
             )}
           </div>
 
-        <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : ""}`}>
+        <div className={`mt-4 w-full max-w-xs ${isFullscreen ? "hidden" : "hidden sm:block"}`}>
           <div className="h-1 rounded-full bg-black/10 overflow-hidden">
             <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-gold)] to-[var(--accent-gold)]/70 transition-all duration-500 ease-out"
               style={{ width: `${totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0}%` }} />
@@ -1904,7 +1882,7 @@ if (page.type === "pdf") {
             <ChevronLeft size={18} className="sm:hidden" />
             <ChevronLeft size={22} className="hidden sm:block" />
           </Button>
-          <div className="flex items-center gap-1 sm:gap-1.5">
+          <div className="hidden sm:flex items-center gap-1 sm:gap-1.5">
             {Array.from({ length: Math.min(totalPages, 11) }, (_, i) => {
               let pn
               if (totalPages <= 11) pn = i
@@ -1924,15 +1902,15 @@ if (page.type === "pdf") {
           </Button>
         </div>
 
-        <div className={`mt-3 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
+        <div className={`mt-3 flex items-center gap-3 ${isFullscreen ? "hidden" : "hidden sm:flex"}`}>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom out"><ZoomOut size={13} /></Button>
           <div className="h-1 w-20 rounded-full bg-black/10 overflow-hidden"><div className="h-full rounded-full bg-[var(--accent-gold)] transition-all" style={{ width: `${((zoom - 0.5) / 1) * 100}%` }} /></div>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom in"><ZoomIn size={13} /></Button>
         </div>
 
-        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : ""}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
+        <p className={`mt-2 text-[10px] text-[var(--text-muted)]/60 ${isFullscreen ? "hidden" : "hidden sm:block"}`}>Click left/right • drag • scroll • ← → keys • Ctrl+K search</p>
 
-        <div className={`mt-4 flex items-center gap-3 ${isFullscreen ? "hidden" : ""}`}>
+        <div className={`fixed bottom-0 inset-x-0 z-30 flex items-center justify-center gap-3 border-t border-black/10 bg-white/95 backdrop-blur-md px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] sm:static sm:z-auto sm:mt-4 sm:border-0 sm:bg-transparent sm:backdrop-blur-none sm:shadow-none sm:px-0 sm:pt-0 sm:pb-0 ${isFullscreen ? "hidden" : ""}`}>
           <DownloadPdfButton pageList={displayPageList} pdfImages={pdfImages} data={data} pdfImageDimensions={pdfImageDimensions} />
           <DownloadFlipbookButton pageList={displayPageList} pdfImages={pdfImages} data={data} />
         </div>
