@@ -172,37 +172,51 @@ function buildFlipbookHtml(title, pagesData) {
     background: rgba(26,26,46,0.94); backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
-  .toolbar h1 { font-size: 14px; font-weight: 700; color: #fff; }
-  .toolbar .sep { color: rgba(255,255,255,0.2); }
-  .toolbar .page-indicator { font-size: 12px; color: rgba(255,255,255,0.5); min-width: 90px; text-align: center; }
-  .toolbar .spacer { flex: 1; }
+  .toolbar h1 { font-size: 14px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toolbar .sep { color: rgba(255,255,255,0.2); flex-shrink: 0; }
+  .toolbar .page-indicator { font-size: 12px; color: rgba(255,255,255,0.5); min-width: 90px; text-align: center; flex-shrink: 0; }
+  .toolbar .spacer { flex: 1; min-width: 4px; }
   .toolbar button {
     padding: 6px 14px; border: 1px solid rgba(255,255,255,0.12);
     border-radius: 8px; background: rgba(255,255,255,0.06);
     cursor: pointer; font-size: 12px; color: rgba(255,255,255,0.8);
-    transition: background 0.2s;
+    transition: background 0.2s; flex-shrink: 0; white-space: nowrap;
   }
   .toolbar button:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
   .toolbar button:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
   .book-area {
-    position: fixed; top: 52px; bottom: 60px; left: 0; right: 0;
+    position: fixed; top: var(--bar-top, 52px); bottom: var(--bar-bottom, 60px); left: 0; right: 0;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-  .scene { perspective: 2000px; display: flex; align-items: center; justify-content: center; }
-  .book { position: relative; width: ${PAGE_W}px; height: ${PAGE_H}px; transform-style: preserve-3d; }
+  .scene {
+    perspective: 2000px; -webkit-perspective: 2000px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .book {
+    position: relative; width: var(--book-w, ${PAGE_W}px); height: var(--book-h, ${PAGE_H}px);
+    transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+  }
   .sheet {
     position: absolute; top: 0; left: 0;
-    width: ${PAGE_W}px; height: ${PAGE_H}px;
-    transform-style: preserve-3d; transform-origin: left center;
+    width: var(--book-w, ${PAGE_W}px); height: var(--book-h, ${PAGE_H}px);
+    transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+    transform-origin: left center; -webkit-transform-origin: left center;
     transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+    -webkit-transition: -webkit-transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+    transform: rotateY(0deg) translateZ(0); -webkit-transform: rotateY(0deg) translateZ(0);
+    will-change: transform;
   }
-  .sheet.flipped { transform: rotateY(-180deg); }
-  .face { position: absolute; inset: 0; backface-visibility: hidden; overflow: hidden; }
-  .face-back { transform: rotateY(180deg); }
+  .sheet.flipped { transform: rotateY(-180deg) translateZ(0); -webkit-transform: rotateY(-180deg) translateZ(0); }
+  .face {
+    position: absolute; inset: 0; overflow: hidden;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    transform: translateZ(0); -webkit-transform: translateZ(0);
+  }
+  .face-back { transform: rotateY(180deg) translateZ(0); -webkit-transform: rotateY(180deg) translateZ(0); }
   .page-content { width: 100%; height: 100%; }
   .nav-zone {
-    position: fixed; top: 52px; bottom: 60px; z-index: 100;
+    position: fixed; top: var(--bar-top, 52px); bottom: var(--bar-bottom, 60px); z-index: 100;
     cursor: pointer; transition: background 0.2s; pointer-events: auto;
   }
   .nav-zone:hover { background: rgba(255,255,255,0.02); }
@@ -212,6 +226,7 @@ function buildFlipbookHtml(title, pagesData) {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
     display: flex; align-items: center; justify-content: center; gap: 14px;
     padding: 12px 20px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
     background: rgba(26,26,46,0.94); backdrop-filter: blur(12px);
     border-top: 1px solid rgba(255,255,255,0.06);
   }
@@ -230,7 +245,16 @@ function buildFlipbookHtml(title, pagesData) {
     min-width: 100px; text-align: center;
   }
   @media (max-width: 640px) {
-    .book, .sheet { width: 320px; height: 440px; }
+    .toolbar { padding: 8px 10px; gap: 6px; }
+    .toolbar h1 { font-size: 12px; max-width: 40vw; }
+    .toolbar .page-indicator { display: none; }
+    .toolbar button { padding: 5px 9px; font-size: 11px; }
+    .toolbar #btnPrint { display: none; }
+    .bottom-bar { padding: 8px 10px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); gap: 8px; }
+    .bottom-bar .page-counter { font-size: 11px; min-width: 76px; }
+    .bottom-bar button { width: 32px; height: 32px; font-size: 13px; }
+    .nav-left { width: 10%; }
+    .nav-right { width: 10%; }
   }
   @media print {
     .toolbar, .bottom-bar, .nav-zone { display: none !important; }
@@ -243,14 +267,14 @@ function buildFlipbookHtml(title, pagesData) {
 </style>
 </head>
 <body>
-<div class="toolbar">
+<div class="toolbar" id="toolbar">
   <h1>📖 ${escapeHtml(title)}</h1>
   <span class="sep">|</span>
   <span class="page-indicator" id="pageIndicator">Cover</span>
   <div class="spacer"></div>
   <button id="btnPrev" onclick="changePage(-1)">← Prev</button>
   <button id="btnNext" onclick="changePage(1)">Next →</button>
-  <button onclick="window.print()">🖨️ Print</button>
+  <button id="btnPrint" onclick="window.print()">🖨️ Print</button>
 </div>
 <div class="book-area">
   <div class="scene">
@@ -259,7 +283,7 @@ function buildFlipbookHtml(title, pagesData) {
 </div>
 <div class="nav-zone nav-left" id="navLeft" onclick="changePage(-1)"></div>
 <div class="nav-zone nav-right" id="navRight" onclick="changePage(1)"></div>
-<div class="bottom-bar">
+<div class="bottom-bar" id="bottomBar">
   <button id="btnFirst" onclick="goToPage(0)" aria-label="First">⏮</button>
   <button id="btnBottomPrev" onclick="changePage(-1)" aria-label="Previous">◀</button>
   <span class="page-counter" id="bottomCounter">Page 1 of ${totalSheets}</span>
@@ -278,6 +302,44 @@ function buildFlipbookHtml(title, pagesData) {
   var book = document.getElementById('book');
   var currentPage = 0;
   var isAnimating = false;
+
+  var BOOK_ASPECT = ${PAGE_W} / ${PAGE_H};
+  var MAX_W = ${PAGE_W}, MAX_H = ${PAGE_H};
+  var MIN_W = 220, MIN_H = Math.round(220 / BOOK_ASPECT);
+  var MOBILE_BREAKPOINT = 640;
+  var toolbarEl = document.getElementById('toolbar');
+  var bottomBarEl = document.getElementById('bottomBar');
+  function layout() {
+    var barTop = toolbarEl ? toolbarEl.getBoundingClientRect().height : 52;
+    var barBottom = bottomBarEl ? bottomBarEl.getBoundingClientRect().height : 60;
+    document.documentElement.style.setProperty('--bar-top', barTop + 'px');
+    document.documentElement.style.setProperty('--bar-bottom', barBottom + 'px');
+
+    var vv = window.visualViewport;
+    var viewportW = vv ? vv.width : window.innerWidth;
+    var viewportH = vv ? vv.height : window.innerHeight;
+    var isMobile = viewportW < MOBILE_BREAKPOINT;
+    var pad = isMobile ? 12 : 24; // breathing room; tighter on phones so the single page fills the screen
+    var availW = viewportW - pad;
+    var availH = viewportH - barTop - barBottom - pad;
+    var w = Math.min(MAX_W, availW);
+    var h = Math.round(w / BOOK_ASPECT);
+    if (h > availH) {
+      h = Math.max(MIN_H, Math.min(availH, MAX_H));
+      w = Math.round(h * BOOK_ASPECT);
+    }
+    w = Math.max(MIN_W, w);
+    h = Math.max(MIN_H, h);
+    document.documentElement.style.setProperty('--book-w', w + 'px');
+    document.documentElement.style.setProperty('--book-h', h + 'px');
+  }
+  layout();
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', layout);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', layout);
+    window.visualViewport.addEventListener('scroll', layout);
+  }
 
   function renderSheets() {
     book.innerHTML = '';
@@ -397,6 +459,10 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
         if ((page.type === "student" || page.type === "student-back") && page.data?.profile?.avatar_url) {
           avatarUrls.add(page.data.profile.avatar_url)
         }
+        if (page.type === "cover" && (page._designPage?.type === "student" || page._designPage?.type === "student-back")) {
+          const coverAvatar = page._designPage.data?.profile?.avatar_url
+          if (coverAvatar) avatarUrls.add(coverAvatar)
+        }
       }
 
       const avatarMap = {}
@@ -471,6 +537,7 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
       setProgress(null)
 
       const pagesData = pageList.map((page) => {
+<<<<<<< HEAD
         if (page.type === "cover") return buildCoverContent(title, subtitle)
         if (page.type === "back-cover") {
           const dp = page._designPage
@@ -480,6 +547,26 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
           }
           return buildBackCoverContent(title, subtitle)
         }
+=======
+        if (page.type === "cover") {
+          const dp = page._designPage
+          if (dp?.type === "pdf") {
+            const imgKey = `${dp.data.id}-${dp.pageNum}`
+            const imgData = pdfImages[imgKey]
+            if (imgData) return buildPdfContent(imgData, dp.data.title, dp.pageNum)
+          } else if (dp?.type === "section") {
+            return buildSectionContent(dp.name || "Section")
+          } else if (dp?.type === "student") {
+            const profile = dp.data?.profile
+            const avatar = profile?.avatar_url ? avatarMap[profile.avatar_url] || null : null
+            return buildStudentContent(profile, avatar)
+          } else if (dp?.type === "student-back") {
+            return buildStudentBackContent(dp.data?.profile)
+          }
+          return buildCoverContent(title, subtitle)
+        }
+        if (page.type === "back-cover") return buildBackCoverContent(title)
+>>>>>>> 90d84e18fcf97b37e9d58a51bd02561e447c21aa
         if (page.type === "section") return buildSectionContent(page.name || "Section")
         if (page.type === "student") {
           const profile = page.data?.profile
