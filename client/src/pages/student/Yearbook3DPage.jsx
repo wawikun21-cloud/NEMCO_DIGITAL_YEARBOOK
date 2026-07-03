@@ -1991,7 +1991,7 @@ if (page.type === "pdf") {
           </Button>
         </div>
 
-        <div className={`mt-3 flex items-center gap-3 ${isFullscreen ? "hidden" : "hidden sm:flex"}`}>
+        <div className={`mt-3 flex items-center gap-3 ${isFullscreen}`}>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom out"><ZoomOut size={13} /></Button>
           <div className="h-1 w-20 rounded-full bg-black/10 overflow-hidden"><div className="h-full rounded-full bg-[var(--accent-gold)] transition-all" style={{ width: `${((zoom - 0.5) / 1) * 100}%` }} /></div>
           <Button variant="ghost" size="icon-sm" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} className="h-7 w-7 text-[var(--text-muted)]" aria-label="Zoom in"><ZoomIn size={13} /></Button>

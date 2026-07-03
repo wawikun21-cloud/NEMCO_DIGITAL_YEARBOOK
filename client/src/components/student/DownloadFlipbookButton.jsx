@@ -537,17 +537,6 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
       setProgress(null)
 
       const pagesData = pageList.map((page) => {
-<<<<<<< HEAD
-        if (page.type === "cover") return buildCoverContent(title, subtitle)
-        if (page.type === "back-cover") {
-          const dp = page._designPage
-          if (dp?.type === "pdf") {
-            const imgKey = `${dp.data.id}-${dp.pageNum}`
-            return buildBackCoverContent(title, subtitle, localImages[imgKey] || null)
-          }
-          return buildBackCoverContent(title, subtitle)
-        }
-=======
         if (page.type === "cover") {
           const dp = page._designPage
           if (dp?.type === "pdf") {
@@ -566,7 +555,6 @@ export default function DownloadFlipbookButton({ pageList, pdfImages, data }) {
           return buildCoverContent(title, subtitle)
         }
         if (page.type === "back-cover") return buildBackCoverContent(title)
->>>>>>> 90d84e18fcf97b37e9d58a51bd02561e447c21aa
         if (page.type === "section") return buildSectionContent(page.name || "Section")
         if (page.type === "student") {
           const profile = page.data?.profile
