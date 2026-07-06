@@ -12,6 +12,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 const MAX_IMAGE_WIDTH = 1200
 const JPEG_QUALITY = 0.8
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const DEFAULT_ZOOM_INDEX = 2 // 1 = 100%
 
 function escapeHtml(str) {
   if (!str) return ""
@@ -184,18 +186,49 @@ function buildFlipbookHtml(title, pagesData) {
   }
   .toolbar button:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
   .toolbar button:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+  .toolbar .zoom-control {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,0.04); border-radius: 8px; padding: 3px;
+  }
+  .toolbar .zoom-control button {
+    width: 28px; height: 28px; padding: 0; font-size: 14px;
+  }
+  .toolbar .zoom-control .zoom-indicator {
+    font-size: 11px; color: rgba(255,255,255,0.6); min-width: 36px; text-align: center;
+  }
+  .toolbar .zoom-control button:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
   .book-area {
     position: fixed; top: var(--bar-top, 52px); bottom: var(--bar-bottom, 60px); left: 0; right: 0;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
+  .book-area.zoomed {
+    overflow: auto;
+    justify-content: safe center;
+    align-items: safe center;
+    cursor: grab;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.35) rgba(255,255,255,0.06);
+  }
+  .book-area.zoomed:active { cursor: grabbing; }
+  .book-area.zoomed::-webkit-scrollbar { width: 10px; height: 10px; }
+  .book-area.zoomed::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); }
+  .book-area.zoomed::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.35); border-radius: 6px;
+    border: 2px solid transparent; background-clip: padding-box;
+  }
+  .book-area.zoomed::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.55); background-clip: padding-box; }
+  .book-area.zoomed::-webkit-scrollbar-corner { background: transparent; }
   .scene {
     perspective: 2000px; -webkit-perspective: 2000px;
     display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
   .book {
     position: relative; width: var(--book-w, ${PAGE_W}px); height: var(--book-h, ${PAGE_H}px);
     transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+    transform-origin: center center;
+    transition: transform 0.2s ease, width 0.3s ease, height 0.3s ease;
   }
   .sheet {
     position: absolute; top: 0; left: 0;
@@ -268,14 +301,20 @@ function buildFlipbookHtml(title, pagesData) {
 </head>
 <body>
 <div class="toolbar" id="toolbar">
-  <h1>📖 ${escapeHtml(title)}</h1>
-  <span class="sep">|</span>
-  <span class="page-indicator" id="pageIndicator">Cover</span>
-  <div class="spacer"></div>
-  <button id="btnPrev" onclick="changePage(-1)">← Prev</button>
-  <button id="btnNext" onclick="changePage(1)">Next →</button>
-  <button id="btnPrint" onclick="window.print()">🖨️ Print</button>
-</div>
+   <h1>📖 ${escapeHtml(title)}</h1>
+   <span class="sep">|</span>
+   <span class="page-indicator" id="pageIndicator">Cover</span>
+   <div class="spacer"></div>
+   <div class="zoom-control">
+     <button id="btnZoomOut" onclick="zoom(-1)" aria-label="Zoom Out">−</button>
+     <span class="zoom-indicator" id="zoomIndicator">100%</span>
+     <button id="btnZoomIn" onclick="zoom(1)" aria-label="Zoom In">+</button>
+   </div>
+   <span class="sep">|</span>
+   <button id="btnPrev" onclick="changePage(-1)">← Prev</button>
+   <button id="btnNext" onclick="changePage(1)">Next →</button>
+   <button id="btnPrint" onclick="window.print()">🖨️ Print</button>
+  </div>
 <div class="book-area">
   <div class="scene">
     <div class="book" id="book"></div>
@@ -303,9 +342,11 @@ function buildFlipbookHtml(title, pagesData) {
   var currentPage = 0;
   var isAnimating = false;
 
-  var BOOK_ASPECT = ${PAGE_W} / ${PAGE_H};
-  var MAX_W = ${PAGE_W}, MAX_H = ${PAGE_H};
-  var MIN_W = 220, MIN_H = Math.round(220 / BOOK_ASPECT);
+var BOOK_ASPECT = ${PAGE_W} / ${PAGE_H};
+   var MAX_W = ${PAGE_W}, MAX_H = ${PAGE_H};
+   var MIN_W = 220, MIN_H = Math.round(220 / BOOK_ASPECT);
+   var ZOOM_LEVELS = ${JSON.stringify(ZOOM_LEVELS)};
+   var zoomLevel = ${DEFAULT_ZOOM_INDEX};
   var MOBILE_BREAKPOINT = 640;
   var toolbarEl = document.getElementById('toolbar');
   var bottomBarEl = document.getElementById('bottomBar');
@@ -339,6 +380,67 @@ function buildFlipbookHtml(title, pagesData) {
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', layout);
     window.visualViewport.addEventListener('scroll', layout);
+  }
+
+  var bookAreaEl = document.querySelector('.book-area');
+
+  function applyZoom() {
+    var scale = ZOOM_LEVELS[zoomLevel];
+    if (book) {
+      book.style.transform = 'scale(' + scale + ')';
+    }
+    var indicator = document.getElementById('zoomIndicator');
+    if (indicator) indicator.textContent = Math.round(scale * 100) + '%';
+    var btnOut = document.getElementById('btnZoomOut');
+    var btnIn = document.getElementById('btnZoomIn');
+    if (btnOut) btnOut.disabled = zoomLevel <= 0;
+    if (btnIn) btnIn.disabled = zoomLevel >= ZOOM_LEVELS.length - 1;
+    if (bookAreaEl) {
+      if (scale > 1) bookAreaEl.classList.add('zoomed');
+      else {
+        bookAreaEl.classList.remove('zoomed');
+        bookAreaEl.scrollLeft = 0;
+        bookAreaEl.scrollTop = 0;
+      }
+    }
+  }
+
+  window.zoom = function(dir) {
+    var next = zoomLevel + dir;
+    if (next < 0 || next >= ZOOM_LEVELS.length) return;
+    zoomLevel = next;
+    applyZoom();
+  };
+
+  window.resetZoom = function() {
+    zoomLevel = ${DEFAULT_ZOOM_INDEX};
+    applyZoom();
+  };
+
+  if (bookAreaEl) {
+    bookAreaEl.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      window.zoom(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+
+    var isPanning = false, panStartX = 0, panStartY = 0, panScrollX = 0, panScrollY = 0;
+    bookAreaEl.addEventListener('mousedown', function(e) {
+      if (!bookAreaEl.classList.contains('zoomed')) return;
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panScrollX = bookAreaEl.scrollLeft;
+      panScrollY = bookAreaEl.scrollTop;
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!isPanning) return;
+      bookAreaEl.scrollLeft = panScrollX - (e.clientX - panStartX);
+      bookAreaEl.scrollTop = panScrollY - (e.clientY - panStartY);
+    });
+    window.addEventListener('mouseup', function() { isPanning = false; });
+    window.addEventListener('mouseleave', function() { isPanning = false; });
   }
 
   function renderSheets() {
@@ -423,6 +525,9 @@ function buildFlipbookHtml(title, pagesData) {
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); window.changePage(-1); }
     else if (e.key === 'Home') { e.preventDefault(); window.goToPage(0); }
     else if (e.key === 'End') { e.preventDefault(); window.goToPage(totalSheets - 1); }
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); window.zoom(1); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); window.zoom(-1); }
+    else if (e.key === '0') { e.preventDefault(); window.resetZoom(); }
   });
 
   var touchStartX = 0;
@@ -434,6 +539,7 @@ function buildFlipbookHtml(title, pagesData) {
 
   renderSheets();
   updateView();
+  applyZoom();
 })();
 </script>
 </body>
